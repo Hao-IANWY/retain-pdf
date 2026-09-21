@@ -31,7 +31,8 @@ const n = [
   "fetchFavorites",
   "deleteFavorite",
   "credentialsPort",
-  "askDocumentAi"
+  "askDocumentAi",
+  "renderReaderTerminal"
 ], c = [
   "resolveMarkdownAssetUrl",
   "resolveReaderDownloadUrls",

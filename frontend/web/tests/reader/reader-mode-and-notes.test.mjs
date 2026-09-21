@@ -93,7 +93,11 @@ test("ReaderFab exposes favorites/markdown/ai aligned with the tool registry", (
   );
   // FAB 的 markdown/ai 与 Dock 同行为：走辅助面板 toggle，而非 tools。
   assert.match(app, /if \(id === "markdown" \|\| id === "ai"\)/);
-  assert.match(app, /assistantPanel \?\? tools\.active/);
+  // FAB 高亮仍以辅助面板为真源，只是终端不在 FAB 的工具注册表（READER_TOOLS）
+  // 里、也没有 FAB 图标，所以先滤掉再回退到 tools。两半都钉住：只钉后半句的话，
+  // 有人把过滤去掉会让 FAB 拿到一个它渲染不了的 id。
+  assert.match(app, /assistantPanel === "terminal" \? null : assistantPanel/);
+  assert.match(app, /fabAssistantTool \?\? tools\.active/);
 });
 
 test("ReaderAppReactPdf restores and persists reading mode with a sourceViewOnly guard", () => {

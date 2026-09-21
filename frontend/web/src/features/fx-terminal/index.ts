@@ -1,6 +1,7 @@
 export { FxTerminal } from "./ui/FxTerminal.js";
 export { echoTerminalSession } from "./domain/terminal-session.js";
 export {
+  DEFAULT_TERMINAL_PATH,
   terminalSocketUrl,
   websocketTerminalSession,
 } from "./domain/websocket-session.js";

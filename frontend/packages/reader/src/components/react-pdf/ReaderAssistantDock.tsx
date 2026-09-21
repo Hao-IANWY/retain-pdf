@@ -1,15 +1,31 @@
-import { FileCode2, Sparkles, X } from "lucide-react";
+import { FileCode2, Sparkles, SquareTerminal, X } from "lucide-react";
 import type { ReactElement } from "react";
+import { getReaderAdapters } from "../../adapters.js";
 import { useReaderContext } from "./reader-context.js";
 import type { ReaderAssistantPanel } from "./reader-assistant-types.js";
 
 // 既有 import 兼容：类型真值已移至叶子文件。
 export type { ReaderAssistantPanel } from "./reader-assistant-types.js";
 
-const PANELS = [
-  { id: "markdown", label: "Markdown", Icon: FileCode2 },
-  { id: "ai", label: "AI 问答", Icon: Sparkles },
+const BASE_PANELS = [
+  { id: "markdown", label: "Markdown", short: "MD", Icon: FileCode2 },
+  { id: "ai", label: "AI 问答", short: "AI", Icon: Sparkles },
 ] as const;
+
+const TERMINAL_PANEL = {
+  id: "terminal",
+  label: "终端",
+  short: "SH",
+  Icon: SquareTerminal,
+} as const;
+
+/** 宿主没注册终端渲染器时不显示这个 tab。
+ *
+ * 点了没反应的 tab 比没有这个功能更糟 —— 用户会以为是坏了。 */
+function panelsFor(): readonly { id: string; label: string; short: string; Icon: typeof FileCode2 }[] {
+  const hasTerminal = typeof getReaderAdapters()?.renderReaderTerminal === "function";
+  return hasTerminal ? [...BASE_PANELS, TERMINAL_PANEL] : BASE_PANELS;
+}
 
 export type ReaderAssistantDockProps = {
   active: ReaderAssistantPanel | null;
@@ -27,20 +43,21 @@ export function ReaderAssistantDock(props: ReaderAssistantDockProps): ReactEleme
   const { active } = props;
   const onSelect = props.onSelect ?? ctx?.assistant.select ?? (() => {});
   const onClose = props.onClose ?? ctx?.assistant.close ?? (() => {});
+  const PANELS = panelsFor();
   if (!active) {
     return (
       <nav className="reader-assistant-rail" aria-label="阅读辅助工具">
-        {PANELS.map(({ id, label, Icon }) => (
+        {PANELS.map(({ id, label, short, Icon }) => (
           <button
             key={id}
             type="button"
             className="reader-assistant-rail-button"
             aria-label={`打开${label}`}
             title={label}
-            onClick={() => onSelect(id)}
+            onClick={() => onSelect(id as never)}
           >
             <Icon size={18} strokeWidth={2} aria-hidden />
-            <span>{label === "AI 问答" ? "AI" : "MD"}</span>
+            <span>{short}</span>
           </button>
         ))}
       </nav>
@@ -59,7 +76,7 @@ export function ReaderAssistantDock(props: ReaderAssistantDockProps): ReactEleme
               role="tab"
               aria-selected={selected}
               className={`reader-assistant-dock-tab${selected ? " is-active" : ""}`}
-              onClick={() => onSelect(id)}
+              onClick={() => onSelect(id as never)}
             >
               <Icon size={15} strokeWidth={2.15} aria-hidden />
               <span>{label}</span>

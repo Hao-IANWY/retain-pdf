@@ -70,7 +70,7 @@ test("url: http 转 ws，并带上 api_key 和 session", () => {
     }),
   );
   assert.equal(url.protocol, "ws:");
-  assert.equal(url.pathname, "/v1/fx/terminal");
+  assert.equal(url.pathname, "/api/v1/ai/terminal");
   assert.equal(url.searchParams.get("api_key"), "secret");
   assert.equal(url.searchParams.get("session"), "job-7");
 });

@@ -2,6 +2,7 @@ import type { createReaderDataPort } from "./runtime/data.js";
 import type { createReaderPageConfigPort } from "./runtime/config.js";
 import type { FavoriteApiRecord, ServerFavoriteRaw } from "./shared/types/types.js";
 import type { askLibraryAi } from "@retainpdf/api/ai";
+import type { ReactNode } from "react";
 import type { ReaderLiveTranslationPort } from "./contracts/live-translation.js";
 import type { ReaderPdfPort } from "./contracts/pdf.js";
 import type { ReaderSessionDataPort } from "./contracts/session.js";
@@ -81,13 +82,32 @@ export type ReaderAiAdapters = {
     /** Canonical /ai/ask client supplied by the host (SSE + credentials). */
     askDocumentAi: (options: Parameters<typeof askLibraryAi>[0]) => ReturnType<typeof askLibraryAi>;
 };
-export type ReaderAdapters = ReaderSessionAdapters & ReaderMarkdownAdapters & ReaderDownloadAdapters & ReaderFavoritesAdapters & ReaderCredentialsAdapters & ReaderAiAdapters;
+/** 宿主往辅助面板里塞一块自己的 UI 时拿到的东西。 */
+export type ReaderTerminalSlotProps = {
+    open: boolean;
+    /** 同一个 key 接回同一份终端会话。用 jobId，换文档就换终端。 */
+    sessionKey: string;
+    onClose: () => void;
+};
+export type ReaderTerminalAdapters = {
+    /** 终端面板由**宿主**渲染。
+     *
+     * 本包不认识终端用什么渲染，也不认识它连到哪 —— 那是 RetainPDF 应用的东西，
+     * 而这个包要能被别的宿主用。所以这里只留一个槽：包决定它在 dock 里的位置和
+     * 生命周期，内容宿主给。
+     *
+     * 不提供 = 这个 tab 在 dock 里根本不出现。留一个点了没反应的 tab 比没有
+     * 这个功能更糟。
+     */
+    renderReaderTerminal?: (props: ReaderTerminalSlotProps) => ReactNode;
+};
+export type ReaderAdapters = ReaderSessionAdapters & ReaderMarkdownAdapters & ReaderDownloadAdapters & ReaderFavoritesAdapters & ReaderCredentialsAdapters & ReaderAiAdapters & ReaderTerminalAdapters;
 /**
  * ReaderAdapters 声明键的运行时镜像（TS 类型在运行时被擦除）。
  * 注册层与门禁测试共用，避免手工复制字段集漂移；`satisfies` 保证不引入拼错键。
  * 完整性由紧随其后的编译期断言守护。
  */
-export declare const READER_ADAPTER_KEYS: readonly ["isMockMode", "resolveResourceUrl", "fetchProtected", "resolvePdfjsVendorUrl", "defaultReaderDataPort", "defaultReaderPageConfigPort", "resolveReaderAnchor", "resolveReaderDocumentId", "resolveReaderJobId", "resolveReaderArtifactUrl", "resolveReaderSourcePdf", "resolveReaderTranslatedPdfUrl", "liveTranslation", "pdf", "sessionData", "aiOperations", "conversations", "askChat", "resolveMarkdownAssetUrl", "resolveReaderDownloadUrls", "resolveReaderDownloadName", "downloadProtectedResource", "failDownloadToast", "apiPrefix", "fetchDocumentByJobId", "createFavorite", "fetchFavorites", "deleteFavorite", "credentialsPort", "askDocumentAi"];
+export declare const READER_ADAPTER_KEYS: readonly ["isMockMode", "resolveResourceUrl", "fetchProtected", "resolvePdfjsVendorUrl", "defaultReaderDataPort", "defaultReaderPageConfigPort", "resolveReaderAnchor", "resolveReaderDocumentId", "resolveReaderJobId", "resolveReaderArtifactUrl", "resolveReaderSourcePdf", "resolveReaderTranslatedPdfUrl", "liveTranslation", "pdf", "sessionData", "aiOperations", "conversations", "askChat", "resolveMarkdownAssetUrl", "resolveReaderDownloadUrls", "resolveReaderDownloadName", "downloadProtectedResource", "failDownloadToast", "apiPrefix", "fetchDocumentByJobId", "createFavorite", "fetchFavorites", "deleteFavorite", "credentialsPort", "askDocumentAi", "renderReaderTerminal"];
 /** 必填（非 `?`）适配键子集，供门禁断言最小注入面。 */
 export declare const READER_REQUIRED_ADAPTER_KEYS: readonly ["resolveMarkdownAssetUrl", "resolveReaderDownloadUrls", "resolveReaderDownloadName", "downloadProtectedResource", "failDownloadToast", "fetchDocumentByJobId", "createFavorite", "fetchFavorites", "deleteFavorite", "credentialsPort", "askDocumentAi"];
 export declare function setReaderAdapters(a: ReaderAdapters | null): void;

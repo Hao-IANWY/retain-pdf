@@ -6,3 +6,39 @@
  */
 @import "tailwindcss";
 @import "../../../../../frontend/packages/reader/styles/entry.css";
+
+/* —— 宿主专有：fx 终端面板 ——
+ *
+ * 不进 @retainpdf/reader 的 styles/：那个包不认识 xterm，也不该认识。
+ * 包只在 dock 里留了个槽，内容和样式都由宿主给（见
+ * features/reader/domain/host/terminal.tsx）。
+ *
+ * xterm 自带的那份只提供结构（光标、选区、滚动条几何），**不含配色** ——
+ * 配色由 features/fx-terminal 从皮肤令牌读出来喂给 xterm 的 ITheme，
+ * 所以换肤不需要动这里。
+ */
+@import "@xterm/xterm/css/xterm.css" layer(pages);
+
+@layer pages {
+  .reader-terminal-panel {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    height: 100%;
+    padding: 0.5rem;
+    background: var(--surface);
+  }
+
+  .reader-terminal-panel[hidden] {
+    display: none;
+  }
+
+  /* xterm 自己算尺寸，容器必须给出确定的高度，否则 fit() 会算成 1 行。 */
+  .reader-terminal-surface {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+  }
+}

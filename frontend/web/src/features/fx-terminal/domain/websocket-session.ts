@@ -22,8 +22,10 @@ import type {
 } from "./terminal-session.js";
 
 export type WebSocketTerminalOptions = {
-  /** AI 服务地址，例如 http://127.0.0.1:41100 */
+  /** 服务地址。浏览器只认 Rust API —— AI 服务只监听回环，前端不直连。 */
   baseUrl: string;
+  /** WebSocket 路径。默认走 Rust API 的代理路由。 */
+  path?: string;
   apiKey: string;
   /** 同一个 session 名会接回 fx 的同一份私有 workspace。 */
   session?: string;
@@ -32,12 +34,15 @@ export type WebSocketTerminalOptions = {
 };
 
 /** http(s) → ws(s)，并挂上鉴权与会话参数。 */
+export const DEFAULT_TERMINAL_PATH = "/api/v1/ai/terminal";
+
 export function terminalSocketUrl({
   baseUrl,
   apiKey,
   session = "default",
+  path = DEFAULT_TERMINAL_PATH,
 }: WebSocketTerminalOptions): string {
-  const url = new URL("/v1/fx/terminal", baseUrl);
+  const url = new URL(path, baseUrl);
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
   url.searchParams.set("api_key", apiKey);
   url.searchParams.set("session", session);

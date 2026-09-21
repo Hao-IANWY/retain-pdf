@@ -1,4 +1,5 @@
 // 从 frontend/web 迁入的 React-pdf 视图真值，现为 @retainpdf/reader 主入口
+import { getReaderAdapters } from "./adapters.js";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useReaderReactController } from "./hooks/use-reader-react-controller.js";
 import { useReaderKeyboard } from "./hooks/use-reader-keyboard.js";
@@ -172,7 +173,11 @@ export function resolveInitialAssistantPanel(
 ): ReaderAssistantPanel | null {
   // A newly opened job always starts in its canonical PDF comparison view.
   if (mode === "compare") return null;
-  if (saved?.assistantPanel === "markdown" || saved?.assistantPanel === "ai") {
+  if (
+    saved?.assistantPanel === "markdown"
+    || saved?.assistantPanel === "ai"
+    || saved?.assistantPanel === "terminal"
+  ) {
     return saved.assistantPanel;
   }
   // One-time migration from the former arbitrary two-pane layout.
@@ -275,6 +280,10 @@ export function ReaderAppReactPdf() {
   const favoritesMounted = useMountedSinceFirstOpen(tools.isOpen("favorites"));
   const markdownMounted = useMountedSinceFirstOpen(assistantPanel === "markdown");
   const aiMounted = useMountedSinceFirstOpen(assistantPanel === "ai");
+  // 终端一旦开过就保持挂载：卸载 = 关 WebSocket = 杀掉 PTY 子进程，
+  // 用户切个 tab 回来会发现 fx 的会话没了。
+  const terminalMounted = useMountedSinceFirstOpen(assistantPanel === "terminal");
+  const renderTerminal = getReaderAdapters()?.renderReaderTerminal;
   // 键盘与 UI 共用同一「可见模式」真源：paneComposition.visibleMode。
   // 「0」重置缩放据此取模式默认，避免与 HUD/网格显示的模式脱节。
   useReaderKeyboard({
@@ -358,9 +367,12 @@ export function ReaderAppReactPdf() {
     tools.toggle(id);
   }, [assistantPanel, toggleNotes, tools]);
   // FAB 高亮：批注 > 辅助面板（与 Dock 同真源）> tools（摘录）。
+  // 终端住在 dock 里，不在 FAB 的工具注册表（READER_TOOLS）里，所以它打开时
+  // FAB 不高亮任何东西 —— 而不是硬塞一个 FAB 没有图标的 id 进去。
+  const fabAssistantTool = assistantPanel === "terminal" ? null : assistantPanel;
   const fabActiveTool: ReaderFabToolId | null = notesOpen
     ? "notes"
-    : (assistantPanel ?? tools.active);
+    : (fabAssistantTool ?? tools.active);
 
   const askSelectedRegion = useCallback((selection: ReaderSelection) => {
     const pdf = selection.pane === "translated" && !sourceViewOnly
@@ -460,6 +472,14 @@ export function ReaderAppReactPdf() {
           {markdownMounted ? <ReaderMarkdownPanel open={assistantPanel === "markdown"} jobId={session.jobId} sourceOnly={c.sourceOnly} layout="workspace" side="right" onClose={closeAssistant} /> : null}
           {aiMounted ? <ReaderAiPanel key={session.documentId || session.jobId || "reader-ai-pending"} open={assistantPanel === "ai"} jobId={session.jobId} documentId={session.documentId} sessionIdentity={session.sessionIdentity} layout={resolveReaderAiLayout(c.mode)} side="right" selectionContext={aiSelectionContext} onClearSelectionContext={() => setAiSelectionContext(null)} onClose={closeAssistant} onJumpCitation={jumpCitation} onDocumentCommitted={refreshCommittedDocument} /> : null}
         </Suspense>
+        {terminalMounted && renderTerminal
+          ? renderTerminal({
+              open: assistantPanel === "terminal",
+              // 换文档就换终端会话；同一文档来回切 tab 接回同一个。
+              sessionKey: session.jobId || session.documentId || "reader",
+              onClose: closeAssistant,
+            })
+          : null}
         <ReaderNotesPanel
           open={notesOpen}
           groups={annotations.groups}

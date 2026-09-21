@@ -43,6 +43,8 @@ const adapters: ReaderAdapters = {
   credentialsPort: ext.defaultCredentialsStatePort,
   // —— AI ——
   askDocumentAi: ext.askLibraryAi,
+  // —— terminal ——
+  renderReaderTerminal: ext.renderReaderTerminal,
 };
 setReaderAdapters(adapters);
 export { adapters as retainPdfReaderAdapters };
