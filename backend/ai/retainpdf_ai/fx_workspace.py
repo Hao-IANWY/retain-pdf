@@ -120,7 +120,7 @@ def build_job_workspace_instructions(job_dir: Path) -> str:
     translation_diagnostics.json
 
     jq '.issue_summary' ../artifacts/translation_review.json
-    jq -r '.issues[] | "\(.page_number) \(.item_id) \(.kind)"' ../artifacts/translation_review.json
+    jq -r '.issues[] | "\\(.page_number) \\(.item_id) \\(.kind)"' ../artifacts/translation_review.json
 
 ### 其余
 
@@ -134,6 +134,37 @@ def build_job_workspace_instructions(job_dir: Path) -> str:
 ## 可以自由读写的地方
 
 **只有当前目录。** 笔记、脚本、中间产物都放这里。
+
+## 界面会读这两个文件（写了就能在阅读页里看到）
+
+### `./canvas.v1.json` — 概念图，显示在「画布」标签页
+
+**只写语义，不要写坐标、颜色、图形。** 位置由边的关系算出来（没有入边的排最左，
+其余在所有上游的右边一列），画出来是什么样不用你操心。
+
+    {{"schema": "retainpdf_reading_canvas_v1",
+     "nodes": [
+       {{"id": "n1", "kind": "concept", "text": "一句话说清这个点",
+        "anchor": {{"page_idx": 1, "block_id": "取自 document.v1.json"}}}}
+     ],
+     "edges": [{{"from": "n1", "to": "n2", "label": "因此"}}]}}
+
+    id      任意字符串，边靠它引用；重复的会被丢掉
+    text    必填。没有 text 的节点整个丢掉
+    kind    concept / note / question / warning / result，决定颜色；别的值算灰色
+    anchor  可选。**有 anchor 的节点点一下会跳到 PDF 那个位置**，没有的画成虚线
+    edges   from/to 指向不存在的节点会被丢掉；自环也会
+
+`block_id` 必须是 `../ocr/normalized/document.v1.json` 里真实存在的：
+
+    jq -r '.pages[1].blocks[] | "\\(.block_id) \\(.type)"' ../ocr/normalized/document.v1.json
+
+### `./reading-path.v1.json` — 阅读顺序，显示在「阅读路径」标签页
+
+    {{"steps": [{{"order": 1, "page_idx": 0, "block_id": "b-abstract",
+                "why": "为什么先读这里"}}]}}
+
+两个都有时界面显示画布。写坏了界面会直接说「读不懂」，不会悄悄显示旧的。
 
 ## `../` 只读 —— 不要修改或删除
 

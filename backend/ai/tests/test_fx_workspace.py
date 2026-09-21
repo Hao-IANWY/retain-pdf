@@ -244,3 +244,81 @@ def test_denying_nothing_is_expressible(tmp_path: Path) -> None:
     apply_terminal_permissions(home, ())
     block = json.loads((home / ".fx" / "settings.json").read_text())["permission"]
     assert block["shell"] == {"*": "allow"}
+
+
+# ---------------------------------------------------------------- 界面契约
+#
+# canvas.v1.json / reading-path.v1.json 是 agent 写、前端读的。字段名分别写在两
+# 个语言的两个文件里，没有共享定义 —— 所以这里跨文件对一遍。不对的话表现是
+# 「agent 照文档写了，界面什么都不显示」，而且两边看起来都没错。
+
+
+def _parser_source() -> str:
+    """前端那份解析器。找不到就让测试红 —— 不 skip。
+
+    skip 的话文档漂了没人知道，而这正是这一节唯一要防的事。
+    """
+    from pathlib import Path as _Path
+
+    here = _Path(__file__).resolve()
+    for parent in here.parents:
+        candidate = (
+            parent
+            / "frontend/web/src/features/reader/domain/reading-canvas-doc.ts"
+        )
+        if candidate.is_file():
+            return candidate.read_text(encoding="utf-8")
+    raise AssertionError(f"找不到前端解析器（从 {here} 往上找）")
+
+
+def test_the_canvas_fields_match_what_the_frontend_actually_parses(
+    tmp_path: Path,
+) -> None:
+    """文档里的字段名 = 解析器真正读的字段名。"""
+    import re
+
+    parser = _parser_source()
+    text = build_job_workspace_instructions(_job(tmp_path, "job-1"))
+
+    # 解析器里 `node.xxx` / `edge.xxx` / `anchor.xxx` 的那些取值。
+    read_fields = set(re.findall(r"\b(?:node|edge|anchor)\.([a-z_]+)", parser))
+    assert read_fields >= {"id", "text", "kind", "from", "to", "label"}, read_fields
+    for field in read_fields:
+        assert field in text, f"解析器读 {field}，但工作区说明里没写"
+
+
+def test_the_canvas_schema_is_documented_with_a_copyable_example(
+    tmp_path: Path,
+) -> None:
+    """给个能直接抄的例子。只描述字段的话模型还是会猜结构。"""
+    import json
+    import re
+
+    text = build_job_workspace_instructions(_job(tmp_path, "job-1"))
+    assert "canvas.v1.json" in text
+    assert "retainpdf_reading_canvas_v1" in text
+
+    # 把缩进的 JSON 块抠出来，确认它真能 parse —— 例子本身写错过一次就全白费。
+    block = re.search(
+        r'\n(    \{"schema": "retainpdf_reading_canvas_v1".*?\]\})\n', text, re.S
+    )
+    assert block, "找不到可抄的 canvas 例子"
+    payload = json.loads("\n".join(line[4:] for line in block.group(1).splitlines()))
+    assert payload["nodes"][0]["id"]
+    assert payload["nodes"][0]["anchor"]["block_id"]
+    assert payload["edges"][0]["from"] == payload["nodes"][0]["id"]
+
+
+def test_the_instructions_say_not_to_invent_coordinates(tmp_path: Path) -> None:
+    """坐标是我们算的。不说清楚，模型会自己塞 x/y，然后奇怪为什么没生效。"""
+    text = build_job_workspace_instructions(_job(tmp_path, "job-1"))
+    assert "只写语义" in text
+    assert "坐标" in text
+
+
+def test_the_instructions_tie_anchors_to_real_block_ids(tmp_path: Path) -> None:
+    """锚点是这个功能的全部价值。编出来的 block_id 点了不跳，而且看不出为什么。"""
+    text = build_job_workspace_instructions(_job(tmp_path, "job-1"))
+    assert "block_id" in text
+    canvas_section = text[text.index("canvas.v1.json") :]
+    assert "document.v1.json" in canvas_section, "没说 block_id 要从哪儿取"

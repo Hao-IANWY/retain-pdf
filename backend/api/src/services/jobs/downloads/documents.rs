@@ -1,7 +1,7 @@
 use crate::error::AppError;
 use crate::models::domain::JobSnapshot;
 use crate::storage_paths::{
-    resolve_ai_reading_path, resolve_normalization_report, resolve_normalized_document,
+    resolve_ai_canvas, resolve_ai_reading_path, resolve_normalization_report, resolve_normalized_document,
     resolve_output_pdf,
 };
 
@@ -17,6 +17,9 @@ pub(crate) enum DocumentDownloadKind {
     /// 物**，可能不存在、可能是 agent 上一次写坏的。所以 404 是正常状态，
     /// 前端得当「还没有」处理，不是错误。
     AiReadingPath,
+    /// Agent 在 `<job>/ai/` 里画的概念图。和 AiReadingPath 同一类：
+    /// 非流水线产物，404 是正常状态。
+    AiCanvas,
 }
 
 impl DocumentDownloadKind {
@@ -25,7 +28,8 @@ impl DocumentDownloadKind {
             Self::OutputPdf => "application/pdf",
             Self::NormalizedDocument
             | Self::NormalizationReport
-            | Self::AiReadingPath => "application/json",
+            | Self::AiReadingPath
+            | Self::AiCanvas => "application/json",
         }
     }
 
@@ -35,6 +39,7 @@ impl DocumentDownloadKind {
             Self::NormalizedDocument => "normalized document not ready",
             Self::NormalizationReport => "normalization report not ready",
             Self::AiReadingPath => "reading path not generated yet",
+            Self::AiCanvas => "canvas not generated yet",
         }
     }
 
@@ -48,6 +53,7 @@ impl DocumentDownloadKind {
             Self::NormalizedDocument => resolve_normalized_document(job, data_root),
             Self::NormalizationReport => resolve_normalization_report(job, data_root),
             Self::AiReadingPath => resolve_ai_reading_path(job, data_root),
+            Self::AiCanvas => resolve_ai_canvas(job, data_root),
         }
     }
 }

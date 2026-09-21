@@ -11,6 +11,8 @@ pub(crate) const OUTPUT_SPECS_DIR_NAME: &str = "specs";
 pub(crate) const OUTPUT_AI_DIR_NAME: &str = "ai";
 /// Agent 生成的阅读路径。schema 见 reading_path_v1。
 pub(crate) const AI_READING_PATH_FILE_NAME: &str = "reading-path.v1.json";
+/// Agent 生成的概念画布。schema 见 canvas_v1（前端 reading-canvas-doc.ts）。
+pub(crate) const AI_CANVAS_FILE_NAME: &str = "canvas.v1.json";
 pub(crate) const OUTPUT_TYPST_DIR_NAME: &str = "typst";
 pub(crate) const OUTPUT_TYPST_BOOK_OVERLAYS_DIR_NAME: &str = "book-overlays";
 pub(crate) const LEGACY_LAYOUT_DIR_NAMES: [&str; 4] =

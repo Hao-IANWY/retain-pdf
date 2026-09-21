@@ -25,6 +25,7 @@ impl<'a> JobDownloads<'a> {
             DocumentDownloadKind::NormalizedDocument => "normalized",
             DocumentDownloadKind::NormalizationReport => "normalization-report",
             DocumentDownloadKind::AiReadingPath => "ai-reading-path",
+            DocumentDownloadKind::AiCanvas => "ai-canvas",
         };
         self.deps
             .download_generation

@@ -21,6 +21,10 @@
  */
 import type { TLGeoShape, TLRichText, TLShapePartial } from "tldraw";
 
+/** geo 图形的合法颜色。从 tldraw 的类型里取，不自己列一份 —— 列出来的那份只会
+ * 跟上游漂移，而漂移的表现是运行时校验失败。 */
+export type TLDefaultColorStyleLike = TLGeoShape["props"]["color"];
+
 export type ReadingStep = {
   order?: number;
   page_idx?: number;

@@ -107,6 +107,10 @@ pub(super) fn routes() -> Router<AppState> {
             get(jobs::download_ai_reading_path),
         )
         .route(
+            "/api/v1/jobs/:job_id/canvas",
+            get(jobs::download_ai_canvas),
+        )
+        .route(
             "/api/v1/jobs/:job_id/normalization-report",
             get(jobs::download_normalization_report),
         )

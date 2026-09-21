@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use crate::models::domain::{JobArtifactRecord, JobSnapshot};
 
 use super::constants::{
-    AI_READING_PATH_FILE_NAME, OUTPUT_AI_DIR_NAME,
+    AI_CANVAS_FILE_NAME, AI_READING_PATH_FILE_NAME, OUTPUT_AI_DIR_NAME,
     OUTPUT_ARTIFACTS_DIR_NAME, OUTPUT_LOGS_DIR_NAME, OUTPUT_MARKDOWN_DIR_NAME,
     OUTPUT_RENDERED_DIR_NAME, OUTPUT_TRANSLATED_DIR_NAME, OUTPUT_TYPST_BOOK_OVERLAYS_DIR_NAME,
     OUTPUT_TYPST_DIR_NAME, TRANSLATION_MANIFEST_FILE_NAME, TRANSLATION_REQUEST_JOURNAL_FILE_NAME,
@@ -59,19 +59,33 @@ pub fn resolve_normalization_report(job: &JobSnapshot, data_root: &Path) -> Opti
     resolve_data_path(data_root, path).ok()
 }
 
-/// `<job>/ai/reading-path.v1.json` —— agent 写的阅读路径。
+/// `<job>/ai/<file_name>` —— agent 自己写出来的产物。
 ///
-/// 和其它 resolver 一样从 job_root 拼出来，**不接受外部传入的文件名**：
-/// `ai/` 是 agent 可写的目录，让调用方决定读哪个文件等于把任意文件读取
-/// 暴露给前端。要加第二个产物就再加一个 resolver。
-pub fn resolve_ai_reading_path(job: &JobSnapshot, data_root: &Path) -> Option<PathBuf> {
+/// **私有，且 `file_name` 只接受常量。** `ai/` 是 agent 可写的目录，一旦让调用方
+/// 决定读哪个文件，就等于把任意文件读取暴露给前端。对外的每个产物各有一个不带
+/// 文件名参数的 `pub fn`，加产物就加一个。
+fn resolve_ai_artifact(
+    job: &JobSnapshot,
+    data_root: &Path,
+    file_name: &'static str,
+) -> Option<PathBuf> {
     let job_root = job.artifacts.as_ref()?.job_root.as_ref()?;
     Some(
         resolve_data_path(data_root, job_root)
             .ok()?
             .join(OUTPUT_AI_DIR_NAME)
-            .join(AI_READING_PATH_FILE_NAME),
+            .join(file_name),
     )
+}
+
+/// `<job>/ai/reading-path.v1.json` —— agent 写的阅读路径。
+pub fn resolve_ai_reading_path(job: &JobSnapshot, data_root: &Path) -> Option<PathBuf> {
+    resolve_ai_artifact(job, data_root, AI_READING_PATH_FILE_NAME)
+}
+
+/// `<job>/ai/canvas.v1.json` —— agent 画的概念图。
+pub fn resolve_ai_canvas(job: &JobSnapshot, data_root: &Path) -> Option<PathBuf> {
+    resolve_ai_artifact(job, data_root, AI_CANVAS_FILE_NAME)
 }
 
 pub fn resolve_typst_source(job: &JobSnapshot, data_root: &Path) -> Option<PathBuf> {

@@ -162,6 +162,21 @@ pub async fn download_ai_reading_path(
     .await
 }
 
+pub async fn download_ai_canvas(
+    State(state): State<AppState>,
+    ApiPath(job_id): ApiPath<String>,
+    headers: HeaderMap,
+) -> Result<Response, AppError> {
+    download_document_response(
+        &build_jobs_download_route_deps(&state),
+        &headers,
+        &job_id,
+        false,
+        DocumentDownloadKind::AiCanvas,
+    )
+    .await
+}
+
 pub async fn download_normalization_report(
     State(state): State<AppState>,
     ApiPath(job_id): ApiPath<String>,
