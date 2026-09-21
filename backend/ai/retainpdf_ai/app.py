@@ -19,6 +19,7 @@ from .api_contracts import AskInput, RuntimeConfigUpdate
 from .ask_orchestration import AskOrchestrator
 from .config import Settings, load_settings
 from .conversation_state import ConversationState
+from .fx_terminal_routes import register_fx_terminal_routes
 from .runtime import AgentRuntime, PythonAgentRuntime, build_agent_runtime
 from .runtime_config_api import register_runtime_config_routes
 from .rust_client import RustApiClient
@@ -102,6 +103,8 @@ def build_app(
             "agent_runtime": runtime_id,
             "capabilities": runtime.capabilities.public_view(),
         }
+
+    register_fx_terminal_routes(app, settings=settings)
 
     register_runtime_config_routes(
         app,

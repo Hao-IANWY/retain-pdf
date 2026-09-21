@@ -16,12 +16,13 @@ from .fx_acp import FxAcpClient
 from .fx_coordination import conversation_namespace
 
 
-def start_fx_client(
-    settings: Settings,
-    broker: AgentCommandBroker | None = None,
-    *,
-    session_key: str = "",
-) -> FxAcpClient:
+def prepare_fx_state(settings: Settings, *, session_key: str) -> tuple[Path, Path, Path, Path]:
+    """建好 fx 的私有 HOME / workspace / tmp，返回 (executable, home, workspace, tmp)。
+
+    单独抽出来是因为现在有两个消费者：ACP 客户端（start_fx_client）和 PTY
+    终端（fx_terminal）。同一套加固只能有一份 —— 两份复制出来的沙箱一定会
+    在某次改动后只改了其中一份，而漏掉的那份不会有任何报错。
+    """
     if sys.platform not in {"darwin", "linux"}:
         raise RuntimeError("fx 0.0.5 has no supported native runtime for this platform")
     executable = resolve_executable(settings.fx_command)
@@ -41,11 +42,17 @@ def start_fx_client(
             path.chmod(0o700)
         except OSError:
             pass
-
     _write_workspace_instructions(
         workspace,
         build_fx_workspace_instructions(settings.agent_confirmation_mode),
     )
+    return executable, home, workspace, tmp
+
+
+def resolve_fx_command_path(
+    settings: Settings, executable: Path, broker: AgentCommandBroker | None
+) -> str:
+    """fx 子进程的 PATH。ACP 和 PTY 必须用同一份，否则两条路能跑的命令不一样。"""
     command_path = str(executable.parent)
     if broker is not None:
         command_path = f"{broker.bin_dir}{os.pathsep}{command_path}"
@@ -59,6 +66,19 @@ def start_fx_client(
         system_path = os.environ.get("PATH", "")
         if system_path:
             command_path = f"{command_path}{os.pathsep}{system_path}"
+    return command_path
+
+
+def start_fx_client(
+    settings: Settings,
+    broker: AgentCommandBroker | None = None,
+    *,
+    session_key: str = "",
+) -> FxAcpClient:
+    executable, home, workspace, tmp = prepare_fx_state(
+        settings, session_key=session_key
+    )
+    command_path = resolve_fx_command_path(settings, executable, broker)
     gateway_api_key = settings.fx_gateway_api_key
     if settings.fx_gateway_credential_ref:
         gateway_api_key = resolve_credential(
