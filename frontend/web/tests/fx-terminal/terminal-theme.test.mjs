@@ -48,12 +48,19 @@ test("语义要对齐，不是挑色相：报错→danger，成功→ok，警告
 
 test("可选令牌缺失时退到必选项，而不是退到空或字面色", () => {
   const partial = { ...CONTRACT };
-  delete partial["--surface"];
   delete partial["--danger-weak"];
+  delete partial["--accent-weak"];
   const theme = readTerminalTheme(readerFor(partial));
   assert.ok(theme, "可选项缺失不该让整套配色失效");
-  assert.equal(theme.background, "paper", "--surface 缺失应退到 --paper");
   assert.equal(theme.brightRed, "danger", "--danger-weak 缺失应退到 --danger");
+  assert.equal(theme.cyan, "accent", "--accent-weak 缺失应退到 --accent");
+});
+
+test("背景用 --bg，不用半透明的 --surface", () => {
+  // --surface 在 night 里是 rgba(…,0.88)，叠在浅色页面上会被冲淡。
+  // 终端要的是一块实底。
+  const theme = readTerminalTheme(readerFor(CONTRACT));
+  assert.equal(theme.background, "bg");
 });
 
 test("必选令牌缺一项就整体放弃，不拼半套", () => {

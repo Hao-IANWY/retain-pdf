@@ -1,5 +1,6 @@
 // 从 frontend/web 迁入的 React-pdf 视图真值，现为 @retainpdf/reader 主入口
 import { getReaderAdapters } from "./adapters.js";
+import { ReaderFloatShell } from "./components/react-pdf/ReaderFloatShell.js";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useReaderReactController } from "./hooks/use-reader-react-controller.js";
 import { useReaderKeyboard } from "./hooks/use-reader-keyboard.js";
@@ -469,17 +470,34 @@ export function ReaderAppReactPdf() {
         ) : null}
         <Suspense fallback={null}>
           {favoritesMounted ? <ReaderFavoritesPanel open={tools.isOpen("favorites")} jobId={session.jobId} documentId={session.documentId} onClose={closeTool} onJumpPage={c.goToPage} /> : null}
+          {terminalMounted && renderTerminal ? (
+            // 定位由**包**负责：和 Markdown / AI 面板套同一个壳、同一个
+            // placement。宿主只给内容 —— 它不知道 dock 在哪一侧，也不该知道。
+            // 第一版把这段放在 Suspense 外面、不套壳，结果终端铺满整个窗口
+            // 盖住了 PDF。
+            <ReaderFloatShell
+              id="reader-terminal-panel"
+              open={assistantPanel === "terminal"}
+              title="终端"
+              storageKey="retainpdf.reader.terminal-float.pos.v1"
+              ariaLabel="fx 终端"
+              width={420}
+              placement="workspace"
+              showHeader={false}
+              className="is-pane-right"
+              onClose={closeAssistant}
+            >
+              {renderTerminal({
+                open: assistantPanel === "terminal",
+                // 换文档就换终端会话；同一文档来回切 tab 接回同一个。
+                sessionKey: session.jobId || session.documentId || "reader",
+                onClose: closeAssistant,
+              })}
+            </ReaderFloatShell>
+          ) : null}
           {markdownMounted ? <ReaderMarkdownPanel open={assistantPanel === "markdown"} jobId={session.jobId} sourceOnly={c.sourceOnly} layout="workspace" side="right" onClose={closeAssistant} /> : null}
           {aiMounted ? <ReaderAiPanel key={session.documentId || session.jobId || "reader-ai-pending"} open={assistantPanel === "ai"} jobId={session.jobId} documentId={session.documentId} sessionIdentity={session.sessionIdentity} layout={resolveReaderAiLayout(c.mode)} side="right" selectionContext={aiSelectionContext} onClearSelectionContext={() => setAiSelectionContext(null)} onClose={closeAssistant} onJumpCitation={jumpCitation} onDocumentCommitted={refreshCommittedDocument} /> : null}
         </Suspense>
-        {terminalMounted && renderTerminal
-          ? renderTerminal({
-              open: assistantPanel === "terminal",
-              // 换文档就换终端会话；同一文档来回切 tab 接回同一个。
-              sessionKey: session.jobId || session.documentId || "reader",
-              onClose: closeAssistant,
-            })
-          : null}
         <ReaderNotesPanel
           open={notesOpen}
           groups={annotations.groups}

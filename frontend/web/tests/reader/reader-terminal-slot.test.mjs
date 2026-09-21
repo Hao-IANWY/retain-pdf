@@ -48,6 +48,28 @@ test("终端一旦开过就保持挂载", () => {
   assert.match(APP, /terminalMounted = useMountedSinceFirstOpen\(assistantPanel === "terminal"\)/);
 });
 
+test("终端槽位套在和其它面板同一个壳里", () => {
+  // 第一版把槽位渲染在 <Suspense> 外面、不套 ReaderFloatShell，结果终端铺满
+  // 整个窗口盖住了 PDF —— 定位是包的事，宿主只给内容。
+  const shell = APP.slice(
+    APP.indexOf("terminalMounted && renderTerminal"),
+    APP.indexOf("markdownMounted ?"),
+  );
+  assert.match(shell, /<ReaderFloatShell/, "槽位必须套在 ReaderFloatShell 里");
+  assert.match(shell, /placement="workspace"/);
+  assert.match(shell, /className="is-pane-right"/);
+  assert.ok(
+    APP.indexOf("terminalMounted && renderTerminal") > APP.indexOf("<Suspense"),
+    "槽位必须在 Suspense 块内，和 Markdown / AI 面板同一个父容器",
+  );
+});
+
+test("宿主给的那块不自己定位", () => {
+  // 宿主不知道 dock 在哪一侧，写死定位就会和包的布局打架。
+  assert.doesNotMatch(HOST, /position:\s*(fixed|absolute)/);
+  assert.doesNotMatch(HOST, /\b(left|right|top|bottom)\s*:/);
+});
+
 test("终端会话 key 跟着文档走", () => {
   // 换文档要换终端（fx 的 workspace 是按 session key 分的）；同一文档来回切
   // tab 要接回同一个。

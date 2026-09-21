@@ -20,13 +20,18 @@
 @import "@xterm/xterm/css/xterm.css" layer(pages);
 
 @layer pages {
+  /* 面板在 ReaderFloatShell 里面（placement="workspace"），所以这里不做定位，
+   * 只负责把高度撑满壳、把 xterm 框住。第一版自己定位，结果终端铺满整个
+   * 窗口盖住了 PDF —— 定位是包的事。 */
   .reader-terminal-panel {
     display: flex;
     flex-direction: column;
     min-height: 0;
     height: 100%;
     padding: 0.5rem;
-    background: var(--surface);
+    /* 这里的 --bg 来自面板自己的 data-theme="night" 作用域（见
+     * features/reader/ui/terminal.tsx），不是文档主题的。 */
+    background: var(--bg);
   }
 
   .reader-terminal-panel[hidden] {
@@ -40,5 +45,16 @@
     overflow: hidden;
     border-radius: 8px;
     border: 1px solid var(--line);
+  }
+
+  /* 壳默认按内容撑高；终端要占满可用高度。 */
+  #reader-terminal-panel {
+    display: flex;
+    flex-direction: column;
+  }
+
+  #reader-terminal-panel > :last-child {
+    flex: 1 1 auto;
+    min-height: 0;
   }
 }

@@ -92,6 +92,35 @@ def test_the_terminal_runs_inside_the_private_workspace(tmp_path: Path) -> None:
     assert launch.env["HOME"] != os.path.expanduser("~"), "HOME 没指向私有目录"
 
 
+def test_terminal_sessions_share_one_fx_home(tmp_path: Path) -> None:
+    """换一本书不该要求用户重新登录一次 fx。
+
+    HOME 放的是 fx 的**账号和配置**，那不是按文档分的东西。第一版每个 session
+    一个 HOME，结果在终端里登录之后换本书就又是登录页 —— 对 ACP 那条路无所谓
+    （宿主替用户批，本来就没有交互登录），对人用的终端是荒谬的。
+    """
+    first = build_terminal_launch(_settings(tmp_path), session_key="job-a")
+    second = build_terminal_launch(_settings(tmp_path), session_key="job-b")
+    assert first.env["HOME"] == second.env["HOME"]
+
+
+def test_terminal_workspaces_stay_isolated_per_session(tmp_path: Path) -> None:
+    """共享的只有账号。工作区里是文件，那是按文档分的。"""
+    first = build_terminal_launch(_settings(tmp_path), session_key="job-a")
+    second = build_terminal_launch(_settings(tmp_path), session_key="job-b")
+    assert first.cwd != second.cwd
+    assert first.env["TMPDIR"] != second.env["TMPDIR"]
+
+
+def test_the_acp_path_keeps_its_per_session_home(tmp_path: Path) -> None:
+    """共享 HOME 只给交互式终端。ACP 那条路的隔离是有意的，不能被顺手改掉。"""
+    from retainpdf_ai.runtimes.fx_process import prepare_fx_state
+
+    _, home_a, _, _ = prepare_fx_state(_settings(tmp_path), session_key="conv-a")
+    _, home_b, _, _ = prepare_fx_state(_settings(tmp_path), session_key="conv-b")
+    assert home_a != home_b
+
+
 def test_input_reaches_the_child_and_output_comes_back() -> None:
     session = PtySession(_launch("/bin/cat"))
     session.open(cols=100, rows=30)

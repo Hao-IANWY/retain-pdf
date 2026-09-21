@@ -41,9 +41,20 @@ function ReaderTerminalPanel({ open, sessionKey, baseUrl, apiKey }: PanelProps) 
     [baseUrl, apiKey, sessionKey],
   );
   const themeId = useThemeId();
+  // 定位、宽度、在哪一侧 —— 全由 @retainpdf/reader 的壳决定。宿主只给内容，
+  // 它不知道 dock 在哪，也不该知道。
   return (
-    <section
+    <div
       className="reader-terminal-panel"
+      // 终端固定走 night 这个**已有**皮肤，不跟随文档主题。
+      //
+      // 不是偷懒：fx 的 TUI 用 256 色灰阶输出（38;5;245 这类），整套配色是
+      // 按深色背景挑的。给它浅色底 = 浅灰字压浅灰底，几乎看不清 —— 实测就是
+      // 这样。终端是一块独立表面，编辑器里的内置终端也都这么处理。
+      //
+      // 用 data-theme 而不是写死颜色：night.css 里那套值是设计过的，
+      // 而且 readTerminalTheme 会自动从这个作用域读到它们。
+      data-theme="night"
       // 关掉时用 hidden 而不是卸载：卸载会关 WebSocket，进而杀掉 PTY 子进程，
       // 用户切个 tab 回来 fx 的会话就没了。
       hidden={!open}
@@ -54,7 +65,7 @@ function ReaderTerminalPanel({ open, sessionKey, baseUrl, apiKey }: PanelProps) 
         themeId={themeId}
         className="reader-terminal-surface"
       />
-    </section>
+    </div>
   );
 }
 

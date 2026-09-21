@@ -16,12 +16,21 @@ from .fx_acp import FxAcpClient
 from .fx_coordination import conversation_namespace
 
 
-def prepare_fx_state(settings: Settings, *, session_key: str) -> tuple[Path, Path, Path, Path]:
+def prepare_fx_state(
+    settings: Settings, *, session_key: str, shared_home: bool = False
+) -> tuple[Path, Path, Path, Path]:
     """建好 fx 的私有 HOME / workspace / tmp，返回 (executable, home, workspace, tmp)。
 
     单独抽出来是因为现在有两个消费者：ACP 客户端（start_fx_client）和 PTY
     终端（fx_terminal）。同一套加固只能有一份 —— 两份复制出来的沙箱一定会
     在某次改动后只改了其中一份，而漏掉的那份不会有任何报错。
+
+    `shared_home` 只给交互式终端用：HOME 放 fx 的**账号和配置**，那不是按
+    文档分的东西。每个 session 一个 HOME 意味着用户换一本书就要重新登录一次
+    —— 对 ACP 那条路（宿主替用户批，本来就不该有交互登录）无所谓，对人用的
+    终端是荒谬的。
+
+    workspace 和 tmp 无论如何都按 session 隔离：那里面是文件，是按文档分的。
     """
     if sys.platform not in {"darwin", "linux"}:
         raise RuntimeError("fx 0.0.5 has no supported native runtime for this platform")
@@ -31,7 +40,11 @@ def prepare_fx_state(settings: Settings, *, session_key: str) -> tuple[Path, Pat
         / "sessions"
         / conversation_namespace(session_key)
     )
-    home = state_root / "home"
+    home = (
+        settings.fx_state_root.resolve() / "shared-home"
+        if shared_home
+        else state_root / "home"
+    )
     workspace = state_root / "workspace"
     tmp = state_root / "tmp"
     for path in (state_root, home, workspace, tmp):

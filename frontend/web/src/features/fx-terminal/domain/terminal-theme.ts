@@ -41,9 +41,11 @@ export type TerminalTheme = {
   brightWhite: string;
 };
 
-/** 令牌名 → 兜底令牌名。皮肤没写可选项时退到必选项，绝不退到字面色。 */
+/** 令牌名 → 兜底令牌名。皮肤没写可选项时退到必选项，绝不退到字面色。
+ *
+ * 背景用 --bg 而不是 --surface：后者在 night 里是 rgba(…,0.88)，半透明叠在
+ * 浅色页面上会被冲淡。终端要的是一块实底。 */
 const FALLBACK: Record<string, string> = {
-  "--surface": "--paper",
   "--accent-weak": "--accent",
   "--danger-weak": "--danger",
   "--ok-weak": "--ok",
@@ -65,10 +67,10 @@ function pick(read: ReadCssVariable, name: string): string {
  */
 export function readTerminalTheme(read: ReadCssVariable): TerminalTheme | null {
   const theme: TerminalTheme = {
-    background: pick(read, "--surface"),
+    background: pick(read, "--bg"),
     foreground: pick(read, "--ink"),
     cursor: pick(read, "--accent"),
-    cursorAccent: pick(read, "--paper"),
+    cursorAccent: pick(read, "--bg"),
     selectionBackground: pick(read, "--selection"),
     // 标准 8 色：ANSI 的语义与皮肤语义对齐，不按色相硬凑。
     black: pick(read, "--ink"),

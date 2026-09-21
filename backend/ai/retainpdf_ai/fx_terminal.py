@@ -106,7 +106,7 @@ def build_terminal_launch(
     本来就不关心跑的是什么程序。
     """
     executable, home, workspace, tmp = prepare_fx_state(
-        settings, session_key=session_key
+        settings, session_key=session_key, shared_home=True
     )
     command_path = resolve_fx_command_path(settings, executable, None)
     env = {
