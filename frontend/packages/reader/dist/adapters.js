@@ -1,7 +1,7 @@
 import { s as a } from "./config-CgaWliJ_.js";
 import { s as t, r as s } from "./answer-enhance-D8zK9znw.js";
 import { h as A, l as P, n as D } from "./markdown-payload-kK3ewW_I.js";
-const n = [
+const l = [
   "isMockMode",
   "resolveResourceUrl",
   "fetchProtected",
@@ -33,7 +33,8 @@ const n = [
   "credentialsPort",
   "askDocumentAi",
   "renderReaderTerminal",
-  "renderReaderReadingPath"
+  "renderReaderReadingPath",
+  "renderReaderReadingCanvas"
 ], c = [
   "resolveMarkdownAssetUrl",
   "resolveReaderDownloadUrls",
@@ -63,7 +64,7 @@ function f(e) {
   return o;
 }
 export {
-  n as READER_ADAPTER_KEYS,
+  l as READER_ADAPTER_KEYS,
   c as READER_REQUIRED_ADAPTER_KEYS,
   R as getReaderAdapters,
   A as hasMarkdownContent,

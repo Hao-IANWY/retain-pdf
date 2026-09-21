@@ -132,6 +132,14 @@ export type ReaderReadingPathAdapters = {
   renderReaderReadingPath?: (props: ReaderReadingPathSlotProps) => ReactNode;
 };
 
+export type ReaderReadingCanvasAdapters = {
+  /** 阅读路径的画布视图。和 renderReaderReadingPath 是同一份数据的两个渲染器 ——
+   * 列表看顺序，画布看空间关系。分成两个槽位而不是一个带模式开关，是因为画布
+   * 依赖很重（tldraw），要能单独懒加载。
+   */
+  renderReaderReadingCanvas?: (props: ReaderReadingPathSlotProps) => ReactNode;
+};
+
 export type ReaderTerminalAdapters = {
   /** 终端面板由**宿主**渲染。
    *
@@ -152,7 +160,8 @@ export type ReaderAdapters = ReaderSessionAdapters
   & ReaderCredentialsAdapters
   & ReaderAiAdapters
   & ReaderTerminalAdapters
-  & ReaderReadingPathAdapters;
+  & ReaderReadingPathAdapters
+  & ReaderReadingCanvasAdapters;
 
 /**
  * ReaderAdapters 声明键的运行时镜像（TS 类型在运行时被擦除）。
@@ -192,6 +201,7 @@ export const READER_ADAPTER_KEYS = [
   "askDocumentAi",
   "renderReaderTerminal",
   "renderReaderReadingPath",
+  "renderReaderReadingCanvas",
 ] as const satisfies readonly (keyof ReaderAdapters)[];
 
 /** 必填（非 `?`）适配键子集，供门禁断言最小注入面。 */

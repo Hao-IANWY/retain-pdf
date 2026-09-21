@@ -11,7 +11,7 @@ export type ReaderViewState = {
     zoom?: number;
     mode?: StoredReaderMode;
     splitLayout?: StoredReaderSplitLayout | null;
-    assistantPanel?: "markdown" | "ai" | "terminal" | "reading-path" | null;
+    assistantPanel?: "markdown" | "ai" | "terminal" | "reading-path" | "reading-canvas" | null;
     updatedAt: number;
 };
 type ReaderViewStatePatch = Partial<Pick<ReaderViewState, "anchor" | "zoom" | "mode" | "splitLayout" | "assistantPanel">>;

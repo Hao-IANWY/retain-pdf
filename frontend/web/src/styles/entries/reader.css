@@ -19,6 +19,10 @@
  */
 @import "@xterm/xterm/css/xterm.css" layer(pages);
 
+/* tldraw 的画布样式。同样只取结构 —— 它自己有主题变量，但这一版先用它的默认，
+ * 配色统一留到确认画布真的有用之后再做。 */
+@import "tldraw/tldraw.css" layer(pages);
+
 @layer pages {
   /* 面板在 ReaderFloatShell 里面（placement="workspace"），所以这里不做定位，
    * 只负责把高度撑满壳、把 xterm 框住。第一版自己定位，结果终端铺满整个
@@ -113,6 +117,24 @@
     font-size: 0.72rem;
     color: var(--muted);
     font-family: var(--font-mono);
+  }
+
+  /* tldraw 需要一个有确定尺寸的定位容器，否则画布高度算成 0。 */
+  .reader-reading-canvas {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+  }
+
+  #reader-reading-canvas-panel {
+    display: flex;
+    flex-direction: column;
+  }
+
+  #reader-reading-canvas-panel > :last-child {
+    flex: 1 1 auto;
+    min-height: 0;
   }
 
   /* 壳默认按内容撑高；终端要占满可用高度。 */

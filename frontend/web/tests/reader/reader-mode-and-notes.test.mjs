@@ -93,11 +93,34 @@ test("ReaderFab exposes favorites/markdown/ai aligned with the tool registry", (
   );
   // FAB 的 markdown/ai 与 Dock 同行为：走辅助面板 toggle，而非 tools。
   assert.match(app, /if \(id === "markdown" \|\| id === "ai"\)/);
-  // FAB 高亮仍以辅助面板为真源，只是终端不在 FAB 的工具注册表（READER_TOOLS）
-  // 里、也没有 FAB 图标，所以先滤掉再回退到 tools。两半都钉住：只钉后半句的话，
-  // 有人把过滤去掉会让 FAB 拿到一个它渲染不了的 id。
-  // 终端和阅读路径都不在 FAB 的工具注册表里，两个都要滤掉。
-  assert.match(app, /assistantPanel === "terminal" \|\| assistantPanel === "reading-path"/);
+  // FAB 高亮仍以辅助面板为真源，但只有 READER_TOOLS 里的面板有 FAB 图标。
+  // 宿主槽位面板（终端/阅读路径/画布）都没有，必须先滤掉再回退到 tools ——
+  // 漏一个，FAB 就会拿到一个它渲染不了的 id。
+  //
+  // 按列表断言而不是写死那一行表达式：这条已经因为「又加了一个面板」红过两次，
+  // 每次都只是机械地补一个条件。列表化之后，加面板时这里会告诉你要补什么。
+  const dock = readerSource(
+    "../../../../frontend/packages/reader/src/components/react-pdf/ReaderAssistantDock.tsx",
+  );
+  const hostSlotPanels = Array.from(
+    dock.matchAll(/^const ([A-Z_]+)_PANEL = \{\n\s*id: "([a-z-]+)"/gm),
+    (match) => match[2],
+  ).filter((id) => id !== "markdown" && id !== "ai");
+  assert.ok(hostSlotPanels.length >= 3, `宿主槽位面板没找全: ${hostSlotPanels}`);
+  // 只在 fabAssistantTool 那段里查。整文件查会被别处的同名比较命中（挂载
+  // latch 里就有一个），反证时不会红 —— 第一版就是这么写错的。
+  const fabBlock = app.slice(
+    app.indexOf("const fabAssistantTool"),
+    app.indexOf("const fabActiveTool"),
+  );
+  assert.ok(fabBlock, "找不到 fabAssistantTool 那段");
+  for (const id of hostSlotPanels) {
+    assert.match(
+      fabBlock,
+      new RegExp(`assistantPanel === "${id}"`),
+      `${id} 没从 FAB 高亮里滤掉 —— FAB 会拿到一个它渲染不了的 id`,
+    );
+  }
   assert.match(app, /fabAssistantTool \?\? tools\.active/);
 });
 

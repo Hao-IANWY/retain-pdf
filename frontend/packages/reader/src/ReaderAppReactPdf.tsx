@@ -179,6 +179,7 @@ export function resolveInitialAssistantPanel(
     || saved?.assistantPanel === "ai"
     || saved?.assistantPanel === "terminal"
     || saved?.assistantPanel === "reading-path"
+    || saved?.assistantPanel === "reading-canvas"
   ) {
     return saved.assistantPanel;
   }
@@ -289,6 +290,9 @@ export function ReaderAppReactPdf() {
   // 阅读路径每次打开重新拉一次（agent 可能刚重写过），所以不需要挂载 latch ——
   // 它没有终端那样的进程状态，卸载了不会丢东西。
   const renderReadingPath = getReaderAdapters()?.renderReaderReadingPath;
+  // 画布一旦开过就保持挂载：tldraw 初始化不便宜，切走再回来重建会闪。
+  const canvasMounted = useMountedSinceFirstOpen(assistantPanel === "reading-canvas");
+  const renderReadingCanvas = getReaderAdapters()?.renderReaderReadingCanvas;
   // 键盘与 UI 共用同一「可见模式」真源：paneComposition.visibleMode。
   // 「0」重置缩放据此取模式默认，避免与 HUD/网格显示的模式脱节。
   useReaderKeyboard({
@@ -375,7 +379,9 @@ export function ReaderAppReactPdf() {
   // 终端住在 dock 里，不在 FAB 的工具注册表（READER_TOOLS）里，所以它打开时
   // FAB 不高亮任何东西 —— 而不是硬塞一个 FAB 没有图标的 id 进去。
   const fabAssistantTool =
-    assistantPanel === "terminal" || assistantPanel === "reading-path"
+    assistantPanel === "terminal"
+    || assistantPanel === "reading-path"
+    || assistantPanel === "reading-canvas"
       ? null
       : assistantPanel;
   const fabActiveTool: ReaderFabToolId | null = notesOpen
@@ -495,6 +501,27 @@ export function ReaderAppReactPdf() {
                 jobId: session.jobId,
                 // 跳转留在包里：锚点怎么变成翻页+高亮要看当前分栏和模式，
                 // 宿主自己实现会和这些状态打架。
+                onJump: jumpCitation,
+                onClose: closeAssistant,
+              })}
+            </ReaderFloatShell>
+          ) : null}
+          {canvasMounted && renderReadingCanvas ? (
+            <ReaderFloatShell
+              id="reader-reading-canvas-panel"
+              open={assistantPanel === "reading-canvas"}
+              title="画布"
+              storageKey="retainpdf.reader.reading-canvas-float.pos.v1"
+              ariaLabel="阅读路径画布"
+              width={520}
+              placement="workspace"
+              showHeader={false}
+              className="is-pane-right"
+              onClose={closeAssistant}
+            >
+              {renderReadingCanvas({
+                open: assistantPanel === "reading-canvas",
+                jobId: session.jobId,
                 onJump: jumpCitation,
                 onClose: closeAssistant,
               })}

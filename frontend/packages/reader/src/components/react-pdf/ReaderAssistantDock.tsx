@@ -1,4 +1,4 @@
-import { FileCode2, Route, Sparkles, SquareTerminal, X } from "lucide-react";
+import { FileCode2, PenTool, Route, Sparkles, SquareTerminal, X } from "lucide-react";
 import type { ReactElement } from "react";
 import { getReaderAdapters } from "../../adapters.js";
 import { useReaderContext } from "./reader-context.js";
@@ -19,6 +19,13 @@ const READING_PATH_PANEL = {
   Icon: Route,
 } as const;
 
+const READING_CANVAS_PANEL = {
+  id: "reading-canvas",
+  label: "画布",
+  short: "画",
+  Icon: PenTool,
+} as const;
+
 const TERMINAL_PANEL = {
   id: "terminal",
   label: "终端",
@@ -36,6 +43,9 @@ function panelsFor(): readonly { id: string; label: string; short: string; Icon:
   ];
   if (typeof adapters?.renderReaderReadingPath === "function") {
     panels.push(READING_PATH_PANEL);
+  }
+  if (typeof adapters?.renderReaderReadingCanvas === "function") {
+    panels.push(READING_CANVAS_PANEL);
   }
   if (typeof adapters?.renderReaderTerminal === "function") {
     panels.push(TERMINAL_PANEL);

@@ -46,6 +46,7 @@ const adapters: ReaderAdapters = {
   // —— terminal ——
   renderReaderTerminal: ext.renderReaderTerminal,
   renderReaderReadingPath: ext.renderReaderReadingPath,
+  renderReaderReadingCanvas: ext.renderReaderReadingCanvas,
 };
 setReaderAdapters(adapters);
 export { adapters as retainPdfReaderAdapters };
