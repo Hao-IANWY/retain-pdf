@@ -32,7 +32,14 @@ from pathlib import Path
 
 from .config import Settings, fx_gateway_chat_url, normalize_fx_gateway_base_url
 from .fx_openai_bridge import FxOpenAIChatBridge
+from .fx_workspace import (
+    DEFAULT_DENIED_COMMANDS,
+    apply_terminal_permissions,
+    build_job_workspace_instructions,
+    resolve_job_workspace,
+)
 from .runtimes.fx_process import (
+    _write_workspace_instructions,
     prepare_fx_state,
     resolve_fx_command_path,
     resolve_fx_gateway_key,
@@ -138,6 +145,23 @@ def build_terminal_launch(
     executable, home, workspace, tmp = prepare_fx_state(
         settings, session_key=session_key, shared_home=True
     )
+    # 能落到书自己的目录就落过去 —— 私有空壳目录里 agent 看不到这本书的任何
+    # 东西，对这个产品没用。解析不出来（session 不是合法 job、目录不存在）
+    # 就退回私有目录，而不是猜一个。
+    denied = (
+        DEFAULT_DENIED_COMMANDS
+        if settings.fx_denied_commands is None
+        else settings.fx_denied_commands
+    )
+    apply_terminal_permissions(home, denied)
+    job_workspace = resolve_job_workspace(settings.data_root, session_key)
+    if job_workspace is not None:
+        job_workspace.mkdir(parents=True, exist_ok=True, mode=0o700)
+        _write_workspace_instructions(
+            job_workspace,
+            build_job_workspace_instructions(job_workspace.parent),
+        )
+        workspace = job_workspace
     command_path = resolve_fx_command_path(settings, executable, None)
     env = {
         "HOME": str(home),

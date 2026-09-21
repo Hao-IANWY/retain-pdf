@@ -89,6 +89,20 @@ def _env_csv(name: str) -> tuple[str, ...]:
     return tuple(item.strip() for item in raw.split(",") if item.strip())
 
 
+def _env_denied_commands(name: str) -> tuple[str, ...] | None:
+    """没设 → None（用默认清单）；设成 "none" → 空元组（什么都不挡）。
+
+    区分「没设」和「设成空」很重要：前者要默认保护，后者是用户明确说不要。
+    直接用空字符串表达「不挡」会和「没设」撞在一起。
+    """
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return None
+    if raw.lower() == "none":
+        return ()
+    return tuple(item.strip() for item in raw.split(",") if item.strip())
+
+
 def _env_flag(name: str) -> bool:
     """布尔环境变量。只有明确写了真值才算开 —— 空值、拼错、"off" 一律是关。
 
@@ -205,6 +219,12 @@ class Settings:
     #
     # DeepSeek 文档写的是 low / high / max。
     fx_reasoning_efforts: tuple[str, ...] = ()
+    # 终端里挡掉的命令（逗号分隔）。留空 = 用默认清单；写一个字面量 "none"
+    # 表示什么都不挡。
+    #
+    # 这是防手滑的减速带，不是安全边界 —— 见 fx_workspace.DEFAULT_DENIED_COMMANDS
+    # 里写的原因。
+    fx_denied_commands: tuple[str, ...] | None = None
     # 任务产物根目录(data/jobs/<job_id>/...)
     data_root: Path = field(default_factory=lambda: _repo_root() / "data")
 
@@ -386,6 +406,7 @@ def load_settings() -> Settings:
         fx_shell_mode=_env_flag("RETAIN_AI_FX_SHELL_MODE"),
         fx_upstream_extra=_env_json_object("RETAIN_AI_FX_UPSTREAM_EXTRA"),
         fx_reasoning_efforts=_env_csv("RETAIN_AI_FX_REASONING_EFFORTS"),
+        fx_denied_commands=_env_denied_commands("RETAIN_AI_FX_DENIED_COMMANDS"),
         data_root=Path(data_root) if data_root else _repo_root() / "data",
     )
     stored = load_runtime_credentials(settings.data_root)
