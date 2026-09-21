@@ -168,6 +168,7 @@ def build_terminal_launch(
             model=settings.fx_model or settings.llm_model,
             timeout_s=settings.fx_turn_timeout_s,
             extra_body=settings.fx_upstream_extra,
+            reasoning_efforts=settings.fx_reasoning_efforts,
         ).start()
         cleanup = bridge.close
         gateway_api_key = bridge.gateway_api_key

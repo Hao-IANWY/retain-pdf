@@ -100,3 +100,47 @@ def test_extra_body_can_override_max_tokens() -> None:
         {**PROMPT, "maxOutputTokens": 4096}, model="m", extra_body={"max_tokens": 100}
     )
     assert body["max_tokens"] == 100
+
+
+# ------------------------------------------------- 向 fx 声明 reasoning effort
+
+
+def _catalog(**kwargs):
+    from retainpdf_ai.fx_openai_bridge import FxOpenAIChatBridge
+
+    bridge = FxOpenAIChatBridge(
+        base_url="https://api.example/v1", model="m", **kwargs
+    )
+    return bridge._catalog_entry()  # noqa: SLF001 - 没有公开访问点，起服务代价太大
+
+
+def test_no_efforts_declared_keeps_the_plain_entry() -> None:
+    entry = _catalog()
+    assert "reasoning_options" not in entry
+    assert entry["tags"] == ["tool-use"]
+
+
+def test_declared_efforts_use_the_shape_fx_actually_parses() -> None:
+    """键名是 reasoning_options，值是带 type 的对象数组。
+
+    照字段名猜了两轮（reasoning_efforts / has_reasoning / tags:["reasoning"]）
+    都没出现选项，最后是从 fx 源码 src/builtins/gateway.zig 的解析器和测试夹具
+    里翻出来的真格式。写错 fx **不报错**，只是「Reasoning Effort」这一项不出现
+    —— 所以这条测试守的是一个静默失败。
+    """
+    entry = _catalog(reasoning_efforts=("low", "high", "max"))
+    assert entry["reasoning_options"] == [
+        {"type": "effort", "values": ["low", "high", "max"]}
+    ]
+    assert "reasoning" in entry["tags"], "没有 reasoning 标签时 fx 不认这个能力"
+
+
+def test_effort_order_is_preserved() -> None:
+    """fx 的选择器按声明顺序显示。"""
+    entry = _catalog(reasoning_efforts=("max", "low"))
+    assert entry["reasoning_options"][0]["values"] == ["max", "low"]
+
+
+def test_blank_efforts_are_dropped() -> None:
+    entry = _catalog(reasoning_efforts=("low", "  ", "", "max"))
+    assert entry["reasoning_options"][0]["values"] == ["low", "max"]

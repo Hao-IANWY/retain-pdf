@@ -38,6 +38,7 @@ class FxOpenAIChatBridge:
         api_key: str = "",
         timeout_s: float = 120.0,
         extra_body: Mapping[str, Any] | None = None,
+        reasoning_efforts: tuple[str, ...] = (),
     ) -> None:
         self._base_url = _validated_base_url(base_url)
         self._model = model.strip()
@@ -46,6 +47,9 @@ class FxOpenAIChatBridge:
         self._api_key = api_key.strip()
         self._timeout_s = max(1.0, float(timeout_s))
         self._extra_body = merge_safe_extra_body({}, extra_body)
+        self._reasoning_efforts = tuple(
+            str(value).strip() for value in reasoning_efforts if str(value).strip()
+        )
         self._server: ThreadingHTTPServer | None = None
         self._thread: threading.Thread | None = None
 
@@ -105,19 +109,30 @@ class FxOpenAIChatBridge:
         if handler.path != "/coding-agent/v1/models":
             _write_json(handler, 404, {"error": {"message": "not found"}})
             return
-        _write_json(
-            handler,
-            200,
-            {
-                "data": [
-                    {
-                        "id": self._model,
-                        "type": "language",
-                        "tags": ["tool-use"],
-                    }
-                ]
-            },
-        )
+        _write_json(handler, 200, {"object": "list", "data": [self._catalog_entry()]})
+
+    def _catalog_entry(self) -> dict[str, Any]:
+        """桥对 fx 声明这个模型有什么能力。
+
+        格式取自 fx 自己的解析器（src/builtins/gateway.zig，v0.0.10）：
+        `reasoning_options` 是带 type 的对象数组，**不是** reasoning_efforts
+        那样的字符串列表。写错键名 fx 不报错，只是「思考强度」那个选项不出现 ——
+        我照着字段名猜了两轮才从源码里找到真的格式。
+
+        声明 effort 档位不等于上游一定支持：fx 只据此决定给不给用户这个选择器，
+        真正生效与否取决于 provider。不声明的话用户连选都选不了。
+        """
+        entry: dict[str, Any] = {
+            "id": self._model,
+            "type": "language",
+            "tags": ["tool-use"],
+        }
+        if self._reasoning_efforts:
+            entry["tags"] = ["tool-use", "reasoning"]
+            entry["reasoning_options"] = [
+                {"type": "effort", "values": list(self._reasoning_efforts)}
+            ]
+        return entry
 
     def _handle_post(self, handler: BaseHTTPRequestHandler) -> None:
         if handler.path != "/v1/ai/chat":

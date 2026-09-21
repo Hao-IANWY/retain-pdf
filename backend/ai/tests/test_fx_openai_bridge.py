@@ -189,6 +189,8 @@ def test_loopback_bridge_forwards_to_openai_compatible_endpoint() -> None:
     assert captured["payload"]["model"] == "qwen-test"  # type: ignore[index]
     assert '"delta":"bridge ok"' in body
     assert '"unified":"stop"' in body
+    # object:"list" 是真实 Gateway 目录的外层形状（见 fx 的 gateway.zig 夹具）。
     assert catalog == {
-        "data": [{"id": "qwen-test", "type": "language", "tags": ["tool-use"]}]
+        "object": "list",
+        "data": [{"id": "qwen-test", "type": "language", "tags": ["tool-use"]}],
     }

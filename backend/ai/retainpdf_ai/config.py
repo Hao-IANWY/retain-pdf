@@ -83,6 +83,12 @@ def _env_json_object(name: str) -> dict[str, Any]:
     return parsed if isinstance(parsed, dict) else {}
 
 
+def _env_csv(name: str) -> tuple[str, ...]:
+    """逗号分隔的字符串列表。空项丢掉，顺序保留 —— fx 的选择器按这个顺序显示。"""
+    raw = os.environ.get(name, "").strip()
+    return tuple(item.strip() for item in raw.split(",") if item.strip())
+
+
 def _env_flag(name: str) -> bool:
     """布尔环境变量。只有明确写了真值才算开 —— 空值、拼错、"off" 一律是关。
 
@@ -191,6 +197,14 @@ class Settings:
     #
     # model / messages / stream 是桥对 fx 的协议契约，不会被这里覆盖。
     fx_upstream_extra: dict[str, Any] = field(default_factory=dict)
+    # 向 fx 声明这个模型支持哪几档 reasoning effort（逗号分隔）。
+    #
+    # 声明了 fx 的 /model 选择器和 ACP 的 config option 里才会出现「Reasoning
+    # Effort」这一项；不声明用户连选都选不了。fx 只据此决定给不给选择器，
+    # 真正生效与否取决于上游 provider。
+    #
+    # DeepSeek 文档写的是 low / high / max。
+    fx_reasoning_efforts: tuple[str, ...] = ()
     # 任务产物根目录(data/jobs/<job_id>/...)
     data_root: Path = field(default_factory=lambda: _repo_root() / "data")
 
@@ -371,6 +385,7 @@ def load_settings() -> Settings:
         ),
         fx_shell_mode=_env_flag("RETAIN_AI_FX_SHELL_MODE"),
         fx_upstream_extra=_env_json_object("RETAIN_AI_FX_UPSTREAM_EXTRA"),
+        fx_reasoning_efforts=_env_csv("RETAIN_AI_FX_REASONING_EFFORTS"),
         data_root=Path(data_root) if data_root else _repo_root() / "data",
     )
     stored = load_runtime_credentials(settings.data_root)
