@@ -244,7 +244,7 @@ class FxAcpRuntime:
                     f"{self._settings.fx_expected_version}, got {actual_version or 'unknown'}"
                 )
             session_id, rebuilt = self._open_or_create_session(client, conversation_id)
-            client.set_mode("ask")
+            client.set_mode("ask", session_id)
             operations = load_operation_context(
                 self._rust,
                 conversation_id=conversation_id,

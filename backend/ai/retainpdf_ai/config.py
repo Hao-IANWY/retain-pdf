@@ -144,7 +144,7 @@ class Settings:
     fx_command: str = "fx"
     # Real backend CLI. fx sees only a generated broker wrapper with this name.
     fx_agent_cli_command: str = "retainpdf-agent"
-    fx_expected_version: str = "0.0.5"
+    fx_expected_version: str = "0.0.10"
     fx_gateway_base_url: str = ""
     fx_gateway_base_url_mode: str = "inherit_env"
     fx_gateway_base_url_env: str = ""
@@ -177,9 +177,17 @@ class Settings:
     # 没有 max_tokens、没有任何思考强度参数。想调 provider 自己的旋钮只能从
     # 宿主这边加。
     #
-    # 不做成「思考强度」这种命名参数：各家的开关形状完全不同，而且实测
-    # DeepSeek 只认 {"thinking":{"type":"disabled"}}，reasoning_effort 和
-    # budget_tokens 一概忽略 —— 叫「强度」会让人以为能调档，实际只有开关。
+    # 不做成「思考强度」这种命名参数：各家 provider 的开关形状完全不同，翻译
+    # 语义等于把一堆 provider 知识塞进桥里。
+    #
+    # 实测 DeepSeek(deepseek-flash)，供下一个人参考：
+    #   {"thinking":{"type":"disabled"}}          reasoning_tokens 归零，确定生效
+    #   {"thinking":{"type":"enabled"}}           确定生效
+    #   + reasoning_effort: low/high/max          API 接受，但 n=2 的样本里
+    #                                             742/766/873 组内重叠严重，
+    #                                             **没测出可靠差异**，别当定论
+    #   thinking.budget_tokens                    未观察到影响
+    # 注意 reasoning_effort 必须和 thinking:{"type":"enabled"} 一起发，单发无效。
     #
     # model / messages / stream 是桥对 fx 的协议契约，不会被这里覆盖。
     fx_upstream_extra: dict[str, Any] = field(default_factory=dict)
@@ -334,7 +342,7 @@ def load_settings() -> Settings:
         ).strip()
         or "retainpdf-agent",
         fx_expected_version=os.environ.get(
-            "RETAIN_AI_FX_EXPECTED_VERSION", "0.0.5"
+            "RETAIN_AI_FX_EXPECTED_VERSION", "0.0.10"
         ).strip(),
         fx_gateway_base_url=fx_gateway_base_url_env,
         fx_gateway_base_url_env=fx_gateway_base_url_env,

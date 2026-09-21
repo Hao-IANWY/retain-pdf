@@ -269,6 +269,12 @@ def translate_gateway_request(
     tool_choice = _tool_choice(payload.get("toolChoice"))
     if tool_choice is not None:
         result["tool_choice"] = tool_choice
+    # fx 0.0.10 起会带 maxOutputTokens。丢掉它不是"少一个可选参数"——fx 是按这个
+    # 上限规划上下文的，上游不受限就可能回一段超出 fx 预期的内容。
+    # 0.0.5 不发这个字段，所以这段在旧版上是死代码，不是行为变更。
+    max_output = payload.get("maxOutputTokens")
+    if isinstance(max_output, int) and max_output > 0:
+        result["max_tokens"] = max_output
     return merge_safe_extra_body(result, extra_body)
 
 

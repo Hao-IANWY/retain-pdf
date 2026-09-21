@@ -101,11 +101,17 @@ class FxAcpClient:
             {"sessionId": session_id, "mcpServers": []},
         )
 
-    def set_mode(self, mode_id: str) -> None:
-        result = self._request(
-            "session/set_config_option",
-            {"configId": "mode", "value": mode_id},
-        )
+    def set_mode(self, mode_id: str, session_id: str = "") -> None:
+        """设置会话的权限模式。
+
+        `session_id` 从 0.0.10 起是必需的：那一版把 set_config_option 改成了
+        按会话生效，不带 sessionId 会被拒（"Missing sessionId"）。0.0.5 不需要，
+        所以留了默认空值——但那条路在新版上一定失败，不是可选项。
+        """
+        params: dict[str, Any] = {"configId": "mode", "value": mode_id}
+        if session_id:
+            params["sessionId"] = session_id
+        result = self._request("session/set_config_option", params)
         options = result.get("configOptions") or []
         selected = next(
             (
