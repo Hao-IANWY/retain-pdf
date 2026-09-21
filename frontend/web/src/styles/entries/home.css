@@ -32,6 +32,11 @@
  * 拆成更小的子集；引用/脚注的皮肤由 reader 侧提供，主页不再重定义。 */
 @import "@retainpdf/reader/ai.css" layer(pages);
 
+/* xterm 自带样式（光标、选区、滚动条几何），配色不在这里 —— 由
+ * features/fx-terminal 从皮肤令牌读出来喂给 xterm 的 ITheme。
+ * 这份文件只提供结构，换肤不需要改它。 */
+@import "@xterm/xterm/css/xterm.css" layer(pages);
+
 @import "../tokens.css" layer(tokens);
 @import "../shadcn-theme.css" layer(tokens);
 @import "../base.css" layer(base);
