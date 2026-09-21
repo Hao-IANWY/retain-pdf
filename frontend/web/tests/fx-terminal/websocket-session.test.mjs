@@ -157,3 +157,28 @@ test("连接出错要告诉终端，不能静默停住", () => {
   h.socket().onerror?.();
   assert.equal(h.closes.length, 1);
 });
+
+test("选了档位就带上 effort 参数", () => {
+  const url = new URL(
+    terminalSocketUrl({ baseUrl: "http://x.test", apiKey: "k", effort: "max" }),
+  );
+  assert.equal(url.searchParams.get("effort"), "max");
+});
+
+test("auto 不带参数，而不是发字面量 auto", () => {
+  // 后端对 auto 走「不设 reasoning_effort」那条路；把字面量发上去，
+  // 有的 provider 会对没见过的值直接 400。
+  for (const value of ["auto", "AUTO", "  ", ""]) {
+    const url = new URL(
+      terminalSocketUrl({ baseUrl: "http://x.test", apiKey: "k", effort: value }),
+    );
+    assert.equal(url.searchParams.get("effort"), null, `effort=${value}`);
+  }
+});
+
+test("档位统一小写后再发", () => {
+  const url = new URL(
+    terminalSocketUrl({ baseUrl: "http://x.test", apiKey: "k", effort: " MAX " }),
+  );
+  assert.equal(url.searchParams.get("effort"), "max");
+});

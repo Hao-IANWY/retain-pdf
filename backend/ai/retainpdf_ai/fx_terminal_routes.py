@@ -84,7 +84,11 @@ def register_fx_terminal_routes(
         cols, rows = _requested_size(websocket.query_params)
         launch = None
         try:
-            launch = build_terminal_launch(settings, session_key=session_key)
+            launch = build_terminal_launch(
+                settings,
+                session_key=session_key,
+                effort=websocket.query_params.get("effort", ""),
+            )
             pty_session = PtySession(launch)
             pty_session.open(cols=cols, rows=rows)
         except Exception as exc:  # noqa: BLE001 - 起不来要告诉前端原因

@@ -39,6 +39,10 @@ pub struct TerminalQuery {
     pub cols: Option<u16>,
     #[serde(default)]
     pub rows: Option<u16>,
+    /// 思考档位。rust_api 不认识它的取值 —— 合不合法由 ai_service 按自己声明的
+    /// 档位表判断。这里只负责原样带过去，不做第二份白名单（两份一定会漂）。
+    #[serde(default)]
+    pub effort: String,
 }
 
 /// 握手鉴权：请求头或查询参数，任一命中即可。
@@ -95,6 +99,9 @@ pub(crate) fn upstream_terminal_url(
         }
         if let Some(rows) = query.rows {
             pairs.append_pair("rows", &rows.to_string());
+        }
+        if !query.effort.is_empty() {
+            pairs.append_pair("effort", &query.effort);
         }
     }
     Ok(url.into())

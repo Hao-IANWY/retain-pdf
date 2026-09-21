@@ -378,3 +378,82 @@ def test_an_agent_endpoint_without_a_key_does_not_start_a_bridge(tmp_path: Path)
         _settings(tmp_path, llm_base_url="https://api.deepseek.com/v1", llm_api_key="")
     )
     assert base == ""
+
+
+# ------------------------------------------------- 按会话的思考档位
+
+
+@pytest.mark.parametrize("value", ["low", "high", "max", "  MAX  "])
+def test_a_declared_effort_reaches_the_upstream_body(value: str) -> None:
+    from retainpdf_ai.fx_terminal import resolve_effort_override
+
+    assert resolve_effort_override(value, ("low", "high", "max")) == {
+        "reasoning_effort": value.strip().lower()
+    }
+
+
+@pytest.mark.parametrize("value", ["", "auto", "AUTO", "   "])
+def test_auto_means_do_not_send_anything(value: str) -> None:
+    """auto = 用模型自己的默认。发一个 reasoning_effort:"auto" 上去反而可能被拒。"""
+    from retainpdf_ai.fx_terminal import resolve_effort_override
+
+    assert resolve_effort_override(value, ("low", "high", "max")) == {}
+
+
+@pytest.mark.parametrize("value", ["ultra", "9999", "'; drop", "high;low"])
+def test_an_undeclared_effort_is_dropped(value: str) -> None:
+    """前端传什么都不能直接进请求体。
+
+    上游对没见过的值可能 400，而那会表现成「终端一打开就断」—— 用户根本看不出
+    是档位选错了。
+    """
+    from retainpdf_ai.fx_terminal import resolve_effort_override
+
+    assert resolve_effort_override(value, ("low", "high", "max")) == {}
+
+
+def test_nothing_declared_means_no_effort_can_be_set() -> None:
+    from retainpdf_ai.fx_terminal import resolve_effort_override
+
+    assert resolve_effort_override("high", ()) == {}
+
+
+def test_the_effort_merges_into_the_static_extra_body(tmp_path: Path) -> None:
+    """按会话的档位要和按 provider 配的静态字段并存，不能互相盖掉。
+
+    DeepSeek 的 thinking:{"type":"enabled"} 是配一次的东西，不该跟着每次切档
+    重复；reasoning_effort 才是每次会变的。
+    """
+    launch = build_terminal_launch(
+        _settings(
+            tmp_path,
+            llm_base_url="https://api.deepseek.com/v1",
+            llm_api_key="sk-agent",
+            llm_model="deepseek-flash",
+            fx_reasoning_efforts=("low", "high", "max"),
+            fx_upstream_extra={"thinking": {"type": "enabled"}},
+        ),
+        session_key="s",
+        effort="max",
+    )
+    try:
+        from retainpdf_ai.fx_openai_bridge import translate_gateway_request
+
+        # 桥拿到的 extra_body 是两者合并后的结果；这里直接验合并语义。
+        from retainpdf_ai.fx_terminal import resolve_effort_override
+        from retainpdf_ai.fx_openai_bridge import merge_safe_extra_body
+
+        merged = merge_safe_extra_body(
+            {"thinking": {"type": "enabled"}},
+            resolve_effort_override("max", ("low", "high", "max")),
+        )
+        body = translate_gateway_request(
+            {"prompt": [{"role": "user", "content": [{"type": "text", "text": "x"}]}]},
+            model="m",
+            extra_body=merged,
+        )
+        assert body["thinking"] == {"type": "enabled"}
+        assert body["reasoning_effort"] == "max"
+    finally:
+        if launch.cleanup:
+            launch.cleanup()
