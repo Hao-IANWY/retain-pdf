@@ -26,10 +26,14 @@ import type { ReaderReadingPathSlotProps } from "@retainpdf/reader/adapters";
 import { apiBase, frontendApiKey } from "@/platform/config/runtime.js";
 import {
   type CanvasSource,
-  buildCanvasShapes,
   chooseCanvasSource,
-  nodeForShapeId,
+  imageRefsOf,
 } from "../domain/reading-canvas-doc.js";
+import {
+  type CanvasImage,
+  buildCanvasShapes,
+  nodeForShapeId,
+} from "../domain/reading-canvas-render.js";
 import {
   type ReadingStep,
   buildShapes,
@@ -54,6 +58,42 @@ async function fetchArtifact(jobId: string, name: string): Promise<string | null
   if (response.status === 404) return null;
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return await response.text();
+}
+
+/** 论文里的图。走 `data:` URL 而不是 blob：tldraw 的资产校验器拒绝 `blob:`
+ * （实测报 invalid protocol），而图片端点要 `X-API-Key`，`<img src>` 带不了
+ * header —— 所以在这里带着 key 取回来再转。
+ *
+ * 尺寸必须解码出来：图形的 w/h 决定画多大，按错的比例画会把图拉变形。
+ */
+async function loadImage(jobId: string, name: string): Promise<CanvasImage | null> {
+  try {
+    const response = await fetch(
+      new URL(
+        `/api/v1/jobs/${encodeURIComponent(jobId)}/markdown/images/${encodeURIComponent(name)}`,
+        apiBase(),
+      ),
+      { headers: { "X-API-Key": frontendApiKey() } },
+    );
+    if (!response.ok) return null;
+    const blob = await response.blob();
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(blob);
+    });
+    const size = await new Promise<{ w: number; h: number }>((resolve, reject) => {
+      const probe = new Image();
+      probe.onload = () => resolve({ w: probe.naturalWidth, h: probe.naturalHeight });
+      probe.onerror = () => reject(new Error("decode failed"));
+      probe.src = dataUrl;
+    });
+    return { name, dataUrl, w: size.w, h: size.h };
+  } catch {
+    // 一张图取不到不该让整张画布消失 —— 那个节点退回成文字框。
+    return null;
+  }
 }
 
 function ReadingCanvasPanel({ open, jobId, onJump }: ReaderReadingPathSlotProps) {
@@ -117,7 +157,7 @@ function ReadingCanvasPanel({ open, jobId, onJump }: ReaderReadingPathSlotProps)
       </p>
     );
   }
-  return <Canvas source={source} jumpRef={jumpRef} />;
+  return <Canvas source={source} jobId={jobId} jumpRef={jumpRef} />;
 }
 
 type LoadedTldraw = typeof import("tldraw");
@@ -128,13 +168,34 @@ type PlacedNodes = ReturnType<typeof buildCanvasShapes>["placed"];
 
 function Canvas({
   source,
+  jobId,
   jumpRef,
 }: {
   source: Extract<CanvasSource, { kind: "canvas" | "path" }>;
+  jobId: string;
   jumpRef: { current: ReaderReadingPathSlotProps["onJump"] };
 }) {
   const [mod, setMod] = useState<LoadedTldraw | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
+  const [images, setImages] = useState<ReadonlyMap<string, CanvasImage>>(new Map());
+
+  const refs = source.kind === "canvas" ? imageRefsOf(source.doc) : [];
+  // 文件名列表拼成字符串当依赖：数组每次渲染都是新的，直接放进依赖数组会无限取图。
+  const refsKey = refs.join("\u0000");
+  useEffect(() => {
+    if (!refsKey) return setImages(new Map());
+    let cancelled = false;
+    void (async () => {
+      const loaded = await Promise.all(
+        refsKey.split("\u0000").map((name) => loadImage(jobId, name)),
+      );
+      if (cancelled) return;
+      setImages(new Map(loaded.filter((item): item is CanvasImage => !!item).map((i) => [i.name, i])));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [jobId, refsKey]);
 
   useEffect(() => {
     let cancelled = false;
@@ -162,13 +223,15 @@ function Canvas({
     const editor = editorRef.current;
     if (!editor) return;
     const built = source.kind === "canvas"
-      ? buildCanvasShapes(source.doc)
-      : { placed: null, shapes: buildShapes(source.steps as ReadingStep[]) };
+      ? buildCanvasShapes(source.doc, images)
+      : { placed: null, shapes: buildShapes(source.steps as ReadingStep[]), assets: [] };
     editor.deleteShapes([...editor.getCurrentPageShapeIds()]);
+    // 资产要先于引用它的图形存在，否则图片图形拿不到 src，画出来是空框。
+    if (built.assets.length) editor.createAssets(built.assets);
     editor.createShapes(built.shapes);
     editor.zoomToFit();
     placedRef.current = built.placed;
-  }, [source]);
+  }, [images, source]);
 
   useEffect(() => {
     draw();

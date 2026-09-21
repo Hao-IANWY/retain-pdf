@@ -11,15 +11,22 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 
+import { readFileSync, readdirSync } from "node:fs";
+
+import {
+  imageRefsOf,
+  parseCanvasDoc,
+} from "../../src/features/reader/domain/reading-canvas-doc.ts";
 import {
   CANVAS_LAYOUT,
   buildCanvasShapes,
   colorForKind,
+  imageHeightFor,
   layerOf,
   nodeForShapeId,
   nodeShapeId,
-  parseCanvasDoc,
-} from "../../src/features/reader/domain/reading-canvas-doc.ts";
+  shortLabel,
+} from "../../src/features/reader/domain/reading-canvas-render.ts";
 
 const require = createRequire(import.meta.url);
 const tlschema = require("@tldraw/tlschema");
@@ -27,7 +34,21 @@ const tlschema = require("@tldraw/tlschema");
 const PROPS_BY_TYPE = {
   geo: tlschema.geoShapeProps,
   arrow: tlschema.arrowShapeProps,
+  image: tlschema.imageShapeProps,
+  text: tlschema.textShapeProps,
 };
+
+function validateAssets(assets) {
+  for (const asset of assets) {
+    assert.equal(asset.typeName, "asset");
+    assert.equal(asset.type, "image");
+    tlschema.assetIdValidator.validate(asset.id);
+    for (const [key, value] of Object.entries(asset.props)) {
+      assert.ok(key in tlschema.imageAssetProps, `image 资产没有 ${key} 这个属性`);
+      tlschema.imageAssetProps[key].validate(value);
+    }
+  }
+}
 
 function validateShapes(shapes) {
   assert.ok(shapes.length > 0, "一个图形都没生成");
@@ -197,4 +218,140 @@ test("阅读路径自己坏了就当没有 —— 它只是退路", () => {
     "empty",
     "步骤全都没有 block_id 等于没有路径",
   );
+});
+
+
+// ---------------------------------------------------------------- 图片
+
+const IMG = { name: "fig.jpg", dataUrl: "data:image/jpeg;base64,/9j/4AAQ", w: 1200, h: 600 };
+const IMG_DOC = {
+  nodes: [
+    { id: "f", kind: "concept", text: "整体流程", image: "fig.jpg",
+      anchor: { page_idx: 2, block_id: "p003-b0003" } },
+    { id: "t", text: "纯文字节点" },
+  ],
+  edges: [{ from: "f", to: "t" }],
+};
+
+test("图片节点画成真图片，资产和图形都过校验", () => {
+  const doc = parseCanvasDoc(IMG_DOC);
+  const { shapes, assets } = buildCanvasShapes(doc, new Map([["fig.jpg", IMG]]));
+  assert.equal(assets.length, 1, "该有一个图片资产");
+  validateAssets(assets);
+  const image = shapes.find((s) => s.type === "image");
+  assert.ok(image, "没生成图片图形");
+  assert.equal(image.props.assetId, assets[0].id, "图形引用的资产对不上");
+  assert.ok(shapes.some((s) => s.type === "text"), "图下面该有一行说明");
+  validateShapes(shapes);
+});
+
+test("取不到图就退回文字框，不是整张画布消失", () => {
+  // 一张图挂了不该让别的都看不见。
+  const doc = parseCanvasDoc(IMG_DOC);
+  const { shapes, assets } = buildCanvasShapes(doc, new Map());
+  assert.equal(assets.length, 0);
+  assert.equal(shapes.filter((s) => s.type === "geo").length, 2, "两个节点都该是文字框");
+  assert.equal(shapes.filter((s) => s.type === "image").length, 0);
+  validateShapes(shapes);
+});
+
+test("图片按原比例缩放，且高度收在上下限里", () => {
+  // 收上限不是美观问题：一张长条图能把画布顶到看不见别的。
+  const { NODE_W, IMAGE_MIN_H, IMAGE_MAX_H } = CANVAS_LAYOUT;
+  assert.equal(imageHeightFor({ ...IMG, w: 1200, h: 600 }), NODE_W / 2, "该按比例");
+  assert.equal(imageHeightFor({ ...IMG, w: 100, h: 5000 }), IMAGE_MAX_H, "长条图该被收住");
+  assert.equal(imageHeightFor({ ...IMG, w: 5000, h: 100 }), IMAGE_MIN_H, "扁条图该有下限");
+  assert.equal(imageHeightFor({ ...IMG, w: 0, h: 0 }), CANVAS_LAYOUT.NODE_H, "坏尺寸退回默认");
+  assert.equal(imageHeightFor(undefined), CANVAS_LAYOUT.NODE_H);
+});
+
+test("图和它的说明都能点，跳的是同一个节点", () => {
+  // 点说明却不跳，会让人以为这个节点没锚点。
+  const doc = parseCanvasDoc(IMG_DOC);
+  const { placed } = buildCanvasShapes(doc, new Map([["fig.jpg", IMG]]));
+  assert.equal(nodeForShapeId(placed, "shape:canvas-node-0").id, "f");
+  assert.equal(nodeForShapeId(placed, "shape:canvas-cap-0").id, "f");
+});
+
+test("高矮不一的节点不会互相压着", () => {
+  // 固定行高的话，图片节点要么压住下面的，要么中间空一大块。
+  const doc = parseCanvasDoc({
+    nodes: [
+      { id: "a", text: "高图", image: "tall.jpg" },
+      { id: "b", text: "紧接着" },
+    ],
+    edges: [],
+  });
+  const tall = { name: "tall.jpg", dataUrl: IMG.dataUrl, w: 100, h: 400 };
+  const { placed } = buildCanvasShapes(doc, new Map([["tall.jpg", tall]]));
+  const [first, second] = placed;
+  assert.ok(second.y >= first.y + first.h, `第二个压在第一个上了: ${second.y} < ${first.y + first.h}`);
+});
+
+test("引用到的图片文件名去重后交给宿主", () => {
+  const doc = parseCanvasDoc({
+    nodes: [
+      { id: "a", text: "一", image: "same.jpg" },
+      { id: "b", text: "二", image: "same.jpg" },
+      { id: "c", text: "三" },
+    ],
+    edges: [],
+  });
+  assert.deepEqual(imageRefsOf(doc), ["same.jpg"]);
+});
+
+test("image 只收文件名，路径一律丢掉", () => {
+  // 拼进图片 URL 的东西带 `../` 就是任意文件读取。
+  for (const hostile of ["../../../etc/passwd", "a/b.jpg", "/abs.jpg", "x.jpg?y=1", ""]) {
+    const doc = parseCanvasDoc({ nodes: [{ id: "n", text: "t", image: hostile }], edges: [] });
+    assert.equal(doc.nodes[0].image, undefined, `${hostile} 不该被收下`);
+  }
+  const ok = parseCanvasDoc({ nodes: [{ id: "n", text: "t", image: "e7b7.jpg" }], edges: [] });
+  assert.equal(ok.nodes[0].image, "e7b7.jpg");
+});
+
+// ---------------------------------------------------------------- 看得过来
+
+test("过长的标签被截断 —— 一个失控节点不该撑垮整张图", () => {
+  const { MAX_LABEL } = CANVAS_LAYOUT;
+  const long = "很长".repeat(200);
+  assert.equal(shortLabel(long).length, MAX_LABEL);
+  assert.ok(shortLabel(long).endsWith("…"), "截断了要看得出来");
+  assert.equal(shortLabel("短的"), "短的", "短的不该动");
+  assert.equal(shortLabel("  多  余   空白 "), "多 余 空白", "换行和多余空格会把卡片撑高");
+
+  const doc = parseCanvasDoc({ nodes: [{ id: "n", text: long }], edges: [] });
+  const { shapes } = buildCanvasShapes(doc);
+  const rendered = JSON.stringify(shapes[0].props.richText);
+  assert.ok(rendered.length < 400, `卡片里塞了 ${rendered.length} 字符`);
+  // 截断只影响显示，原文还在文档里。
+  assert.equal(doc.nodes[0].text, long);
+});
+
+test("箭头标签也截断", () => {
+  const doc = parseCanvasDoc({
+    nodes: [{ id: "a", text: "甲" }, { id: "b", text: "乙" }],
+    edges: [{ from: "a", to: "b", label: "因为".repeat(200) }],
+  });
+  const arrow = buildCanvasShapes(doc).shapes.find((s) => s.type === "arrow");
+  assert.ok(JSON.stringify(arrow.props.richText).length < 400);
+});
+
+// ---------------------------------------------------------------- 懒加载
+
+test("domain 层只许类型导入 tldraw", () => {
+  // 值导入会把整个 tldraw（1.6 MB）拽进首屏包，把画布面板的懒加载废掉 ——
+  // 而且不会有任何报错，只是首屏慢了。我自己就写错过一次（AssetRecordType）。
+  // 整个 domain 目录都要守，不只是某一个文件 —— 拆分之后新文件很容易漏掉。
+  const dir = new URL("../../src/features/reader/domain/", import.meta.url);
+  const files = readdirSync(dir).filter((name) => name.endsWith(".ts"));
+  let checked = 0;
+  for (const name of files) {
+    const source = readFileSync(new URL(name, dir), "utf8");
+    for (const line of source.match(/^import[^;]*from "tldraw";/gm) || []) {
+      checked += 1;
+      assert.match(line, /^import type /, `${name} 值导入了 tldraw:\n${line}`);
+    }
+  }
+  assert.ok(checked >= 2, `只查到 ${checked} 条 tldraw 导入，断言方式该改了`);
 });

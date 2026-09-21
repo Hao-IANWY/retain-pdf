@@ -322,3 +322,47 @@ def test_the_instructions_tie_anchors_to_real_block_ids(tmp_path: Path) -> None:
     assert "block_id" in text
     canvas_section = text[text.index("canvas.v1.json") :]
     assert "document.v1.json" in canvas_section, "没说 block_id 要从哪儿取"
+
+
+def test_the_instructions_cap_how_much_gets_drawn(tmp_path: Path) -> None:
+    """「产生的东西太多了看不过来」是真实反馈。
+
+    模型不会自己节制 —— 它默认把知道的都倒出来。不写上限，画布就退化成一张
+    拥挤的文档，而画布的全部价值是一眼看完。
+    """
+    text = build_job_workspace_instructions(_job(tmp_path, "job-1"))
+    canvas = text[text.index("canvas.v1.json") :]
+    assert "8 个节点" in canvas, "没写节点数量上限"
+    assert "20 字" in canvas, "没写每个节点的长度上限"
+    assert "截断" in canvas, "没说超了会被截断，模型不知道后果"
+
+
+def test_the_instructions_push_for_figures_over_prose(tmp_path: Path) -> None:
+    """一张图顶一段话。不明说的话模型只会写字 —— 它更擅长写字。"""
+    text = build_job_workspace_instructions(_job(tmp_path, "job-1"))
+    canvas = text[text.index("canvas.v1.json") :]
+    assert "image" in canvas
+    assert "md/images" in canvas, "没说图在哪儿"
+    # 查那条 jq 命令本身，不是散文里出现过 asset_key 就算数 —— 第一版这么写的，
+    # 把命令里的字段换掉也照样绿。
+    assert '.metadata.asset_key' in canvas, (
+        "没给「块 → 图片文件名」的可跑命令，模型只能猜文件名"
+    )
+    assert 'select(.type=="image")' in canvas, "没说怎么筛出图片块"
+
+
+def test_the_truncation_limit_in_the_docs_matches_the_code(tmp_path: Path) -> None:
+    """文档说的截断长度必须和前端真正的上限一致。
+
+    两个数字分别写在 Python 文档和 TS 常量里。不一致的表现是「按文档写了却被
+    截断」，而两边看起来都没错 —— 和 canvas 字段名同一类问题。
+    """
+    import re
+
+    parser = _parser_source()
+    match = re.search(r"const MAX_LABEL = (\d+);", parser)
+    assert match, "前端没有 MAX_LABEL 了，这条断言要跟着改"
+    text = build_job_workspace_instructions(_job(tmp_path, "job-1"))
+    assert f"{match.group(1)} 字" in text, (
+        f"前端截断在 {match.group(1)} 字，但说明里没提这个数"
+    )

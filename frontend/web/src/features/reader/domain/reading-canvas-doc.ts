@@ -18,28 +18,24 @@
  *       "edges": [ { "from": "n1", "to": "n2", "label": "因此" } ]
  *     }
  *
- * ## 坐标是算出来的，不是 agent 给的
+ * 坐标、颜色、图形都在 reading-canvas-render.ts 里算 —— 本文件只认 agent 的格式。
  *
- * 位置由边的拓扑决定：没有入边的是第 0 层，其余是「所有上游层数的最大值 + 1」，
- * 层从左往右排。这样「先有什么、后有什么」在画面上直接成立，而不依赖模型去猜
- * 像素。模型给坐标这件事本来也做不好。
+ * ## 图片
  *
- * 注意**不是** PDF 页面坐标。画布是 dock 里的独立面板，不是叠在页面上的图层，
- * 把 bbox 搬进来没有意义 —— 锚点只用来点击跳转。等画布能叠到页面上时再说。
+ * 节点可以直接放论文里的图（`image` 给 `md/images/` 下的文件名，agent 从
+ * document.v1.json 的 `metadata.asset_key` 取）。一张图顶一段话，这是这个功能
+ * 里唯一能真正减少阅读量的东西。
+ *
+ * 图片走 `data:` URL：tldraw 的资产校验器**拒绝 `blob:`**（实测「invalid
+ * protocol」），而图片端点要 `X-API-Key`，`<img src>` 带不了 header。所以在
+ * 宿主侧带着 key 取回来转成 data URL 再喂进去。这本书 35 张图共 0.6 MB，
+ * 平均 17 KB，base64 那点开销无所谓。
  *
  * ## 这份文件是 agent 写的，形状不保证
  *
  * 所以每一步都往「少画一个」偏，不往「整块崩掉」偏：缺 id 或缺文字的节点丢掉，
  * 指向不存在节点的边丢掉，认不出的 kind 退回灰色。
  */
-import type {
-  TLArrowShape,
-  TLGeoShape,
-  TLShapePartial,
-} from "tldraw";
-
-import { type TLDefaultColorStyleLike, toRichTextDoc } from "./reading-canvas-shapes.js";
-
 export type CanvasAnchor = { page_idx?: number; block_id?: string };
 
 export type CanvasNode = {
@@ -47,33 +43,13 @@ export type CanvasNode = {
   text: string;
   kind?: string;
   anchor?: CanvasAnchor;
+  /** `md/images/` 下的文件名。有它就画成图片，`text` 变成图下面的说明。 */
+  image?: string;
 };
 
 export type CanvasEdge = { from: string; to: string; label?: string };
 
 export type CanvasDoc = { nodes: CanvasNode[]; edges: CanvasEdge[] };
-
-const NODE_W = 260;
-const NODE_H = 120;
-const COL_GAP = 140;
-const ROW_GAP = 48;
-
-/** 层数上限。只用来在 agent 写出环的时候收住循环，不是产品限制。 */
-const MAX_LAYERS = 64;
-
-/** kind → 颜色。认不出的退回灰色，不要抛错 —— 颜色错了图还能看，抛错就什么都没了。 */
-const KIND_COLOR: Readonly<Record<string, TLDefaultColorStyleLike>> = {
-  concept: "blue",
-  note: "yellow",
-  question: "violet",
-  warning: "red",
-  result: "green",
-};
-const FALLBACK_COLOR: TLDefaultColorStyleLike = "grey";
-
-export function colorForKind(kind: string | undefined): TLDefaultColorStyleLike {
-  return (kind && KIND_COLOR[kind]) || FALLBACK_COLOR;
-}
 
 /** 从任意 JSON 里取出能用的部分。整份都不可用时返回 null（调用方当「还没有」）。 */
 export function parseCanvasDoc(payload: unknown): CanvasDoc | null {
@@ -96,6 +72,10 @@ export function parseCanvasDoc(payload: unknown): CanvasDoc | null {
       id,
       text,
       kind: typeof node.kind === "string" ? node.kind : undefined,
+      // 只收文件名，不收路径：`../` 之类的东西拼进图片 URL 就是任意文件读取。
+      image: typeof node.image === "string" && /^[A-Za-z0-9._-]+$/.test(node.image)
+        ? node.image
+        : undefined,
       anchor: anchor && typeof anchor === "object"
         ? {
             page_idx: typeof anchor.page_idx === "number" ? anchor.page_idx : undefined,
@@ -126,115 +106,10 @@ export function parseCanvasDoc(payload: unknown): CanvasDoc | null {
   return { nodes, edges };
 }
 
-/** 每个节点在第几层。没有入边 = 第 0 层；否则是所有上游的最大层数 + 1。
- *
- * 用迭代放松而不是拓扑排序，是因为 agent **会**写出环（「A 导致 B，B 又强化 A」
- * 在论文里是常见说法）。拓扑排序遇到环要么抛错要么丢边；放松法到了上限就停，
- * 环里的节点各自落在某一层，图照样画得出来。
- */
-export function layerOf(doc: CanvasDoc): Map<string, number> {
-  const layers = new Map(doc.nodes.map((node) => [node.id, 0]));
-  for (let round = 0; round < MAX_LAYERS; round += 1) {
-    let moved = false;
-    for (const edge of doc.edges) {
-      const next = (layers.get(edge.from) ?? 0) + 1;
-      if (next > (layers.get(edge.to) ?? 0)) {
-        layers.set(edge.to, next);
-        moved = true;
-      }
-    }
-    if (!moved) break;
-  }
-  return layers;
+/** 文档里引用到的图片文件名，去重。宿主拿它去取图。 */
+export function imageRefsOf(doc: CanvasDoc): string[] {
+  return [...new Set(doc.nodes.map((node) => node.image).filter((name): name is string => !!name))];
 }
-
-type Placed = { node: CanvasNode; x: number; y: number };
-
-/** 层内按 nodes 里的原始顺序竖排 —— agent 写的顺序通常就是它讲解的顺序。 */
-export function layout(doc: CanvasDoc): Placed[] {
-  const layers = layerOf(doc);
-  const rowsUsed = new Map<number, number>();
-  return doc.nodes.map((node) => {
-    const layer = layers.get(node.id) ?? 0;
-    const row = rowsUsed.get(layer) ?? 0;
-    rowsUsed.set(layer, row + 1);
-    return {
-      node,
-      x: layer * (NODE_W + COL_GAP),
-      y: row * (NODE_H + ROW_GAP),
-    };
-  });
-}
-
-export function nodeShapeId(index: number): TLShapePartial<TLGeoShape>["id"] {
-  return `shape:canvas-node-${index}` as TLShapePartial<TLGeoShape>["id"];
-}
-
-/** shape id → 节点。tldraw 的 id 有格式要求，而 agent 给的 id 是任意字符串，
- * 所以图形用下标编号，不直接用 agent 的 id。 */
-export function nodeForShapeId(
-  placed: readonly Placed[],
-  shapeId: string,
-): CanvasNode | undefined {
-  const match = /^shape:canvas-node-(\d+)$/.exec(shapeId);
-  return match ? placed[Number(match[1])]?.node : undefined;
-}
-
-export function buildCanvasShapes(
-  doc: CanvasDoc,
-): { placed: Placed[]; shapes: TLShapePartial<TLGeoShape | TLArrowShape>[] } {
-  const placed = layout(doc);
-  const byId = new Map(placed.map((item, index) => [item.node.id, { item, index }]));
-
-  // 回调的返回类型是显式写出来的：只标注外层数组类型的话，`.map()` 会去推断回调
-  // 返回值，对象字面量就没有上下文类型，属性名拼错 tsc 不报。见
-  // reading-canvas-shapes.ts 里那段同样的注释（是踩过的坑）。
-  const nodes = placed.map(({ node, x, y }, index): TLShapePartial<TLGeoShape> => ({
-    id: nodeShapeId(index),
-    type: "geo",
-    x,
-    y,
-    props: {
-      geo: "rectangle",
-      w: NODE_W,
-      h: NODE_H,
-      richText: toRichTextDoc(node.text),
-      color: colorForKind(node.kind),
-      // 有锚点的画实线（点了能跳），没有的画虚线 —— 免得点上去没反应还以为坏了。
-      dash: node.anchor?.block_id ? "solid" : "dashed",
-      size: "s",
-      align: "start",
-      verticalAlign: "start",
-    },
-  }));
-
-  const arrows = doc.edges.flatMap((edge, index): TLShapePartial<TLArrowShape>[] => {
-    const from = byId.get(edge.from);
-    const to = byId.get(edge.to);
-    if (!from || !to) return [];
-    // 从源的右边中点连到目标的左边中点。start/end 是相对图形原点的偏移，
-    // 所以图形原点放 (0,0)，两端直接用画布坐标。
-    return [{
-      id: `shape:canvas-edge-${index}` as TLShapePartial<TLArrowShape>["id"],
-      type: "arrow",
-      x: 0,
-      y: 0,
-      props: {
-        start: { x: from.item.x + NODE_W, y: from.item.y + NODE_H / 2 },
-        end: { x: to.item.x, y: to.item.y + NODE_H / 2 },
-        richText: toRichTextDoc(edge.label ?? ""),
-        arrowheadStart: "none",
-        arrowheadEnd: "arrow",
-        color: "grey",
-        size: "s",
-      },
-    }];
-  });
-
-  return { placed, shapes: [...nodes, ...arrows] };
-}
-
-export const CANVAS_LAYOUT = { NODE_W, NODE_H, COL_GAP, ROW_GAP } as const;
 
 // ---------------------------------------------------------------- 读哪一份
 

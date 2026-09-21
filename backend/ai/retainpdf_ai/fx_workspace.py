@@ -142,22 +142,44 @@ def build_job_workspace_instructions(job_dir: Path) -> str:
 **只写语义，不要写坐标、颜色、图形。** 位置由边的关系算出来（没有入边的排最左，
 其余在所有上游的右边一列），画出来是什么样不用你操心。
 
+### 三条硬要求，比字段更重要
+
+**1. 少。整张图最多 8 个节点。** 这是画布，不是文档 —— 它的全部价值是一眼看完。
+超过十来个框人就不看了，还不如去读原文。讲不完就先讲主干，别铺开。
+
+**2. 短。每个节点一句话，≤ 20 字。** 超过 60 字会被截断成省略号。展开解释放在你
+的回话里，不要塞进节点。
+
+**3. 能放图就放图。** 一张图顶一段话，这是唯一真正减少阅读量的办法。论文的图本来
+就在 `../md/images/` 下，直接引用，不要用文字去描述一张图长什么样。
+
     {{"schema": "retainpdf_reading_canvas_v1",
      "nodes": [
        {{"id": "n1", "kind": "concept", "text": "一句话说清这个点",
-        "anchor": {{"page_idx": 1, "block_id": "取自 document.v1.json"}}}}
+        "anchor": {{"page_idx": 1, "block_id": "取自 document.v1.json"}}}},
+       {{"id": "n2", "kind": "result", "text": "图 1：整体流程",
+        "image": "e7b7b384....jpg",
+        "anchor": {{"page_idx": 2, "block_id": "p003-b0003"}}}}
      ],
      "edges": [{{"from": "n1", "to": "n2", "label": "因此"}}]}}
 
     id      任意字符串，边靠它引用；重复的会被丢掉
-    text    必填。没有 text 的节点整个丢掉
+    text    必填，≤ 20 字。有 image 时它变成图下面那行说明
+    image   `../md/images/` 下的**文件名**（不带路径，带了会被丢掉）。
+            有它就画成真图片；图取不到就退回文字框
     kind    concept / note / question / warning / result，决定颜色；别的值算灰色
     anchor  可选。**有 anchor 的节点点一下会跳到 PDF 那个位置**，没有的画成虚线
-    edges   from/to 指向不存在的节点会被丢掉；自环也会
+    edges   from/to 指向不存在的节点会被丢掉；自环也会。label 也要短
 
 `block_id` 必须是 `../ocr/normalized/document.v1.json` 里真实存在的：
 
     jq -r '.pages[1].blocks[] | "\\(.block_id) \\(.type)"' ../ocr/normalized/document.v1.json
+
+图和它的 `block_id` 一条命令列全（`asset_key` 就是填进 `image` 的文件名）：
+
+    jq -r '.pages[].blocks[] | select(.type=="image") | "\\(.block_id) \\(.metadata.asset_key)"' ../ocr/normalized/document.v1.json
+
+图配的说明文字在同页 `sub_type` 为 `image_caption` / `chart_caption` 的块里。
 
 ### `./reading-path.v1.json` — 阅读顺序，显示在「阅读路径」标签页
 
