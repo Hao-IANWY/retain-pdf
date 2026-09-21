@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { READER_HOST_PANEL_IDS } from "../../../../frontend/packages/reader/src/shared/types/reader-assistant-panels.ts";
 import {
   loadReaderViewState,
   normalizeReaderViewState,
@@ -97,29 +98,25 @@ test("ReaderFab exposes favorites/markdown/ai aligned with the tool registry", (
   // 宿主槽位面板（终端/阅读路径/画布）都没有，必须先滤掉再回退到 tools ——
   // 漏一个，FAB 就会拿到一个它渲染不了的 id。
   //
-  // 按列表断言而不是写死那一行表达式：这条已经因为「又加了一个面板」红过两次，
-  // 每次都只是机械地补一个条件。列表化之后，加面板时这里会告诉你要补什么。
-  const dock = readerSource(
-    "../../../../frontend/packages/reader/src/components/react-pdf/ReaderAssistantDock.tsx",
-  );
-  const hostSlotPanels = Array.from(
-    dock.matchAll(/^const ([A-Z_]+)_PANEL = \{\n\s*id: "([a-z-]+)"/gm),
-    (match) => match[2],
-  ).filter((id) => id !== "markdown" && id !== "ai");
-  assert.ok(hostSlotPanels.length >= 3, `宿主槽位面板没找全: ${hostSlotPanels}`);
-  // 只在 fabAssistantTool 那段里查。整文件查会被别处的同名比较命中（挂载
-  // latch 里就有一个），反证时不会红 —— 第一版就是这么写错的。
+  // 这条红过三次，每次都只是机械地补一个条件。现在过滤按注册表判断，加面板
+  // 不用改这里；断言也跟着改成查那个判断本身，而不是逐个 id 查。
+  assert.ok(READER_HOST_PANEL_IDS.length >= 3, `宿主槽位面板没找全: ${READER_HOST_PANEL_IDS}`);
   const fabBlock = app.slice(
     app.indexOf("const fabAssistantTool"),
     app.indexOf("const fabActiveTool"),
   );
   assert.ok(fabBlock, "找不到 fabAssistantTool 那段");
-  for (const id of hostSlotPanels) {
-    assert.match(
-      fabBlock,
-      new RegExp(`assistantPanel === "${id}"`),
-      `${id} 没从 FAB 高亮里滤掉 —— FAB 会拿到一个它渲染不了的 id`,
-    );
+  assert.match(
+    fabBlock,
+    /isReaderHostPanel\(assistantPanel\)/,
+    "FAB 不再按注册表滤掉宿主槽位面板 —— 它会拿到一个渲染不了的 id",
+  );
+  // 注册表里的 id 一个都不能出现在 READER_TOOLS 里，否则「滤掉」就是错的。
+  const registry = readerSource(
+    "../../../../frontend/packages/reader/src/tools/registry.ts",
+  );
+  for (const id of READER_HOST_PANEL_IDS) {
+    assert.doesNotMatch(registry, new RegExp(`"${id}"`), `${id} 同时在 READER_TOOLS 里`);
   }
   assert.match(app, /fabAssistantTool \?\? tools\.active/);
 });

@@ -1,6 +1,8 @@
-import { FileCode2, PenTool, Route, Sparkles, SquareTerminal, X } from "lucide-react";
+import { FileCode2, Sparkles, X } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import type { ReactElement } from "react";
 import { getReaderAdapters } from "../../adapters.js";
+import { READER_HOST_PANELS } from "./reader-host-panels.js";
 import { useReaderContext } from "./reader-context.js";
 import type { ReaderAssistantPanel } from "./reader-assistant-types.js";
 
@@ -12,45 +14,23 @@ const BASE_PANELS = [
   { id: "ai", label: "AI 问答", short: "AI", Icon: Sparkles },
 ] as const;
 
-const READING_PATH_PANEL = {
-  id: "reading-path",
-  label: "阅读路径",
-  short: "路径",
-  Icon: Route,
-} as const;
+type DockTab = { id: string; label: string; short: string; Icon: LucideIcon };
 
-const READING_CANVAS_PANEL = {
-  id: "reading-canvas",
-  label: "画布",
-  short: "画",
-  Icon: PenTool,
-} as const;
-
-const TERMINAL_PANEL = {
-  id: "terminal",
-  label: "终端",
-  short: "SH",
-  Icon: SquareTerminal,
-} as const;
-
-/** 宿主没注册终端渲染器时不显示这个 tab。
+/** 宿主没注册对应渲染器的槽位面板不显示 tab。
  *
- * 点了没反应的 tab 比没有这个功能更糟 —— 用户会以为是坏了。 */
-function panelsFor(): readonly { id: string; label: string; short: string; Icon: typeof FileCode2 }[] {
+ * 点了没反应的 tab 比没有这个功能更糟 —— 用户会以为是坏了。
+ *
+ * 面板清单来自 READER_HOST_PANELS，不在这里逐个写 if —— 那份表同时也是宿主
+ * 渲染面板壳的依据，两边同源才不会出现「tab 在、内容没有」。
+ */
+function panelsFor(): readonly DockTab[] {
   const adapters = getReaderAdapters();
-  const panels: { id: string; label: string; short: string; Icon: typeof FileCode2 }[] = [
+  return [
     ...BASE_PANELS,
+    ...READER_HOST_PANELS.filter(
+      (panel) => typeof adapters?.[panel.adapterKey] === "function",
+    ),
   ];
-  if (typeof adapters?.renderReaderReadingPath === "function") {
-    panels.push(READING_PATH_PANEL);
-  }
-  if (typeof adapters?.renderReaderReadingCanvas === "function") {
-    panels.push(READING_CANVAS_PANEL);
-  }
-  if (typeof adapters?.renderReaderTerminal === "function") {
-    panels.push(TERMINAL_PANEL);
-  }
-  return panels;
 }
 
 export type ReaderAssistantDockProps = {

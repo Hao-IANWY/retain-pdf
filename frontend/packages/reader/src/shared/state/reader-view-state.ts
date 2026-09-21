@@ -11,13 +11,18 @@ export type StoredReaderSplitLayout = {
 
 export type StoredReaderMode = "source" | "compare" | "translated";
 
+import {
+  type ReaderAssistantPanel,
+  isReaderAssistantPanel,
+} from "../types/reader-assistant-panels.js";
+
 export type ReaderViewState = {
   schema: "retainpdf_reader_view_v1";
   anchor?: PageScrollProgress;
   zoom?: number;
   mode?: StoredReaderMode;
   splitLayout?: StoredReaderSplitLayout | null;
-  assistantPanel?: "markdown" | "ai" | "terminal" | "reading-path" | "reading-canvas" | null;
+  assistantPanel?: ReaderAssistantPanel | null;
   updatedAt: number;
 };
 
@@ -92,15 +97,11 @@ function normalizeSplitLayout(value: unknown): StoredReaderSplitLayout | null | 
 
 function normalizeAssistantPanel(
   value: unknown,
-): "markdown" | "ai" | "terminal" | "reading-path" | "reading-canvas" | null | undefined {
+): ReaderAssistantPanel | null | undefined {
   if (value === null) return null;
-  return value === "markdown"
-    || value === "ai"
-    || value === "terminal"
-    || value === "reading-path"
-    || value === "reading-canvas"
-    ? value
-    : undefined;
+  // 认哪些 id 由 READER_ASSISTANT_PANEL_IDS 决定。原来在这儿抄了一份清单，
+  // 加面板忘了补的表现是「存了但不恢复」—— 不报错，也没有测试会红。
+  return isReaderAssistantPanel(value) ? value : undefined;
 }
 
 function normalizeReaderMode(value: unknown): StoredReaderMode | undefined {

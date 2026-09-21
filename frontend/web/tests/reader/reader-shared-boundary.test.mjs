@@ -97,7 +97,13 @@ test("scroll progress type lives in shared/types and is still re-exported by pdf
 test("assistant panel type lives in a leaf so context does not import the dock", () => {
   const leaf = join(READER_SRC, "components/react-pdf/reader-assistant-types.ts");
   assert.ok(existsSync(leaf), "reader-assistant-types.ts must exist");
-  assert.match(readFileSync(leaf, "utf8"), /export type ReaderAssistantPanel/);
+  // 叶子现在从 shared/types 转出真源（view-state 也要用那份，而它不能碰
+  // React/lucide）。转出也算数 —— 要守的是「context 不 import dock」这个环，
+  // 不是类型定义写在哪一行。
+  assert.match(
+    readFileSync(leaf, "utf8"),
+    /export type \{ ReaderAssistantPanel \} from "\.\.\/\.\.\/shared\/types\/reader-assistant-panels\.js"/,
+  );
 
   const context = readFileSync(
     join(READER_SRC, "components/react-pdf/reader-context.tsx"),

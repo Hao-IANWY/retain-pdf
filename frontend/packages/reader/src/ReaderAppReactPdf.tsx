@@ -38,24 +38,13 @@ const ReaderFavoritesPanel = lazy(() => import("./components/react-pdf/ReaderFav
 const ReaderMarkdownPanel = lazy(() => import("./components/react-pdf/ReaderMarkdownPanel.js").then((m) => ({ default: m.ReaderMarkdownPanel })));
 const ReaderAiPanel = lazy(() => import("./components/react-pdf/ReaderAiPanel.js").then((m) => ({ default: m.ReaderAiPanel })));
 
-/**
- * 「曾经打开过」latch：上面三个面板是 lazy 的，但 lazy() 的动态 import 在组件
- * 挂载时就会触发 —— 无条件渲染(仅用 open 控制显隐)会让分包边界形同虚设，
- * reader 首屏因此白拉整个 AI 面板与 mathjax。
- *
- * 不能改成 `open && <Panel/>` 条件渲染：关闭即卸载会丢掉面板内部状态
- * (AI 会话、滚动位置)。故首次打开后就一直挂载，仅把首次加载推迟到真正需要时。
- *
- * 用 ref 而非 state：取值只会 false→true 单调翻转，且发生在 open 变化已经
- * 触发的那次渲染内，不需要额外再渲染一轮。
- */
-function useMountedSinceFirstOpen(open: boolean): boolean {
-  const everOpened = useRef(false);
-  if (open) {
-    everOpened.current = true;
-  }
-  return everOpened.current;
-}
+import { useMountedSinceFirstOpen } from "./shared/react/use-mounted-since-first-open.js";
+import { ReaderHostPanelShell } from "./components/react-pdf/ReaderHostPanelShell.js";
+import { READER_HOST_PANELS } from "./components/react-pdf/reader-host-panels.js";
+import {
+  isReaderAssistantPanel,
+  isReaderHostPanel,
+} from "./shared/types/reader-assistant-panels.js";
 
 export function resolveReaderAiLayout(_mode: string): "workspace" {
   return "workspace";
@@ -174,13 +163,9 @@ export function resolveInitialAssistantPanel(
 ): ReaderAssistantPanel | null {
   // A newly opened job always starts in its canonical PDF comparison view.
   if (mode === "compare") return null;
-  if (
-    saved?.assistantPanel === "markdown"
-    || saved?.assistantPanel === "ai"
-    || saved?.assistantPanel === "terminal"
-    || saved?.assistantPanel === "reading-path"
-    || saved?.assistantPanel === "reading-canvas"
-  ) {
+  // 认哪些 id 由 READER_ASSISTANT_PANEL_IDS 决定。原来在这儿抄了一份清单，
+  // 加面板忘了补的表现是「重开阅读页丢面板」—— 不报错，也没有测试会红。
+  if (isReaderAssistantPanel(saved?.assistantPanel)) {
     return saved.assistantPanel;
   }
   // One-time migration from the former arbitrary two-pane layout.
@@ -283,16 +268,8 @@ export function ReaderAppReactPdf() {
   const favoritesMounted = useMountedSinceFirstOpen(tools.isOpen("favorites"));
   const markdownMounted = useMountedSinceFirstOpen(assistantPanel === "markdown");
   const aiMounted = useMountedSinceFirstOpen(assistantPanel === "ai");
-  // 终端一旦开过就保持挂载：卸载 = 关 WebSocket = 杀掉 PTY 子进程，
-  // 用户切个 tab 回来会发现 fx 的会话没了。
-  const terminalMounted = useMountedSinceFirstOpen(assistantPanel === "terminal");
-  const renderTerminal = getReaderAdapters()?.renderReaderTerminal;
-  // 阅读路径每次打开重新拉一次（agent 可能刚重写过），所以不需要挂载 latch ——
-  // 它没有终端那样的进程状态，卸载了不会丢东西。
-  const renderReadingPath = getReaderAdapters()?.renderReaderReadingPath;
-  // 画布一旦开过就保持挂载：tldraw 初始化不便宜，切走再回来重建会闪。
-  const canvasMounted = useMountedSinceFirstOpen(assistantPanel === "reading-canvas");
-  const renderReadingCanvas = getReaderAdapters()?.renderReaderReadingCanvas;
+  // 槽位面板（阅读路径 / 画布 / 终端）的挂载、适配器查找和壳都在
+  // ReaderHostPanelShell 里，按 READER_HOST_PANELS 逐个渲染 —— 见下面那段 map。
   // 键盘与 UI 共用同一「可见模式」真源：paneComposition.visibleMode。
   // 「0」重置缩放据此取模式默认，避免与 HUD/网格显示的模式脱节。
   useReaderKeyboard({
@@ -378,15 +355,17 @@ export function ReaderAppReactPdf() {
   // FAB 高亮：批注 > 辅助面板（与 Dock 同真源）> tools（摘录）。
   // 终端住在 dock 里，不在 FAB 的工具注册表（READER_TOOLS）里，所以它打开时
   // FAB 不高亮任何东西 —— 而不是硬塞一个 FAB 没有图标的 id 进去。
-  const fabAssistantTool =
-    assistantPanel === "terminal"
-    || assistantPanel === "reading-path"
-    || assistantPanel === "reading-canvas"
-      ? null
-      : assistantPanel;
+  const fabAssistantTool = isReaderHostPanel(assistantPanel) ? null : assistantPanel;
   const fabActiveTool: ReaderFabToolId | null = notesOpen
     ? "notes"
     : (fabAssistantTool ?? tools.active);
+
+  const hostPanelContext = useMemo(() => ({
+    jobId: session.jobId,
+    sessionKey: session.jobId || session.documentId || "reader",
+    onJump: jumpCitation,
+    onClose: closeAssistant,
+  }), [closeAssistant, jumpCitation, session.documentId, session.jobId]);
 
   const askSelectedRegion = useCallback((selection: ReaderSelection) => {
     const pdf = selection.pane === "translated" && !sourceViewOnly
@@ -483,75 +462,14 @@ export function ReaderAppReactPdf() {
         ) : null}
         <Suspense fallback={null}>
           {favoritesMounted ? <ReaderFavoritesPanel open={tools.isOpen("favorites")} jobId={session.jobId} documentId={session.documentId} onClose={closeTool} onJumpPage={c.goToPage} /> : null}
-          {assistantPanel === "reading-path" && renderReadingPath ? (
-            <ReaderFloatShell
-              id="reader-reading-path-panel"
-              open
-              title="阅读路径"
-              storageKey="retainpdf.reader.reading-path-float.pos.v1"
-              ariaLabel="阅读路径"
-              width={420}
-              placement="workspace"
-              showHeader={false}
-              className="is-pane-right"
-              onClose={closeAssistant}
-            >
-              {renderReadingPath({
-                open: true,
-                jobId: session.jobId,
-                // 跳转留在包里：锚点怎么变成翻页+高亮要看当前分栏和模式，
-                // 宿主自己实现会和这些状态打架。
-                onJump: jumpCitation,
-                onClose: closeAssistant,
-              })}
-            </ReaderFloatShell>
-          ) : null}
-          {canvasMounted && renderReadingCanvas ? (
-            <ReaderFloatShell
-              id="reader-reading-canvas-panel"
-              open={assistantPanel === "reading-canvas"}
-              title="画布"
-              storageKey="retainpdf.reader.reading-canvas-float.pos.v1"
-              ariaLabel="阅读路径画布"
-              width={520}
-              placement="workspace"
-              showHeader={false}
-              className="is-pane-right"
-              onClose={closeAssistant}
-            >
-              {renderReadingCanvas({
-                open: assistantPanel === "reading-canvas",
-                jobId: session.jobId,
-                onJump: jumpCitation,
-                onClose: closeAssistant,
-              })}
-            </ReaderFloatShell>
-          ) : null}
-          {terminalMounted && renderTerminal ? (
-            // 定位由**包**负责：和 Markdown / AI 面板套同一个壳、同一个
-            // placement。宿主只给内容 —— 它不知道 dock 在哪一侧，也不该知道。
-            // 第一版把这段放在 Suspense 外面、不套壳，结果终端铺满整个窗口
-            // 盖住了 PDF。
-            <ReaderFloatShell
-              id="reader-terminal-panel"
-              open={assistantPanel === "terminal"}
-              title="终端"
-              storageKey="retainpdf.reader.terminal-float.pos.v1"
-              ariaLabel="fx 终端"
-              width={420}
-              placement="workspace"
-              showHeader={false}
-              className="is-pane-right"
-              onClose={closeAssistant}
-            >
-              {renderTerminal({
-                open: assistantPanel === "terminal",
-                // 换文档就换终端会话；同一文档来回切 tab 接回同一个。
-                sessionKey: session.jobId || session.documentId || "reader",
-                onClose: closeAssistant,
-              })}
-            </ReaderFloatShell>
-          ) : null}
+          {READER_HOST_PANELS.map((panel) => (
+            <ReaderHostPanelShell
+              key={panel.id}
+              panel={panel}
+              active={assistantPanel}
+              context={hostPanelContext}
+            />
+          ))}
           {markdownMounted ? <ReaderMarkdownPanel open={assistantPanel === "markdown"} jobId={session.jobId} sourceOnly={c.sourceOnly} layout="workspace" side="right" onClose={closeAssistant} /> : null}
           {aiMounted ? <ReaderAiPanel key={session.documentId || session.jobId || "reader-ai-pending"} open={assistantPanel === "ai"} jobId={session.jobId} documentId={session.documentId} sessionIdentity={session.sessionIdentity} layout={resolveReaderAiLayout(c.mode)} side="right" selectionContext={aiSelectionContext} onClearSelectionContext={() => setAiSelectionContext(null)} onClose={closeAssistant} onJumpCitation={jumpCitation} onDocumentCommitted={refreshCommittedDocument} /> : null}
         </Suspense>

@@ -9,6 +9,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
+import { READER_ADAPTER_KEYS } from "../../../../frontend/packages/reader/src/adapters.ts";
+import { READER_HOST_PANELS } from "../../../../frontend/packages/reader/src/components/react-pdf/reader-host-panels.ts";
+
 const read = (relative) =>
   readFileSync(fileURLToPath(new URL(relative, import.meta.url)), "utf8");
 
@@ -20,20 +23,35 @@ const APP = read(
 );
 const HOST = read("../../src/features/reader/ui/terminal.tsx");
 const ADAPTERS = read("../../../../frontend/packages/reader/src/adapters.ts");
+const SHELL = read(
+  "../../../../frontend/packages/reader/src/components/react-pdf/ReaderHostPanelShell.tsx",
+);
 
 test("每个宿主槽位都按「有没有注册渲染器」决定显不显示", () => {
   // 点了没反应的 tab 比没有这个功能更糟 —— 用户会以为是坏了。
-  // 两个槽位各查一次：加第三个时这条会提醒你也照做。
-  for (const [adapter, panel] of [
-    ["renderReaderTerminal", "TERMINAL_PANEL"],
-    ["renderReaderReadingPath", "READING_PATH_PANEL"],
-  ]) {
-    assert.match(
-      DOCK,
-      new RegExp(`${adapter}\\s*===\\s*"function"`),
-      `${panel} 没有按 ${adapter} 是否注册来判断`,
+  //
+  // 改成遍历注册表，不再逐个面板抄一遍：加面板时这条自动覆盖到，不用记得来补。
+  assert.match(
+    DOCK,
+    /typeof adapters\?\.\[panel\.adapterKey\] === "function"/,
+    "dock 不再按「适配器注册了没有」过滤 tab",
+  );
+  assert.ok(READER_HOST_PANELS.length >= 3, "槽位面板没找全");
+  for (const panel of READER_HOST_PANELS) {
+    // adapterKey 拼错的话过滤永远为假，tab 永远不出现，而且不报错。
+    assert.ok(
+      READER_ADAPTER_KEYS.includes(panel.adapterKey),
+      `${panel.id} 的 adapterKey «${panel.adapterKey}» 不在 READER_ADAPTER_KEYS 里`,
     );
-    assert.match(DOCK, new RegExp(`panels\\.push\\(${panel}\\)`));
+    assert.match(ADAPTERS, new RegExp(`${panel.adapterKey}\\?:`), `适配器类型里没有 ${panel.adapterKey}`);
+  }
+});
+
+test("宿主槽位的 id、标签、存储键都不重复", () => {
+  // 两个面板共用一个 storageKey 的话，挪了一个另一个跟着跳。
+  for (const field of ["id", "label", "short", "storageKey", "adapterKey"]) {
+    const values = READER_HOST_PANELS.map((panel) => panel[field]);
+    assert.equal(new Set(values).size, values.length, `${field} 有重复: ${values}`);
   }
 });
 
@@ -49,23 +67,29 @@ test("终端面板关掉时用 hidden，不能卸载", () => {
 });
 
 test("终端一旦开过就保持挂载", () => {
-  // 同一个理由：useMountedSinceFirstOpen 是挂载 latch，缺了它切 tab 就会
-  // 把整个槽位从树上摘掉。
-  assert.match(APP, /terminalMounted = useMountedSinceFirstOpen\(assistantPanel === "terminal"\)/);
+  // 同一个理由：卸载会杀掉 PTY。现在这件事由注册表上的 keepMounted 表达，
+  // 壳按它决定用不用挂载 latch。
+  const terminal = READER_HOST_PANELS.find((panel) => panel.id === "terminal");
+  assert.ok(terminal, "终端不在注册表里了");
+  assert.equal(terminal.keepMounted, true, "终端 keepMounted 被关掉了 —— 切 tab 会杀掉 fx 会话");
+  assert.match(SHELL, /useMountedSinceFirstOpen\(open\)/, "壳不再用挂载 latch");
+  assert.match(SHELL, /panel\.keepMounted \? latched : open/, "壳没按 keepMounted 选行为");
 });
 
-test("终端槽位套在和其它面板同一个壳里", () => {
-  // 第一版把槽位渲染在 <Suspense> 外面、不套 ReaderFloatShell，结果终端铺满
-  // 整个窗口盖住了 PDF —— 定位是包的事，宿主只给内容。
-  const shell = APP.slice(
-    APP.indexOf("terminalMounted && renderTerminal"),
-    APP.indexOf("markdownMounted ?"),
-  );
-  assert.match(shell, /<ReaderFloatShell/, "槽位必须套在 ReaderFloatShell 里");
-  assert.match(shell, /placement="workspace"/);
-  assert.match(shell, /className="is-pane-right"/);
+test("所有宿主槽位都套在和其它面板同一个壳里", () => {
+  // 第一版把终端渲染在 <Suspense> 外面、不套 ReaderFloatShell，结果它铺满整个
+  // 窗口盖住了 PDF —— 定位是包的事，宿主只给内容。
+  //
+  // 现在三个面板共用一个壳，所以这条一次覆盖全部，不用每加一个面板补一遍。
+  assert.match(SHELL, /<ReaderFloatShell/, "槽位必须套在 ReaderFloatShell 里");
+  assert.match(SHELL, /placement="workspace"/);
+  assert.match(SHELL, /className="is-pane-right"/);
+  assert.match(SHELL, /id=\{`reader-\$\{panel\.id\}-panel`\}/, "壳的 id 不再按面板 id 生成（CSS 会失配）");
+
+  const rendered = APP.indexOf("READER_HOST_PANELS.map");
+  assert.ok(rendered > 0, "宿主不再按注册表渲染槽位了");
   assert.ok(
-    APP.indexOf("terminalMounted && renderTerminal") > APP.indexOf("<Suspense"),
+    rendered > APP.indexOf("<Suspense") && rendered < APP.indexOf("</Suspense>"),
     "槽位必须在 Suspense 块内，和 Markdown / AI 面板同一个父容器",
   );
 });

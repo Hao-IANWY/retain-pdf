@@ -5,13 +5,14 @@ export type StoredReaderSplitLayout = {
     right: StoredReaderPaneContent;
 };
 export type StoredReaderMode = "source" | "compare" | "translated";
+import { type ReaderAssistantPanel } from "../types/reader-assistant-panels.js";
 export type ReaderViewState = {
     schema: "retainpdf_reader_view_v1";
     anchor?: PageScrollProgress;
     zoom?: number;
     mode?: StoredReaderMode;
     splitLayout?: StoredReaderSplitLayout | null;
-    assistantPanel?: "markdown" | "ai" | "terminal" | "reading-path" | "reading-canvas" | null;
+    assistantPanel?: ReaderAssistantPanel | null;
     updatedAt: number;
 };
 type ReaderViewStatePatch = Partial<Pick<ReaderViewState, "anchor" | "zoom" | "mode" | "splitLayout" | "assistantPanel">>;

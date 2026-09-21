@@ -1,2 +1,2 @@
-export type ReaderAssistantPanel = "markdown" | "ai" | "terminal" | "reading-path" | "reading-canvas";
+export type { ReaderAssistantPanel } from "../../shared/types/reader-assistant-panels.js";
 //# sourceMappingURL=reader-assistant-types.d.ts.map
