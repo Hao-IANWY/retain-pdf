@@ -58,42 +58,91 @@ def resolve_job_workspace(data_root: Path, session_key: str) -> Path | None:
 
 
 def build_job_workspace_instructions(job_dir: Path) -> str:
-    """写给 agent 的目录说明。
+    """写给 agent 的工作区说明。
 
-    写得具体，是因为它唯一的约束就是这段话 —— permission_mode 是 auto，没有闸门
-    会拦住它。含糊的「请勿修改」不如告诉它每个目录是什么、改坏了代价是什么。
+    这份文档是**唯一被验证有效**的约束（实测里 fx 引用它拒绝了写 `../`），所以
+    值得写厚。三块内容各有来由：
+
+    1. **环境限制** —— 实测：复合命令（`&&`、`;`）和管道在这里拿不到输出，而
+       且失败表现是「没有输出」，不是报错。agent 分不清「命令没输出」和「被拒
+       了」，于是换着法子重试。一次真实会话里它为此烧掉 32 次工具调用。
+       不告诉它，它没法自己发现。
+    2. **数据地图** —— 同一次会话里它花了七八次调用去 `jq keys` 摸 JSON 结构。
+       这些结构是固定的，直接给出来就不用摸。
+    3. **不要动 `..`** —— 说清楚代价，不是含糊地写「请勿修改」。
     """
     return f"""# RetainPDF 书籍工作区
 
-当前目录是 `{AI_WORKSPACE_DIR_NAME}/`，属于书籍 `{job_dir.name}`。
+当前目录 `{AI_WORKSPACE_DIR_NAME}/` 属于书籍 `{job_dir.name}`。这本书的流水线产物
+在上一级 `../`。
 
-## 你可以自由读写的地方
+## ⚠️ 先读这条：这个终端只能跑单条命令
+
+复合命令和管道**拿不到输出**，而且失败的样子是「没有任何输出」，不是报错 ——
+很容易误判成命令执行失败而反复重试。
+
+    ✗ ls -la && echo done          ✗ cat a.json | jq .x
+    ✗ pwd; ls                      ✗ wc -l f | head
+    ✓ ls -la                       ✓ jq .x a.json
+
+`jq`、`grep`、`rg`、`python3` 都在，**直接用它们自己的参数**，不要用管道拼。
+
+## 数据地图（结构是固定的，不用自己摸）
+
+### `../ocr/normalized/document.v1.json` — 统一文档契约
+
+    顶层     schema / document_id / page_count / pages[] / source
+    pages[]  page_index / width / height / unit / blocks[]
+    blocks[] block_id / page_index / order / type / sub_type / bbox
+             text / lines / segments / layout_role / semantic_role
+
+这个文件常有几十 MB，**别整个读**。用 jq 取需要的部分：
+
+    jq '.page_count' ../ocr/normalized/document.v1.json
+    jq '.pages[2].blocks[] | {{block_id, type, text}}' ../ocr/normalized/document.v1.json
+
+### `../translated/page-XXX-<模型>.json` — 逐页译文
+
+**是一个数组**，每项是一个内容块：
+
+    item_id / page_idx / block_idx / block_type / bbox
+    source_text / translated_text / final_status / translation_diagnostics
+
+    ls ../translated/
+    jq '.[0]' ../translated/page-001-deepseek.json
+    jq -r '.[] | select(.final_status != "translated") | .item_id' ../translated/page-001-deepseek.json
+
+### `../artifacts/` — 诊断
+
+    translation_review.json   issue_count / severity_summary / issues[]
+                              issues[]: item_id / kind / severity / message / page_number
+    pipeline_summary.json     pages_processed / total_elapsed / render_mode
+    translation_diagnostics.json
+
+    jq '.issue_summary' ../artifacts/translation_review.json
+    jq -r '.issues[] | "\(.page_number) \(.item_id) \(.kind)"' ../artifacts/translation_review.json
+
+### 其余
+
+    ../md/full.md        全文 Markdown（要看正文先看这个，比 JSON 省事）
+    ../md/images/        图片
+    ../source/           原始 PDF
+    ../rendered/         译文 PDF
+    ../specs/            本次任务参数（translate.spec.json 等）
+    ../logs/             各阶段日志，pipeline_events.jsonl
+
+## 可以自由读写的地方
 
 **只有当前目录。** 笔记、脚本、中间产物都放这里。
 
-## 上一级 `../` 是这本书的流水线产物 —— 只读，不要修改或删除
+## `../` 只读 —— 不要修改或删除
 
-| 目录 | 内容 | 有用的入口 |
-|---|---|---|
-| `../ocr/` | OCR 结果 | `normalized/document.v1.json` 是**统一文档契约**，含每个内容块的文本、类型和几何坐标 |
-| `../translated/` | 翻译产物 | `page-XXX-*.json` 逐页译文；`translation-checkpoint.v1.json` 是断点状态 |
-| `../md/` | Markdown 视图 | `full.md` 全文；`images/` 图片 |
-| `../source/` | 原始 PDF | |
-| `../rendered/` | 译文 PDF | |
-| `../artifacts/` | 诊断 | `translation_diagnostics.json`、`translation_review.json` |
-| `../specs/` | 本次任务的参数 | |
-| `../logs/` | 各阶段日志 | `pipeline_events.jsonl` |
-
-**为什么不要动**：这些是花了钱和时间跑出来的 —— OCR 走的是按量计费的服务，翻译
-走的是大模型。删了要重跑，重跑要重新付费。
+这些是花了钱和时间跑出来的：OCR 走按量计费的服务，翻译走大模型。删了要重跑，
+重跑要重新付费。
 
 还有一个不显眼的后果：`../translated/` 里的文件被改动之后，
 `translation-checkpoint.v1.json` 记录的 `page_hash` 对不上，渲染会失败，而报的错
 跟「有人改过文件」毫无关系 —— 排查起来非常费劲。
-
-## 读文件的建议
-
-文件不小（`document.v1.json` 常有几十 MB）。用 `jq` 按需取，别整个读进上下文。
 
 ## 其余
 

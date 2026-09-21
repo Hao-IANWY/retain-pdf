@@ -90,12 +90,64 @@ def test_the_instructions_name_every_directory_that_exists(tmp_path: Path) -> No
         assert directory in text, f"说明里没提 {directory}"
 
 
-def test_the_instructions_say_what_breaks_not_just_do_not_touch(tmp_path: Path) -> None:
-    """含糊的「请勿修改」对 agent 没有约束力。得说清楚代价。
+def test_the_instructions_warn_that_compound_commands_produce_no_output(
+    tmp_path: Path,
+) -> None:
+    """这条是整份文档里最值钱的一句。
 
-    两条后果都要写：重跑要花钱；改了 translated/ 之后 page_hash 对不上，
-    渲染失败且报的错和「有人改过文件」毫无关系。
+    实测：`echo A && echo B`、`echo A; echo B`、`echo A | tr a-z A-Z` 全都拿不到
+    输出，而且失败表现是「没有任何输出」而不是报错 —— agent 分不清「命令没输出」
+    和「被拒了」，于是换着法子重试。一次真实会话里为此烧掉 32 次工具调用。
+
+    不写进来它没法自己发现。
     """
+    text = build_job_workspace_instructions(_job(tmp_path, "job-1"))
+    assert "单条命令" in text
+    for forbidden in ("&&", ";", "|"):
+        assert forbidden in text, f"没举例说明 {forbidden} 不能用"
+
+
+def test_the_instructions_map_the_json_shapes(tmp_path: Path) -> None:
+    """同一次会话里 agent 花了七八次调用 `jq keys` 去摸结构。
+
+    这些结构是固定的，直接给出来就不用摸。抽查每个文件的关键字段。
+    """
+    text = build_job_workspace_instructions(_job(tmp_path, "job-1"))
+    for field in (
+        "page_count",      # document.v1.json
+        "blocks[]",
+        "item_id",         # page-XXX-*.json
+        "final_status",
+        "translated_text",
+        "issue_count",     # translation_review.json
+        "severity",
+    ):
+        assert field in text, f"数据地图里没写 {field}"
+
+
+def test_the_instructions_give_runnable_single_commands(tmp_path: Path) -> None:
+    """给的例子必须是能直接抄的单条命令。
+
+    只查 **shell 管道** —— jq 程序里的 `|` 是 jq 自己的语法，在单引号里，
+    完全合法。第一版这条把两者混为一谈，误判了正确的例子。
+    """
+    import re
+
+    text = build_job_workspace_instructions(_job(tmp_path, "job-1"))
+    examples = [
+        line.strip()
+        for line in text.splitlines()
+        if line.strip().startswith("jq ") and "../" in line
+    ]
+    assert len(examples) >= 4, "可抄的 jq 例子太少"
+    for example in examples:
+        outside_quotes = re.sub(r"'[^']*'", "", example)
+        assert "|" not in outside_quotes, f"例子里带了 shell 管道: {example}"
+        assert "&&" not in example and ";" not in example, f"例子是复合命令: {example}"
+
+
+def test_the_instructions_say_what_breaks_not_just_do_not_touch(tmp_path: Path) -> None:
+    """含糊的「请勿修改」对 agent 没有约束力。得说清楚代价。"""
     text = build_job_workspace_instructions(_job(tmp_path, "job-1"))
     assert "page_hash" in text, "没说校验会失败"
     assert "重跑" in text or "重新付费" in text, "没说重跑的代价"
