@@ -36,6 +36,9 @@ if TYPE_CHECKING:
     from .tools import ToolRegistry
 
 _MAX_CALLS_PER_TURN = 16
+# shell 命令单独计数。和上面那个刻意不共用:operation 有副作用,16 次/轮是
+# 有意压着的;而终端里 cat/grep/jq 翻几十次很正常,共用会让终端刚打开就没气。
+_MAX_SHELL_CALLS_PER_TURN = 200
 _CLI_TIMEOUT_SECONDS = 30
 
 # Kept as a compatibility alias for existing tests and integrations importing
@@ -55,6 +58,7 @@ class AgentCommandBroker:
         on_operation_event: Callable[[dict[str, Any]], None] | None = None,
         tool_registry: ToolRegistry | None = None,
         on_tool_event: Callable[[dict[str, Any]], None] | None = None,
+        shell_mode: bool = False,
     ) -> None:
         self._state_root = state_root.resolve()
         self._cli_command = cli_command
@@ -83,6 +87,8 @@ class AgentCommandBroker:
         self._listener: socket.socket | None = None
         self._thread: threading.Thread | None = None
         self._call_count = 0
+        self._shell_mode = bool(shell_mode)
+        self._shell_call_count = 0
 
     @property
     def bin_dir(self) -> Path:
@@ -206,7 +212,13 @@ class AgentCommandBroker:
         try:
             command = parse_broker_command(raw_command, self._scope)
         except ValueError:
-            return False
+            # 不是 broker 那条固定语法。此前一律拒绝 —— 这就是「fx 明明自带
+            # 终端，却只能跑一条命令」的来源：终端一直都在，被这里堵死的。
+            #
+            # shell 模式打开后放行。配额分开记：broker operation 是有副作用的
+            # 结构化操作，16 次/轮是有意的上限；而在终端里查点东西几十条命令
+            # 很正常，共用配额会让终端刚打开就没气了。
+            return self._approve_shell_command(raw_command, tool_call)
         with self._approved_lock:
             if sum(self._approved.values()) >= _MAX_CALLS_PER_TURN:
                 return False
@@ -217,6 +229,40 @@ class AgentCommandBroker:
             )
         self._emit_tool_event(command, tool_call_id, "running")
         return True
+
+    def _approve_shell_command(
+        self, raw_command: str, tool_call: dict[str, Any]
+    ) -> bool:
+        """放行 broker 语法之外的普通命令。
+
+        关着就是老行为（拒绝），开着就放行。开关来自
+        `RETAIN_AI_FX_SHELL_MODE`，默认关 —— 老路径一个字节都没变。
+
+        事件里只带可执行文件名，不带参数：参数里会出现文档正文、路径和用户
+        输入，灌进事件流既没用，又会跟着日志到处跑。
+        """
+        if not self._shell_mode:
+            return False
+        with self._approved_lock:
+            if self._shell_call_count >= _MAX_SHELL_CALLS_PER_TURN:
+                return False
+            self._shell_call_count += 1
+            tool_call_id = str(tool_call.get("toolCallId") or "")[:256]
+        self._emit_shell_event(raw_command, tool_call_id)
+        return True
+
+    def _emit_shell_event(self, raw_command: str, tool_call_id: str) -> None:
+        if self._on_tool_event is None:
+            return
+        from .unified_tools import agent_tool_event
+
+        head = raw_command.strip().split(None, 1)
+        executable = head[0] if head else ""
+        name = f"shell:{executable.rsplit('/', 1)[-1] or 'unknown'}"
+        try:
+            self._on_tool_event(agent_tool_event(name, tool_call_id, "running"))
+        except Exception:  # noqa: BLE001,S110 - progress delivery is best effort
+            pass
 
     def execute_host_argv(self, argv: tuple[str, ...]) -> dict[str, Any]:
         """Execute one structured model tool call through the shared broker."""

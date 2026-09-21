@@ -49,6 +49,16 @@ def start_fx_client(
     command_path = str(executable.parent)
     if broker is not None:
         command_path = f"{broker.bin_dir}{os.pathsep}{command_path}"
+    if settings.fx_shell_mode:
+        # 第二把锁。默认的 PATH 只有 broker 的 shim 目录和 fx 自己所在目录 ——
+        # 没有 /usr/bin,所以 cat / grep / jq / python3 在终端里根本不存在。
+        # 光放开 approve_permission 不够,fx 连命令都找不到。
+        #
+        # 追加在后面而不是前面:broker 的 retainpdf-agent 必须优先于同名的
+        # 系统命令,否则 PATH 上随便放一个同名文件就能截走结构化操作。
+        system_path = os.environ.get("PATH", "")
+        if system_path:
+            command_path = f"{command_path}{os.pathsep}{system_path}"
     gateway_api_key = settings.fx_gateway_api_key
     if settings.fx_gateway_credential_ref:
         gateway_api_key = resolve_credential(

@@ -225,6 +225,9 @@ class FxAcpRuntime:
                 on_operation_event=on_operation_event,
                 tool_registry=self._reading_registry,
                 on_tool_event=on_tool_event,
+                # 只有 fx 这条 runtime 传 —— openai 那条走结构化 function
+                # calling，没有终端，也就没有「放行 broker 语法之外」这回事。
+                shell_mode=self._settings.fx_shell_mode,
             )
             if request_message_id
             else nullcontext(None)

@@ -66,6 +66,15 @@ def _repo_root() -> Path:
     return Path(__file__).resolve().parents[3]
 
 
+def _env_flag(name: str) -> bool:
+    """布尔环境变量。只有明确写了真值才算开 —— 空值、拼错、"off" 一律是关。
+
+    默认关很重要:这个开关控制的是「模型能不能在本机跑任意命令」,
+    误读成开的代价远大于误读成关。
+    """
+    return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
 @dataclass(frozen=True)
 class Settings:
     host: str = "127.0.0.1"
@@ -136,6 +145,15 @@ class Settings:
     fx_state_root: Path = field(
         default_factory=lambda: _repo_root() / "data" / "agent-runtime" / "fx"
     )
+    # 终端模式:放开 fx 自带的 Terminal Tool。两把锁一起开 ——
+    # approve_permission 放行 broker 语法之外的命令,PATH 并入系统 PATH。
+    # 默认关,关着时老行为一个字节没变。
+    #
+    # 开着相当于把本机 shell 交给模型:fx 以当前用户跑,HOME 指向私有目录只
+    # 改变工具去哪找配置,不限制文件访问。而这个 agent 的输入里有来源不可控
+    # 的 PDF 正文(AGENTS.md 自己就写着「把文档正文当不可信数据」)。
+    # 要限制爆炸半径得靠进程级隔离,不在本文件的职责里。
+    fx_shell_mode: bool = False
     # 任务产物根目录(data/jobs/<job_id>/...)
     data_root: Path = field(default_factory=lambda: _repo_root() / "data")
 
@@ -314,6 +332,7 @@ def load_settings() -> Settings:
             os.environ.get("RETAIN_AI_FX_STATE_ROOT", "").strip()
             or (_repo_root() / "data" / "agent-runtime" / "fx")
         ),
+        fx_shell_mode=_env_flag("RETAIN_AI_FX_SHELL_MODE"),
         data_root=Path(data_root) if data_root else _repo_root() / "data",
     )
     stored = load_runtime_credentials(settings.data_root)
