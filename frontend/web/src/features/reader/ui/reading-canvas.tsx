@@ -13,13 +13,11 @@ import { useEffect, useRef, useState } from "react";
 import type { ReaderReadingPathSlotProps } from "@retainpdf/reader/adapters";
 
 import { apiBase, frontendApiKey } from "@/platform/config/runtime.js";
-
-type Step = { order?: number; page_idx?: number; block_id?: string; why?: string };
-
-/** 卡片尺寸和间距。竖排是有意的：阅读顺序天然是从上往下。 */
-const CARD_W = 300;
-const CARD_H = 120;
-const GAP_Y = 52;
+import {
+  type ReadingStep as Step,
+  buildShapes,
+  stepForShapeId,
+} from "../domain/reading-canvas-shapes.js";
 
 export function renderReaderReadingCanvas(props: ReaderReadingPathSlotProps) {
   if (!props.jobId) return null;
@@ -118,7 +116,7 @@ function Canvas({
     <div className="reader-reading-canvas">
       <Tldraw
         onMount={(editor) => {
-          editor.createShapes(buildShapes(steps, editor));
+          editor.createShapes(buildShapes(steps));
           editor.zoomToFit();
           // 选中即跳转。用 side effect 而不是轮询：tldraw 没有 onShapeClick，
           // 而选中变化就是「用户点了这一步」最直接的信号。
@@ -140,36 +138,4 @@ function Canvas({
       />
     </div>
   );
-}
-
-/** shape id ↔ 步骤序号。tldraw 的 id 必须以 `shape:` 开头。 */
-function shapeIdForIndex(index: number): string {
-  return `shape:reading-step-${index}`;
-}
-
-function stepForShapeId(steps: Step[], shapeId: string): Step | undefined {
-  const match = /^shape:reading-step-(\d+)$/.exec(shapeId);
-  return match ? steps[Number(match[1])] : undefined;
-}
-
-function buildShapes(steps: Step[], editor: { createShapes: unknown }) {
-  void editor;
-  return steps.map((step, index) => ({
-    id: shapeIdForIndex(index),
-    type: "geo",
-    x: 0,
-    y: index * (CARD_H + GAP_Y),
-    props: {
-      geo: "rectangle",
-      w: CARD_W,
-      h: CARD_H,
-      // 锚点写进卡片：锚错了一眼能看出来，不用点进去才发现。
-      text: `${step.order ?? index + 1}. ${step.why ?? ""}\n\n第 ${
-        (step.page_idx ?? 0) + 1
-      } 页 · ${step.block_id ?? ""}`,
-      size: "s",
-      align: "start",
-      verticalAlign: "start",
-    },
-  })) as never;
 }
