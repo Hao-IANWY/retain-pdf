@@ -2,6 +2,7 @@ mod agent_calculations;
 mod agent_capabilities;
 mod agent_runtime_sessions;
 mod ai_proxy;
+mod ai_terminal;
 mod conversations_contract;
 mod credentials;
 mod document_operations;

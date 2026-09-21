@@ -12,6 +12,11 @@ pub struct AiGateway {
 }
 
 impl AiGateway {
+    /// ai_service 的基址。终端代理要把它换成 ws:// 再连过去。
+    pub(crate) fn base_url(&self) -> &str {
+        &self.base_url
+    }
+
     pub(crate) fn idle_timeout(&self) -> std::time::Duration {
         self.config.idle_timeout
     }
