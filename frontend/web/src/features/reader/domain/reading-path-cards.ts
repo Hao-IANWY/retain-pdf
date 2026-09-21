@@ -1,4 +1,6 @@
-/** 把阅读路径的每一步变成一个 tldraw 图形。
+/** 阅读路径的卡片视图 —— 没有概念图时的**退路**。
+ *
+ * 把每一步变成一个 tldraw 图形。
  *
  * 单独成模块有两个理由，都不是为了「分层好看」：
  *
@@ -19,11 +21,9 @@
  * 所以这里不再有任何 cast，而且 `.map()` 的回调标了显式返回类型（原因见下面那段
  * 注释）—— 拼错一个键，tsc 当场就红。
  */
-import type { TLGeoShape, TLRichText, TLShapePartial } from "tldraw";
+import type { TLGeoShape, TLShapePartial } from "tldraw";
 
-/** geo 图形的合法颜色。从 tldraw 的类型里取，不自己列一份 —— 列出来的那份只会
- * 跟上游漂移，而漂移的表现是运行时校验失败。 */
-export type TLDefaultColorStyleLike = TLGeoShape["props"]["color"];
+import { toRichTextDoc } from "./tldraw-primitives.js";
 
 export type ReadingStep = {
   order?: number;
@@ -50,22 +50,6 @@ export function stepForShapeId(
   return match ? steps[Number(match[1])] : undefined;
 }
 
-/** 纯文本 → TipTap 文档。空行是「没有 content 的段落」，不是空字符串的段落。
- *
- * 和 `@tldraw/tlschema` 的 `toRichText` 同形 —— 那个函数在 `tldraw` 主包里**没有
- * 转出**（运行时和 .d.ts 都没有），只能自己拼。测试拿 tlschema 的真实现逐例对比，
- * 上游改了格式这里会红。
- */
-export function toRichTextDoc(text: string): TLRichText {
-  return {
-    type: "doc",
-    content: text.split("\n").map((line) =>
-      line.length === 0
-        ? { type: "paragraph" }
-        : { type: "paragraph", content: [{ type: "text", text: line }] },
-    ),
-  } as TLRichText;
-}
 
 /** 卡片正文：序号 + 理由 + 锚点。
  *

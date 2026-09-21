@@ -34,11 +34,7 @@ import {
   buildCanvasShapes,
   nodeForShapeId,
 } from "../domain/reading-canvas-render.js";
-import {
-  type ReadingStep,
-  buildShapes,
-  stepForShapeId,
-} from "../domain/reading-canvas-shapes.js";
+import { buildShapes, stepForShapeId } from "../domain/reading-path-cards.js";
 
 /** agent 写完到画面更新之间的延迟上限。再短意义不大（模型写一次要几十秒），
  * 再长会让人以为没生效。 */
@@ -224,7 +220,7 @@ function Canvas({
     if (!editor) return;
     const built = source.kind === "canvas"
       ? buildCanvasShapes(source.doc, images)
-      : { placed: null, shapes: buildShapes(source.steps as ReadingStep[]), assets: [] };
+      : { placed: null, shapes: buildShapes(source.steps), assets: [] };
     editor.deleteShapes([...editor.getCurrentPageShapeIds()]);
     // 资产要先于引用它的图形存在，否则图片图形拿不到 src，画出来是空框。
     if (built.assets.length) editor.createAssets(built.assets);
@@ -280,6 +276,6 @@ function anchorForShape(
     if (!node?.anchor?.block_id) return null;
     return { page_idx: node.anchor.page_idx, block_id: node.anchor.block_id };
   }
-  const step = stepForShapeId(source.steps as ReadingStep[], shapeId);
+  const step = stepForShapeId(source.steps, shapeId);
   return step ? { page_idx: step.page_idx, block_id: step.block_id } : null;
 }

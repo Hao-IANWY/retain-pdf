@@ -1,4 +1,4 @@
-/** 画布图形的 props 必须通过 tldraw 自己的校验。
+/** 阅读路径卡片（没有概念图时的退路）的 props 必须通过 tldraw 自己的校验。
  *
  * 起因是一个线上白屏：第一版给 geo 图形传了 `props.text`，而 tldraw 5 的 geo
  * 根本没有这个键（文字走 `richText`）。表现是 `createShapes` 抛记录校验错误，
@@ -22,8 +22,8 @@ import {
   cardTextFor,
   shapeIdForIndex,
   stepForShapeId,
-  toRichTextDoc,
-} from "../../src/features/reader/domain/reading-canvas-shapes.ts";
+} from "../../src/features/reader/domain/reading-path-cards.ts";
+import { toRichTextDoc } from "../../src/features/reader/domain/tldraw-primitives.ts";
 
 // tlschema 是 CJS，而且在 node 里能直接跑（不碰 DOM）。
 const require = createRequire(import.meta.url);

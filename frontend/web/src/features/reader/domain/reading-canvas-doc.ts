@@ -36,6 +36,8 @@
  * 所以每一步都往「少画一个」偏，不往「整块崩掉」偏：缺 id 或缺文字的节点丢掉，
  * 指向不存在节点的边丢掉，认不出的 kind 退回灰色。
  */
+import type { ReadingStep } from "./reading-path-cards.js";
+
 export type CanvasAnchor = { page_idx?: number; block_id?: string };
 
 export type CanvasNode = {
@@ -117,13 +119,25 @@ export function imageRefsOf(doc: CanvasDoc): string[] {
 export type CanvasSource =
   /** `canvas.v1.json` —— agent 画的概念图。 */
   | { kind: "canvas"; doc: CanvasDoc }
-  /** 没有概念图时退回 `reading-path.v1.json` 的步骤卡片。 */
-  | { kind: "path"; steps: unknown[] }
+  /** 没有概念图时退回 `reading-path.v1.json` 的步骤卡片。
+   *
+   * 类型是 ReadingStep[]，不是 unknown[]：调用方拿到 unknown 就只能 `as` 硬转，
+   * 而那正是这个功能白屏那次的成因（`as never` 抹掉了 props 检查）。收窄的活
+   * 在下面 `chooseCanvasSource` 里做一次，做对了所有调用方都受益。 */
+  | { kind: "path"; steps: ReadingStep[] }
   /** 两份都没有。这是正常状态（还没让 agent 画过），不是错误。 */
   | { kind: "empty" }
   /** 概念图存在但读不懂。**不静默退回阅读路径** —— 那样 agent 写坏了文件，
    * 用户只会看到一张旧图，永远不知道该让它重写。 */
   | { kind: "broken"; reason: string };
+
+/** 这份文件也是 agent 写的：只留 block_id 是字符串的步骤，其余丢掉。没有 block_id
+ * 的步骤点了跳不了，画出来就是个死卡片。 */
+function isReadingStep(value: unknown): value is ReadingStep {
+  if (!value || typeof value !== "object") return false;
+  const step = value as ReadingStep;
+  return typeof step.block_id === "string";
+}
 
 /** `null` 表示那个文件不存在（HTTP 404）。 */
 export function chooseCanvasSource(input: {
@@ -145,10 +159,7 @@ export function chooseCanvasSource(input: {
     try {
       const payload = JSON.parse(input.pathText) as { steps?: unknown };
       const steps = Array.isArray(payload?.steps)
-        ? payload.steps.filter(
-            (step): step is Record<string, unknown> =>
-              !!step && typeof step === "object" && typeof (step as { block_id?: unknown }).block_id === "string",
-          )
+        ? payload.steps.filter(isReadingStep)
         : [];
       if (steps.length > 0) return { kind: "path", steps };
     } catch {

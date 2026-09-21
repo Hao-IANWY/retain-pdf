@@ -30,7 +30,7 @@ import type {
 } from "tldraw";
 
 import type { CanvasDoc, CanvasNode } from "./reading-canvas-doc.js";
-import { type TLDefaultColorStyleLike, toRichTextDoc } from "./reading-canvas-shapes.js";
+import { type TLDefaultColorStyleLike, toRichTextDoc } from "./tldraw-primitives.js";
 
 /** 宿主取回来的图片：已经是 data URL，尺寸是解码出来的真实像素。 */
 export type CanvasImage = { name: string; dataUrl: string; w: number; h: number };
@@ -189,12 +189,12 @@ export function buildCanvasShapes(
 
   // 回调/字面量的类型是显式写出来的：只标注外层数组类型的话，属性名拼错 tsc
   // 不报（`.map()` 会去推断回调返回值，对象字面量就没有上下文类型）。见
-  // reading-canvas-shapes.ts 里那段同样的注释 —— 是踩过的坑。
+  // reading-path-cards.ts 里那段同样的注释 —— 是踩过的坑。
   placed.forEach((item, index) => {
     const { node, x, y, imageH, image } = item;
     if (image && imageH !== undefined) {
       const assetId = assetIdFor(index);
-      assets.push({
+      const asset: TLAsset = {
         id: assetId,
         typeName: "asset",
         type: "image",
@@ -207,7 +207,8 @@ export function buildCanvasShapes(
           mimeType: "image/jpeg",
           isAnimated: false,
         },
-      } as TLAsset);
+      };
+      assets.push(asset);
       const imageShape: TLShapePartial<TLImageShape> = {
         id: nodeShapeId(index),
         type: "image",
