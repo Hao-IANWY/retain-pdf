@@ -37,6 +37,7 @@ class FxOpenAIChatBridge:
         model: str,
         api_key: str = "",
         timeout_s: float = 120.0,
+        extra_body: Mapping[str, Any] | None = None,
     ) -> None:
         self._base_url = _validated_base_url(base_url)
         self._model = model.strip()
@@ -44,6 +45,7 @@ class FxOpenAIChatBridge:
             raise ValueError("FX OpenAI-compatible model is required")
         self._api_key = api_key.strip()
         self._timeout_s = max(1.0, float(timeout_s))
+        self._extra_body = merge_safe_extra_body({}, extra_body)
         self._server: ThreadingHTTPServer | None = None
         self._thread: threading.Thread | None = None
 
@@ -132,7 +134,9 @@ class FxOpenAIChatBridge:
             payload = json.loads(handler.rfile.read(length))
             if not isinstance(payload, dict):
                 raise TypeError("request must be an object")
-            upstream_payload = translate_gateway_request(payload, model=self._model)
+            upstream_payload = translate_gateway_request(
+                payload, model=self._model, extra_body=self._extra_body
+            )
             completion = self._request_upstream(upstream_payload)
             events = gateway_events_from_openai(completion)
         except (TypeError, ValueError, KeyError, json.JSONDecodeError) as exc:
@@ -198,8 +202,35 @@ class FxOpenAIChatBridge:
         return value
 
 
+# 桥自己负责的三个字段。extra_body 不许碰它们 —— 那是桥对 fx 的协议契约，
+# 被外部配置改掉会让「fx 收到的和它以为的」对不上，而且不报错。
+_BRIDGE_OWNED_FIELDS = frozenset({"model", "messages", "stream"})
+
+
+def merge_safe_extra_body(
+    base: dict[str, Any], extra: Mapping[str, Any] | None
+) -> dict[str, Any]:
+    """把用户配的额外字段并进上游请求体，但保护桥自己的三个字段。
+
+    为什么是「透传任意字段」而不是一个叫 thinking 的旋钮：不同 provider 的
+    开关长得完全不一样，而且有的根本没有。实测 DeepSeek 认
+    `{"thinking":{"type":"disabled"}}`，但 `reasoning_effort` 和
+    `thinking.budget_tokens` 它一概忽略 —— 给一个叫「思考强度」的参数会让人
+    以为能调档，实际只有开关。所以不翻译语义，只搬运。
+    """
+    merged = dict(base)
+    if not isinstance(extra, Mapping):
+        return merged
+    for key, value in extra.items():
+        name = str(key)
+        if name in _BRIDGE_OWNED_FIELDS:
+            continue
+        merged[name] = value
+    return merged
+
+
 def translate_gateway_request(
-    payload: Mapping[str, Any], *, model: str
+    payload: Mapping[str, Any], *, model: str, extra_body: Mapping[str, Any] | None = None
 ) -> dict[str, Any]:
     prompt = payload.get("prompt")
     if not isinstance(prompt, list):
@@ -238,7 +269,7 @@ def translate_gateway_request(
     tool_choice = _tool_choice(payload.get("toolChoice"))
     if tool_choice is not None:
         result["tool_choice"] = tool_choice
-    return result
+    return merge_safe_extra_body(result, extra_body)
 
 
 def gateway_events_from_openai(payload: Mapping[str, Any]) -> list[dict[str, Any]]:

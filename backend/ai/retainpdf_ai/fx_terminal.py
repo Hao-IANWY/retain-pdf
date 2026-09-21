@@ -104,6 +104,29 @@ class TerminalLaunch:
     cleanup: Callable[[], None] | None = None
 
 
+def _terminal_inference_endpoint(settings: Settings) -> tuple[str, str]:
+    """终端该把推理发去哪，用哪把 key。
+
+    优先 fx 专用的那一组（RETAIN_AI_FX_OPENAI_*），没配就**回退到 agent 自己
+    的 LLM 配置**。
+
+    回退是重点：用户在「设置 → API 设置 → AI Agent」里配好的端点和 key 就是
+    他给这个 agent 选的模型，终端跑的又是同一个 agent，没有理由让他再配一套。
+    不回退的话，唯一能用的路是去登录 Vercel —— 而他明明已经有一个能用的模型了。
+
+    两把 key 别搞混：agent 的在 ai-runtime.json 的 llm_api_key，翻译的在
+    credentials.json 的 translation_api_key，端点常常不是同一家。拿翻译那把发
+    给 agent 的端点会 401，而错误信息只说「key 无效」，看不出是拿错了。
+    """
+    fx_base = settings.fx_openai_base_url.strip()
+    if fx_base:
+        return fx_base, settings.fx_openai_api_key
+    llm_base = settings.llm_base_url.strip()
+    if llm_base and settings.llm_api_key.strip():
+        return llm_base, settings.llm_api_key
+    return "", ""
+
+
 def build_terminal_launch(
     settings: Settings, *, session_key: str, argv: tuple[str, ...] | None = None
 ) -> TerminalLaunch:
@@ -137,12 +160,14 @@ def build_terminal_launch(
     # ACP 那条路一直有这个，PTY 这条原来没有 —— 于是有自己端点的用户在终端里
     # 只能去登录 Vercel，而他明明已经配好了一个能用的模型。
     cleanup: Callable[[], None] | None = None
-    if settings.fx_openai_base_url.strip():
+    bridge_base_url, bridge_api_key = _terminal_inference_endpoint(settings)
+    if bridge_base_url:
         bridge = FxOpenAIChatBridge(
-            base_url=settings.fx_openai_base_url.strip(),
-            api_key=settings.fx_openai_api_key,
+            base_url=bridge_base_url,
+            api_key=bridge_api_key,
             model=settings.fx_model or settings.llm_model,
             timeout_s=settings.fx_turn_timeout_s,
+            extra_body=settings.fx_upstream_extra,
         ).start()
         cleanup = bridge.close
         gateway_api_key = bridge.gateway_api_key

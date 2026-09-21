@@ -118,6 +118,7 @@ def start_fx_client(
             api_key=settings.fx_openai_api_key,
             model=settings.fx_model or settings.llm_model,
             timeout_s=settings.fx_turn_timeout_s,
+            extra_body=settings.fx_upstream_extra,
         ).start()
         gateway_api_key = bridge.gateway_api_key
     env = {

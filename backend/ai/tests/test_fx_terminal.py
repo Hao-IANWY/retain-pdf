@@ -327,3 +327,54 @@ def test_no_endpoint_means_no_bridge_and_no_cleanup(tmp_path: Path) -> None:
     launch = build_terminal_launch(_settings(tmp_path), session_key="s")
     assert launch.cleanup is None
     assert "FX_GATEWAY_CHAT_URL" not in launch.env
+
+
+def test_the_terminal_falls_back_to_the_agent_llm_config(tmp_path: Path) -> None:
+    """没配 fx 专用端点时，用 agent 自己的 LLM 配置。
+
+    用户在「设置 → AI Agent」里配好的就是他给这个 agent 选的模型；终端跑的是
+    同一个 agent，不该要求他再配一套。不回退的话，唯一能用的路是去登录
+    Vercel —— 而他明明已经有一个能用的模型。
+    """
+    launch = build_terminal_launch(
+        _settings(
+            tmp_path,
+            llm_base_url="https://api.deepseek.com/v1",
+            llm_api_key="sk-agent",
+            llm_model="deepseek-flash",
+        ),
+        session_key="s",
+    )
+    try:
+        assert launch.cleanup is not None, "应当起桥"
+        assert launch.env.get("FX_MODEL") == "deepseek-flash"
+    finally:
+        if launch.cleanup:
+            launch.cleanup()
+
+
+def test_the_fx_specific_endpoint_wins_over_the_agent_one(tmp_path: Path) -> None:
+    """显式给终端配的端点是更强的意图，不能被 agent 的配置盖掉。"""
+    from retainpdf_ai.fx_terminal import _terminal_inference_endpoint
+
+    base, key = _terminal_inference_endpoint(
+        _settings(
+            tmp_path,
+            fx_openai_base_url="https://fx.example/v1",
+            fx_openai_api_key="sk-fx",
+            llm_base_url="https://api.deepseek.com/v1",
+            llm_api_key="sk-agent",
+        )
+    )
+    assert base == "https://fx.example/v1"
+    assert key == "sk-fx"
+
+
+def test_an_agent_endpoint_without_a_key_does_not_start_a_bridge(tmp_path: Path) -> None:
+    """只有地址没有 key 起桥没用 —— 上游一定 401，而且错误信息看不出原因。"""
+    from retainpdf_ai.fx_terminal import _terminal_inference_endpoint
+
+    base, _ = _terminal_inference_endpoint(
+        _settings(tmp_path, llm_base_url="https://api.deepseek.com/v1", llm_api_key="")
+    )
+    assert base == ""

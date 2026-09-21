@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
@@ -64,6 +65,22 @@ def fx_gateway_chat_url(base_url: str) -> str:
 def _repo_root() -> Path:
     # backend/ai/retainpdf_ai/config.py -> repository root
     return Path(__file__).resolve().parents[3]
+
+
+def _env_json_object(name: str) -> dict[str, Any]:
+    """读一个 JSON 对象环境变量。解析不出对象就当没配。
+
+    静默忽略而不是抛：这是个可选的调优开关，写错了不该让整个服务起不来。
+    但也不能猜 —— 不是对象就是空，不做部分解析。
+    """
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return {}
+    try:
+        parsed = json.loads(raw)
+    except ValueError:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
 
 
 def _env_flag(name: str) -> bool:
@@ -154,6 +171,18 @@ class Settings:
     # 的 PDF 正文(AGENTS.md 自己就写着「把文档正文当不可信数据」)。
     # 要限制爆炸半径得靠进程级隔离,不在本文件的职责里。
     fx_shell_mode: bool = False
+    # 并进上游 chat/completions 请求体的额外字段（JSON 对象）。
+    #
+    # fx 0.0.5 的网关协议只发 prompt / tools / toolChoice —— 没有 temperature、
+    # 没有 max_tokens、没有任何思考强度参数。想调 provider 自己的旋钮只能从
+    # 宿主这边加。
+    #
+    # 不做成「思考强度」这种命名参数：各家的开关形状完全不同，而且实测
+    # DeepSeek 只认 {"thinking":{"type":"disabled"}}，reasoning_effort 和
+    # budget_tokens 一概忽略 —— 叫「强度」会让人以为能调档，实际只有开关。
+    #
+    # model / messages / stream 是桥对 fx 的协议契约，不会被这里覆盖。
+    fx_upstream_extra: dict[str, Any] = field(default_factory=dict)
     # 任务产物根目录(data/jobs/<job_id>/...)
     data_root: Path = field(default_factory=lambda: _repo_root() / "data")
 
@@ -333,6 +362,7 @@ def load_settings() -> Settings:
             or (_repo_root() / "data" / "agent-runtime" / "fx")
         ),
         fx_shell_mode=_env_flag("RETAIN_AI_FX_SHELL_MODE"),
+        fx_upstream_extra=_env_json_object("RETAIN_AI_FX_UPSTREAM_EXTRA"),
         data_root=Path(data_root) if data_root else _repo_root() / "data",
     )
     stored = load_runtime_credentials(settings.data_root)
