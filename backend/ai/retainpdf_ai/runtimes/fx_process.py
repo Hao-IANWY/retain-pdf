@@ -69,6 +69,21 @@ def resolve_fx_command_path(
     return command_path
 
 
+def resolve_fx_gateway_key(settings: Settings) -> str:
+    """取 fx 的 Gateway 凭据：直配的 key，或凭据库里的引用。
+
+    PTY 那条路也要 —— 不传的话 fx 的 TUI 起来第一屏是「Welcome to fx，请登录」，
+    而用户明明已经在设置里填过 Gateway Key 了。
+    """
+    if settings.fx_gateway_credential_ref:
+        return resolve_credential(
+            settings.data_root,
+            settings.fx_gateway_credential_ref,
+            "fx_gateway_api_key",
+        )
+    return settings.fx_gateway_api_key
+
+
 def start_fx_client(
     settings: Settings,
     broker: AgentCommandBroker | None = None,
@@ -79,13 +94,7 @@ def start_fx_client(
         settings, session_key=session_key
     )
     command_path = resolve_fx_command_path(settings, executable, broker)
-    gateway_api_key = settings.fx_gateway_api_key
-    if settings.fx_gateway_credential_ref:
-        gateway_api_key = resolve_credential(
-            settings.data_root,
-            settings.fx_gateway_credential_ref,
-            "fx_gateway_api_key",
-        )
+    gateway_api_key = resolve_fx_gateway_key(settings)
     # Optional host-side loopback bridge: fx keeps owning the agent loop
     # while inference uses an OpenAI-compatible endpoint instead of Vercel
     # AI Gateway. Started/stopped with the client; never leaks without it.

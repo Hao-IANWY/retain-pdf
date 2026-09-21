@@ -29,8 +29,12 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from .config import Settings
-from .runtimes.fx_process import prepare_fx_state, resolve_fx_command_path
+from .config import Settings, fx_gateway_chat_url, normalize_fx_gateway_base_url
+from .runtimes.fx_process import (
+    prepare_fx_state,
+    resolve_fx_command_path,
+    resolve_fx_gateway_key,
+)
 
 # 一次从 PTY 读多少。终端会大段重绘，太小会把一帧切碎成很多次唤醒。
 _READ_CHUNK_BYTES = 65536
@@ -117,6 +121,17 @@ def build_terminal_launch(
     }
     if settings.fx_model:
         env["FX_MODEL"] = settings.fx_model
+    # 不传凭据的话，TUI 第一屏是「Welcome to fx，请登录」—— 而用户已经在
+    # 设置里填过 Gateway Key 了，不该在终端里再登一次。
+    gateway_api_key = resolve_fx_gateway_key(settings)
+    if gateway_api_key:
+        env["AI_GATEWAY_API_KEY"] = gateway_api_key
+    if settings.fx_gateway_base_url:
+        base_url = normalize_fx_gateway_base_url(settings.fx_gateway_base_url)
+        # fx 0.0.5 不从 base URL 推导 completion 端点，两个变量都得给，
+        # 否则模型请求走公网 Gateway 而目录请求走自定义地址。
+        env["FX_GATEWAY_BASE_URL"] = base_url
+        env["FX_GATEWAY_CHAT_URL"] = fx_gateway_chat_url(base_url)
     return TerminalLaunch(
         argv=argv or (str(executable),),
         cwd=workspace,

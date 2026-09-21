@@ -13,7 +13,12 @@ from pathlib import Path
 import pytest
 
 from retainpdf_ai import fx_terminal
-from retainpdf_ai.fx_terminal import PtySession, TerminalLaunch, clamp_window_size
+from retainpdf_ai.fx_terminal import (
+    PtySession,
+    TerminalLaunch,
+    build_terminal_launch,
+    clamp_window_size,
+)
 
 
 def _launch(*argv: str) -> TerminalLaunch:
@@ -34,6 +39,57 @@ def _drain(session: PtySession, *, deadline_s: float = 5.0) -> str:
             break
         collected.append(chunk)
     return "".join(collected)
+
+
+def _settings(tmp_path: Path, **overrides) -> "Settings":
+    from retainpdf_ai.config import Settings
+
+    return Settings(
+        fx_state_root=tmp_path / "fx",
+        data_root=tmp_path / "data",
+        fx_command="/bin/cat",  # 本机不一定装了 fx；这一层不关心跑什么
+        **overrides,
+    )
+
+
+def test_the_gateway_key_is_handed_to_the_terminal(tmp_path: Path) -> None:
+    """不传凭据的话 TUI 第一屏是「Welcome to fx，请登录」。
+
+    用户已经在设置里填过 Gateway Key，不该在终端里再登一次 —— ACP 那条路
+    一直是传的，PTY 这条漏了会让两条路行为不一致。
+    """
+    launch = build_terminal_launch(
+        _settings(tmp_path, fx_gateway_api_key="gw-key"), session_key="s"
+    )
+    assert launch.env.get("AI_GATEWAY_API_KEY") == "gw-key"
+
+
+def test_no_gateway_key_means_no_empty_variable(tmp_path: Path) -> None:
+    """没配就别塞空串 —— fx 见到空的 AI_GATEWAY_API_KEY 可能当成「配了但无效」。"""
+    launch = build_terminal_launch(_settings(tmp_path), session_key="s")
+    assert "AI_GATEWAY_API_KEY" not in launch.env
+
+
+def test_a_custom_gateway_sets_both_url_variables(tmp_path: Path) -> None:
+    """fx 0.0.5 不从 base URL 推导 completion 端点。
+
+    只设一个的话，模型请求走公网 Gateway 而目录请求走自定义地址 —— 两边不
+    一致，而且不会报错。
+    """
+    launch = build_terminal_launch(
+        _settings(tmp_path, fx_gateway_base_url="http://127.0.0.1:8899"),
+        session_key="s",
+    )
+    assert launch.env.get("FX_GATEWAY_BASE_URL")
+    assert launch.env.get("FX_GATEWAY_CHAT_URL")
+
+
+def test_the_terminal_runs_inside_the_private_workspace(tmp_path: Path) -> None:
+    """cwd 必须是私有 workspace，不能是宿主的当前目录。"""
+    launch = build_terminal_launch(_settings(tmp_path), session_key="s")
+    assert launch.cwd.is_relative_to((tmp_path / "fx").resolve())
+    assert (launch.cwd / "AGENTS.md").is_file(), "workspace 说明文件没写出来"
+    assert launch.env["HOME"] != os.path.expanduser("~"), "HOME 没指向私有目录"
 
 
 def test_input_reaches_the_child_and_output_comes_back() -> None:
