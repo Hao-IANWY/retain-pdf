@@ -86,6 +86,10 @@ test("选择工具条：有 onAddNote 时出现「添加批注」，复制/问 A
   assert.match(withoutNote, />复制</);
 });
 
+// harness 同时给了 jobId 和 documentId，所以键是 doc 的那个 —— 笔记挂在文档身份
+// 上（sha256(文件字节)），不挂在 job 上，否则同一本书重译一次笔记就没了。
+const NOTES_KEY = "retainpdf.reader.notes.v1:doc:doc-notes";
+
 function NotesHarness({ selection, onExportCopy }) {
   const [open, setOpen] = React.useState(false);
   const annotations = useReaderAnnotations(
@@ -136,7 +140,7 @@ test("选中文字添加批注：面板打开、按页分组、删除后清空",
   }));
   await waitFor(() => findButton(host, "添加批注") !== undefined, "工具条渲染");
   await waitFor(
-    () => localStorage.getItem("retainpdf.reader.notes.v1:job:job-notes") !== null,
+    () => localStorage.getItem(NOTES_KEY) !== null,
     "批注挂载副作用就绪",
   );
 
@@ -147,7 +151,7 @@ test("选中文字添加批注：面板打开、按页分组、删除后清空",
   );
   assert.match(host.querySelector(".reader-notes-group-title")?.textContent || "", /第 3 页/);
   assert.match(host.querySelector(".reader-notes-count")?.textContent || "", /1 条/);
-  const stored = JSON.parse(localStorage.getItem("retainpdf.reader.notes.v1:job:job-notes"));
+  const stored = JSON.parse(localStorage.getItem(NOTES_KEY));
   assert.equal(stored.length, 1);
   assert.equal(stored[0].page, 3);
   assert.equal(stored[0].pane, "source");
@@ -179,7 +183,7 @@ test("导出 Markdown：把分组批注复制到剪贴板", async () => {
   }));
   await waitFor(() => findButton(host, "添加批注") !== undefined, "工具条渲染");
   await waitFor(
-    () => localStorage.getItem("retainpdf.reader.notes.v1:job:job-notes") !== null,
+    () => localStorage.getItem(NOTES_KEY) !== null,
     "批注挂载副作用就绪",
   );
   findButton(host, "添加批注").dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true }));

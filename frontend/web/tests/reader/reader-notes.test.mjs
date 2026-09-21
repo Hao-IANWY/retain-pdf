@@ -7,9 +7,14 @@ import {
   sortNotes,
 } from "../../../../frontend/packages/reader/src/annotations/types.ts";
 
-test("notesStorageKey prefers job id", () => {
-  assert.equal(notesStorageKey({ jobId: "j1", documentId: "d1" }), "retainpdf.reader.notes.v1:job:j1");
+test("notesStorageKey prefers document id", () => {
+  // 原来是 jobId 优先。后果：同一本书重译一次就换了 job，键跟着换，用户自己写的
+  // 笔记当场消失（还在旧键里，没有任何入口看得到）。documentId 是 sha256(文件
+  // 字节)，同一份 PDF 永远同一个值，这才是笔记该挂的身份。
+  // 迁移和键切换的完整覆盖见 reader-notes-migration / reader-notes-key-transition。
+  assert.equal(notesStorageKey({ jobId: "j1", documentId: "d1" }), "retainpdf.reader.notes.v1:doc:d1");
   assert.equal(notesStorageKey({ documentId: "d1" }), "retainpdf.reader.notes.v1:doc:d1");
+  assert.equal(notesStorageKey({ jobId: "j1" }), "retainpdf.reader.notes.v1:job:j1");
 });
 
 test("sortNotes by page then createdAt", () => {

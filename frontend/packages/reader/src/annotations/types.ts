@@ -32,20 +32,50 @@ export type ReaderNotesDocKey = {
   documentId?: string;
 };
 
-// 本地注记的存储键：jobId 优先，其次 documentId。
-// 注意生命周期不一致（已知、暂不改）：本键以 job 为第一身份，而服务端收藏按
-// document_id 去重（见 shared/state/server-favorites-port.ts 的 dedupeServerFavorites）；
-// 同文档换 run/job 时会命中不同 notes 键。UI/导出里的页码已统一为 1-based 展示。
+/** 本地注记的存储键。**以 documentId（= sha256(文件字节)）为第一身份。**
+ *
+ * 原来是 jobId 优先。后果是：同一本书重新翻译一次就换了 job，键跟着换，**你自己
+ * 写的笔记当场消失**（还在旧键里，但没有任何入口能看到）。这不是理论问题 ——
+ * 本机数据里同一个 PDF 跑过 7 次的就有。
+ *
+ * documentId 是内容哈希（retain-core/src/models/library.rs：「文档:图书馆一等
+ * 公民,document_id = sha256(文件字节)」），同一份 PDF 永远同一个值，这才是笔记
+ * 该挂的身份。
+ *
+ * 注意 `document.v1.json` 里那个同名字段**不是**这个东西 —— 它等于 job_id。
+ * 别拿它当文档身份。
+ *
+ * jobId 只剩兜底：documentId 是异步到达的（见 hooks/reader-session/job-identity
+ * 里 documentId 初始为 ""），在它到达前先用 job 键，到达后迁移过去，
+ * 见 storage.ts 的 loadNotes。
+ */
 export function notesStorageKey(doc: ReaderNotesDocKey): string {
-  const job = `${doc.jobId || ""}`.trim();
   const documentId = `${doc.documentId || ""}`.trim();
-  if (job) {
-    return `retainpdf.reader.notes.v1:job:${job}`;
-  }
   if (documentId) {
-    return `retainpdf.reader.notes.v1:doc:${documentId}`;
+    return `${NOTES_KEY_PREFIX}doc:${documentId}`;
   }
-  return "retainpdf.reader.notes.v1:anonymous";
+  const job = `${doc.jobId || ""}`.trim();
+  if (job) {
+    return `${NOTES_KEY_PREFIX}job:${job}`;
+  }
+  return `${NOTES_KEY_PREFIX}anonymous`;
+}
+
+const NOTES_KEY_PREFIX = "retainpdf.reader.notes.v1:";
+
+/** 这个文档的笔记还可能躺在哪些旧键里，等着被迁移。
+ *
+ * 只认**当前这个 job** 的键：别的 job 的笔记我们无从判断属于哪本书（localStorage
+ * 里只有 job id，没有 job→document 的映射），乱合并会把两本书的笔记搅在一起。
+ * 打开哪个 job 就迁哪个，多来几次自然迁完。
+ */
+export function legacyNotesStorageKeys(doc: ReaderNotesDocKey): string[] {
+  const job = `${doc.jobId || ""}`.trim();
+  if (!job) {
+    return [];
+  }
+  const jobKey = `${NOTES_KEY_PREFIX}job:${job}`;
+  return jobKey === notesStorageKey(doc) ? [] : [jobKey];
 }
 
 export function createNoteId(): string {
