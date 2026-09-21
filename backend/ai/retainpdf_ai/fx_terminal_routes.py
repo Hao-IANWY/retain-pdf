@@ -82,11 +82,18 @@ def register_fx_terminal_routes(
             else websocket.query_params.get("session", "default")
         )
         cols, rows = _requested_size(websocket.query_params)
+        launch = None
         try:
             launch = build_terminal_launch(settings, session_key=session_key)
             pty_session = PtySession(launch)
             pty_session.open(cols=cols, rows=rows)
         except Exception as exc:  # noqa: BLE001 - 起不来要告诉前端原因
+            # open() 失败时 PtySession.close() 不会被调到，而 launch 可能已经
+            # 起了 OpenAI 兼容桥（一个回环 HTTP 服务）。不在这里收，每次起不来
+            # 就漏一个监听端口。
+            if launch is not None and launch.cleanup is not None:
+                with contextlib.suppress(Exception):
+                    launch.cleanup()
             await websocket.send_json({"type": "exit", "reason": str(exc)})
             await websocket.close(code=_CLOSE_INTERNAL)
             return

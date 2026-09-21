@@ -253,3 +253,77 @@ def test_the_child_sees_the_window_size_we_set() -> None:
         assert "45 123" in _drain(session), "行列写反了"
     finally:
         session.close()
+
+
+# ---------------------------------------------------------------- OpenAI 兼容桥
+
+
+def test_a_configured_openai_endpoint_replaces_the_gateway(tmp_path: Path) -> None:
+    """配了自己的 OpenAI 兼容端点就不该再要 Vercel Gateway 的 key。
+
+    ACP 那条路一直支持，PTY 这条原来没有 —— 于是有自己端点的用户在终端里只能
+    去登录 Vercel，而他明明已经配好了一个能用的模型。
+    """
+    launch = build_terminal_launch(
+        _settings(
+            tmp_path,
+            fx_openai_base_url="https://api.deepseek.com/v1",
+            fx_openai_api_key="sk-test",
+            llm_model="deepseek-flash",
+        ),
+        session_key="s",
+    )
+    try:
+        assert launch.env.get("FX_GATEWAY_CHAT_URL", "").startswith("http://127.0.0.1:")
+        assert launch.env.get("FX_GATEWAY_BASE_URL", "").startswith("http://127.0.0.1:")
+        assert launch.env.get("AI_GATEWAY_API_KEY"), "桥要给 fx 一把占位 key"
+        assert launch.env.get("FX_MODEL") == "deepseek-flash"
+        assert launch.cleanup is not None, "桥必须带一个关闭钩子"
+    finally:
+        if launch.cleanup:
+            launch.cleanup()
+
+
+def test_closing_the_session_shuts_the_bridge_down(tmp_path: Path) -> None:
+    """桥是个回环 HTTP 服务。不跟着会话关，每开一次终端漏一个监听端口。"""
+    import socket as socket_module
+    from urllib.parse import urlparse
+
+    launch = build_terminal_launch(
+        _settings(
+            tmp_path,
+            fx_openai_base_url="https://api.deepseek.com/v1",
+            fx_openai_api_key="sk-test",
+            llm_model="deepseek-flash",
+        ),
+        session_key="s",
+    )
+    parsed = urlparse(launch.env["FX_GATEWAY_BASE_URL"])
+    port = parsed.port
+    assert port
+
+    def reachable() -> bool:
+        with socket_module.socket() as probe:
+            probe.settimeout(0.5)
+            return probe.connect_ex(("127.0.0.1", port)) == 0
+
+    assert reachable(), "桥没起来"
+    session = PtySession(
+        TerminalLaunch(argv=("/bin/cat",), cwd=Path("/tmp"), env={}, cleanup=launch.cleanup)
+    )
+    session.open()
+    session.close()
+    deadline = time.monotonic() + 3.0
+    while time.monotonic() < deadline:
+        if not reachable():
+            return
+        time.sleep(0.05)
+    launch.cleanup and launch.cleanup()
+    pytest.fail("会话关了桥还在监听 —— 端口泄漏")
+
+
+def test_no_endpoint_means_no_bridge_and_no_cleanup(tmp_path: Path) -> None:
+    """没配就别起。起一个空转的回环服务只是白占端口。"""
+    launch = build_terminal_launch(_settings(tmp_path), session_key="s")
+    assert launch.cleanup is None
+    assert "FX_GATEWAY_CHAT_URL" not in launch.env

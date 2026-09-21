@@ -26,10 +26,12 @@ import signal
 import struct
 import termios
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
 from .config import Settings, fx_gateway_chat_url, normalize_fx_gateway_base_url
+from .fx_openai_bridge import FxOpenAIChatBridge
 from .runtimes.fx_process import (
     prepare_fx_state,
     resolve_fx_command_path,
@@ -90,11 +92,16 @@ def clamp_window_size(cols: int, rows: int) -> tuple[int, int]:
 
 @dataclass(frozen=True)
 class TerminalLaunch:
-    """起一个终端要的全部东西。拆出来是为了能在不 fork 的情况下断言它。"""
+    """起一个终端要的全部东西。拆出来是为了能在不 fork 的情况下断言它。
+
+    `cleanup` 是给 OpenAI 兼容桥用的：那是个跟着会话活的回环 HTTP 服务，
+    终端关掉必须一起关，否则每开一次终端就漏一个监听端口。
+    """
 
     argv: tuple[str, ...]
     cwd: Path
     env: dict[str, str]
+    cleanup: Callable[[], None] | None = None
 
 
 def build_terminal_launch(
@@ -124,8 +131,27 @@ def build_terminal_launch(
     # 不传凭据的话，TUI 第一屏是「Welcome to fx，请登录」—— 而用户已经在
     # 设置里填过 Gateway Key 了，不该在终端里再登一次。
     gateway_api_key = resolve_fx_gateway_key(settings)
+    # 宿主侧回环桥：配了 OpenAI 兼容端点就不需要 Vercel Gateway 的 key，
+    # fx 仍然自己拥有 agent 循环，只是推理换个地址。
+    #
+    # ACP 那条路一直有这个，PTY 这条原来没有 —— 于是有自己端点的用户在终端里
+    # 只能去登录 Vercel，而他明明已经配好了一个能用的模型。
+    cleanup: Callable[[], None] | None = None
+    if settings.fx_openai_base_url.strip():
+        bridge = FxOpenAIChatBridge(
+            base_url=settings.fx_openai_base_url.strip(),
+            api_key=settings.fx_openai_api_key,
+            model=settings.fx_model or settings.llm_model,
+            timeout_s=settings.fx_turn_timeout_s,
+        ).start()
+        cleanup = bridge.close
+        gateway_api_key = bridge.gateway_api_key
+        env["FX_GATEWAY_BASE_URL"] = bridge.gateway_base_url
+        env["FX_GATEWAY_CHAT_URL"] = bridge.chat_url
+        env["FX_MODEL"] = settings.fx_model or settings.llm_model
     if gateway_api_key:
         env["AI_GATEWAY_API_KEY"] = gateway_api_key
+    # 显式配的自定义 Gateway 优先于桥：两者同时配时，用户写死的地址是更强的意图。
     if settings.fx_gateway_base_url:
         base_url = normalize_fx_gateway_base_url(settings.fx_gateway_base_url)
         # fx 0.0.5 不从 base URL 推导 completion 端点，两个变量都得给，
@@ -136,6 +162,7 @@ def build_terminal_launch(
         argv=argv or (str(executable),),
         cwd=workspace,
         env=env,
+        cleanup=cleanup,
     )
 
 
@@ -247,6 +274,13 @@ class PtySession:
                 pass
         if pid > 0:
             self._terminate(pid)
+        # 桥要跟着会话一起关，否则每开一次终端漏一个监听端口。
+        # 放在最后：先收掉子进程，再撤它可能还在用的上游。
+        if self._launch.cleanup is not None:
+            try:
+                self._launch.cleanup()
+            except Exception:  # noqa: BLE001,S110 - 收尾不该把关闭流程打断
+                pass
 
     @staticmethod
     def _terminate(pid: int) -> None:
