@@ -47,6 +47,74 @@
     border: 1px solid var(--line);
   }
 
+  /* —— 阅读路径面板 —— */
+  .reader-reading-path {
+    padding: 0.75rem;
+    overflow-y: auto;
+    max-height: 100%;
+  }
+
+  .reader-reading-path-note {
+    color: var(--muted);
+    font-size: 0.85rem;
+    line-height: 1.6;
+  }
+
+  .reader-reading-path-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .reader-reading-path-step {
+    display: flex;
+    gap: 0.6rem;
+    width: 100%;
+    text-align: start;
+    padding: 0.55rem 0.6rem;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--paper);
+    color: var(--ink);
+    cursor: pointer;
+  }
+
+  .reader-reading-path-step:hover {
+    border-color: var(--accent);
+  }
+
+  .reader-reading-path-order {
+    flex: 0 0 1.4rem;
+    height: 1.4rem;
+    border-radius: 999px;
+    background: var(--accent-weak, var(--line));
+    color: var(--ink);
+    font-size: 0.75rem;
+    display: grid;
+    place-items: center;
+  }
+
+  .reader-reading-path-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+  }
+
+  .reader-reading-path-why {
+    font-size: 0.85rem;
+    line-height: 1.5;
+  }
+
+  .reader-reading-path-anchor {
+    font-size: 0.72rem;
+    color: var(--muted);
+    font-family: var(--font-mono);
+  }
+
   /* 壳默认按内容撑高；终端要占满可用高度。 */
   #reader-terminal-panel {
     display: flex;

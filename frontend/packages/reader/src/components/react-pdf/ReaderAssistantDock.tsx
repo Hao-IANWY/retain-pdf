@@ -1,4 +1,4 @@
-import { FileCode2, Sparkles, SquareTerminal, X } from "lucide-react";
+import { FileCode2, Route, Sparkles, SquareTerminal, X } from "lucide-react";
 import type { ReactElement } from "react";
 import { getReaderAdapters } from "../../adapters.js";
 import { useReaderContext } from "./reader-context.js";
@@ -12,6 +12,13 @@ const BASE_PANELS = [
   { id: "ai", label: "AI 问答", short: "AI", Icon: Sparkles },
 ] as const;
 
+const READING_PATH_PANEL = {
+  id: "reading-path",
+  label: "阅读路径",
+  short: "路径",
+  Icon: Route,
+} as const;
+
 const TERMINAL_PANEL = {
   id: "terminal",
   label: "终端",
@@ -23,8 +30,17 @@ const TERMINAL_PANEL = {
  *
  * 点了没反应的 tab 比没有这个功能更糟 —— 用户会以为是坏了。 */
 function panelsFor(): readonly { id: string; label: string; short: string; Icon: typeof FileCode2 }[] {
-  const hasTerminal = typeof getReaderAdapters()?.renderReaderTerminal === "function";
-  return hasTerminal ? [...BASE_PANELS, TERMINAL_PANEL] : BASE_PANELS;
+  const adapters = getReaderAdapters();
+  const panels: { id: string; label: string; short: string; Icon: typeof FileCode2 }[] = [
+    ...BASE_PANELS,
+  ];
+  if (typeof adapters?.renderReaderReadingPath === "function") {
+    panels.push(READING_PATH_PANEL);
+  }
+  if (typeof adapters?.renderReaderTerminal === "function") {
+    panels.push(TERMINAL_PANEL);
+  }
+  return panels;
 }
 
 export type ReaderAssistantDockProps = {

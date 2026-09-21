@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use crate::models::domain::{JobArtifactRecord, JobSnapshot};
 
 use super::constants::{
+    AI_READING_PATH_FILE_NAME, OUTPUT_AI_DIR_NAME,
     OUTPUT_ARTIFACTS_DIR_NAME, OUTPUT_LOGS_DIR_NAME, OUTPUT_MARKDOWN_DIR_NAME,
     OUTPUT_RENDERED_DIR_NAME, OUTPUT_TRANSLATED_DIR_NAME, OUTPUT_TYPST_BOOK_OVERLAYS_DIR_NAME,
     OUTPUT_TYPST_DIR_NAME, TRANSLATION_MANIFEST_FILE_NAME, TRANSLATION_REQUEST_JOURNAL_FILE_NAME,
@@ -56,6 +57,21 @@ pub fn resolve_normalized_document(job: &JobSnapshot, data_root: &Path) -> Optio
 pub fn resolve_normalization_report(job: &JobSnapshot, data_root: &Path) -> Option<PathBuf> {
     let path = job.artifacts.as_ref()?.normalization_report_json.as_ref()?;
     resolve_data_path(data_root, path).ok()
+}
+
+/// `<job>/ai/reading-path.v1.json` —— agent 写的阅读路径。
+///
+/// 和其它 resolver 一样从 job_root 拼出来，**不接受外部传入的文件名**：
+/// `ai/` 是 agent 可写的目录，让调用方决定读哪个文件等于把任意文件读取
+/// 暴露给前端。要加第二个产物就再加一个 resolver。
+pub fn resolve_ai_reading_path(job: &JobSnapshot, data_root: &Path) -> Option<PathBuf> {
+    let job_root = job.artifacts.as_ref()?.job_root.as_ref()?;
+    Some(
+        resolve_data_path(data_root, job_root)
+            .ok()?
+            .join(OUTPUT_AI_DIR_NAME)
+            .join(AI_READING_PATH_FILE_NAME),
+    )
 }
 
 pub fn resolve_typst_source(job: &JobSnapshot, data_root: &Path) -> Option<PathBuf> {

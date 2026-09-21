@@ -1,5 +1,5 @@
-import { s as t } from "./config-CgaWliJ_.js";
-import { s as a, r as s } from "./answer-enhance-D8zK9znw.js";
+import { s as a } from "./config-CgaWliJ_.js";
+import { s as t, r as s } from "./answer-enhance-D8zK9znw.js";
 import { h as A, l as P, n as D } from "./markdown-payload-kK3ewW_I.js";
 const n = [
   "isMockMode",
@@ -32,7 +32,8 @@ const n = [
   "deleteFavorite",
   "credentialsPort",
   "askDocumentAi",
-  "renderReaderTerminal"
+  "renderReaderTerminal",
+  "renderReaderReadingPath"
 ], c = [
   "resolveMarkdownAssetUrl",
   "resolveReaderDownloadUrls",
@@ -48,7 +49,7 @@ const n = [
 ];
 let r = null;
 function i(e) {
-  r = e, t({ credentialsPort: (e == null ? void 0 : e.credentialsPort) ?? null }), s(), e && a({
+  r = e, a({ credentialsPort: (e == null ? void 0 : e.credentialsPort) ?? null }), s(), e && t({
     fetchProtected: e.fetchProtected,
     resolveResourceUrl: e.resolveResourceUrl
   });

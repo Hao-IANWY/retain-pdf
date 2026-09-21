@@ -147,6 +147,21 @@ pub async fn download_ocr_normalized_document(
     .await
 }
 
+pub async fn download_ai_reading_path(
+    State(state): State<AppState>,
+    ApiPath(job_id): ApiPath<String>,
+    headers: HeaderMap,
+) -> Result<Response, AppError> {
+    download_document_response(
+        &build_jobs_download_route_deps(&state),
+        &headers,
+        &job_id,
+        false,
+        DocumentDownloadKind::AiReadingPath,
+    )
+    .await
+}
+
 pub async fn download_normalization_report(
     State(state): State<AppState>,
     ApiPath(job_id): ApiPath<String>,

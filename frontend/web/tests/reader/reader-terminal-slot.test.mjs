@@ -21,14 +21,20 @@ const APP = read(
 const HOST = read("../../src/features/reader/ui/terminal.tsx");
 const ADAPTERS = read("../../../../frontend/packages/reader/src/adapters.ts");
 
-test("宿主没注册终端渲染器时，dock 里不显示这个 tab", () => {
+test("每个宿主槽位都按「有没有注册渲染器」决定显不显示", () => {
   // 点了没反应的 tab 比没有这个功能更糟 —— 用户会以为是坏了。
-  assert.match(DOCK, /renderReaderTerminal.*===\s*"function"/s);
-  assert.match(
-    DOCK,
-    /hasTerminal\s*\?\s*\[\.\.\.BASE_PANELS,\s*TERMINAL_PANEL\]\s*:\s*BASE_PANELS/,
-    "终端 tab 必须按宿主是否注册渲染器来决定显不显示",
-  );
+  // 两个槽位各查一次：加第三个时这条会提醒你也照做。
+  for (const [adapter, panel] of [
+    ["renderReaderTerminal", "TERMINAL_PANEL"],
+    ["renderReaderReadingPath", "READING_PATH_PANEL"],
+  ]) {
+    assert.match(
+      DOCK,
+      new RegExp(`${adapter}\\s*===\\s*"function"`),
+      `${panel} 没有按 ${adapter} 是否注册来判断`,
+    );
+    assert.match(DOCK, new RegExp(`panels\\.push\\(${panel}\\)`));
+  }
 });
 
 test("终端面板关掉时用 hidden，不能卸载", () => {

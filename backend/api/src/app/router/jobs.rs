@@ -102,6 +102,11 @@ pub(super) fn routes() -> Router<AppState> {
             get(jobs::download_normalized_document),
         )
         .route(
+            // agent 写的阅读路径。不存在是正常状态（还没生成），返回 404。
+            "/api/v1/jobs/:job_id/reading-path",
+            get(jobs::download_ai_reading_path),
+        )
+        .route(
             "/api/v1/jobs/:job_id/normalization-report",
             get(jobs::download_normalization_report),
         )

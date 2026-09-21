@@ -6,6 +6,11 @@ pub(crate) const OUTPUT_RENDERED_DIR_NAME: &str = "rendered";
 pub(crate) const OUTPUT_ARTIFACTS_DIR_NAME: &str = "artifacts";
 pub(crate) const OUTPUT_LOGS_DIR_NAME: &str = "logs";
 pub(crate) const OUTPUT_SPECS_DIR_NAME: &str = "specs";
+/// Agent 终端的工作区。fx 在这里写笔记和产出（见 backend/ai 的 fx_workspace）。
+/// 和流水线产物平级但互不相干：流水线不读它，它也不该被流水线覆盖。
+pub(crate) const OUTPUT_AI_DIR_NAME: &str = "ai";
+/// Agent 生成的阅读路径。schema 见 reading_path_v1。
+pub(crate) const AI_READING_PATH_FILE_NAME: &str = "reading-path.v1.json";
 pub(crate) const OUTPUT_TYPST_DIR_NAME: &str = "typst";
 pub(crate) const OUTPUT_TYPST_BOOK_OVERLAYS_DIR_NAME: &str = "book-overlays";
 pub(crate) const LEGACY_LAYOUT_DIR_NAMES: [&str; 4] =

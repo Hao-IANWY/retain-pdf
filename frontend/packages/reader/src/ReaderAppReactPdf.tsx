@@ -178,6 +178,7 @@ export function resolveInitialAssistantPanel(
     saved?.assistantPanel === "markdown"
     || saved?.assistantPanel === "ai"
     || saved?.assistantPanel === "terminal"
+    || saved?.assistantPanel === "reading-path"
   ) {
     return saved.assistantPanel;
   }
@@ -285,6 +286,9 @@ export function ReaderAppReactPdf() {
   // 用户切个 tab 回来会发现 fx 的会话没了。
   const terminalMounted = useMountedSinceFirstOpen(assistantPanel === "terminal");
   const renderTerminal = getReaderAdapters()?.renderReaderTerminal;
+  // 阅读路径每次打开重新拉一次（agent 可能刚重写过），所以不需要挂载 latch ——
+  // 它没有终端那样的进程状态，卸载了不会丢东西。
+  const renderReadingPath = getReaderAdapters()?.renderReaderReadingPath;
   // 键盘与 UI 共用同一「可见模式」真源：paneComposition.visibleMode。
   // 「0」重置缩放据此取模式默认，避免与 HUD/网格显示的模式脱节。
   useReaderKeyboard({
@@ -370,7 +374,10 @@ export function ReaderAppReactPdf() {
   // FAB 高亮：批注 > 辅助面板（与 Dock 同真源）> tools（摘录）。
   // 终端住在 dock 里，不在 FAB 的工具注册表（READER_TOOLS）里，所以它打开时
   // FAB 不高亮任何东西 —— 而不是硬塞一个 FAB 没有图标的 id 进去。
-  const fabAssistantTool = assistantPanel === "terminal" ? null : assistantPanel;
+  const fabAssistantTool =
+    assistantPanel === "terminal" || assistantPanel === "reading-path"
+      ? null
+      : assistantPanel;
   const fabActiveTool: ReaderFabToolId | null = notesOpen
     ? "notes"
     : (fabAssistantTool ?? tools.active);
@@ -470,6 +477,29 @@ export function ReaderAppReactPdf() {
         ) : null}
         <Suspense fallback={null}>
           {favoritesMounted ? <ReaderFavoritesPanel open={tools.isOpen("favorites")} jobId={session.jobId} documentId={session.documentId} onClose={closeTool} onJumpPage={c.goToPage} /> : null}
+          {assistantPanel === "reading-path" && renderReadingPath ? (
+            <ReaderFloatShell
+              id="reader-reading-path-panel"
+              open
+              title="阅读路径"
+              storageKey="retainpdf.reader.reading-path-float.pos.v1"
+              ariaLabel="阅读路径"
+              width={420}
+              placement="workspace"
+              showHeader={false}
+              className="is-pane-right"
+              onClose={closeAssistant}
+            >
+              {renderReadingPath({
+                open: true,
+                jobId: session.jobId,
+                // 跳转留在包里：锚点怎么变成翻页+高亮要看当前分栏和模式，
+                // 宿主自己实现会和这些状态打架。
+                onJump: jumpCitation,
+                onClose: closeAssistant,
+              })}
+            </ReaderFloatShell>
+          ) : null}
           {terminalMounted && renderTerminal ? (
             // 定位由**包**负责：和 Markdown / AI 面板套同一个壳、同一个
             // placement。宿主只给内容 —— 它不知道 dock 在哪一侧，也不该知道。

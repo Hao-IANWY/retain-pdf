@@ -17,7 +17,7 @@ export type ReaderViewState = {
   zoom?: number;
   mode?: StoredReaderMode;
   splitLayout?: StoredReaderSplitLayout | null;
-  assistantPanel?: "markdown" | "ai" | "terminal" | null;
+  assistantPanel?: "markdown" | "ai" | "terminal" | "reading-path" | null;
   updatedAt: number;
 };
 
@@ -92,9 +92,12 @@ function normalizeSplitLayout(value: unknown): StoredReaderSplitLayout | null | 
 
 function normalizeAssistantPanel(
   value: unknown,
-): "markdown" | "ai" | "terminal" | null | undefined {
+): "markdown" | "ai" | "terminal" | "reading-path" | null | undefined {
   if (value === null) return null;
-  return value === "markdown" || value === "ai" || value === "terminal"
+  return value === "markdown"
+    || value === "ai"
+    || value === "terminal"
+    || value === "reading-path"
     ? value
     : undefined;
 }

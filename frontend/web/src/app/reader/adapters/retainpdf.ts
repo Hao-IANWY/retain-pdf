@@ -45,6 +45,7 @@ const adapters: ReaderAdapters = {
   askDocumentAi: ext.askLibraryAi,
   // —— terminal ——
   renderReaderTerminal: ext.renderReaderTerminal,
+  renderReaderReadingPath: ext.renderReaderReadingPath,
 };
 setReaderAdapters(adapters);
 export { adapters as retainPdfReaderAdapters };

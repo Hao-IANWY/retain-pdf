@@ -111,6 +111,27 @@ export type ReaderTerminalSlotProps = {
   onClose: () => void;
 };
 
+/** 宿主渲染阅读路径面板时拿到的东西。
+ *
+ * `onJump` 是包给的：锚点怎么变成翻页+高亮是阅读器的事，宿主只管在用户点某一步
+ * 时把锚点递回来。宿主自己去实现跳转会和包的分栏/模式状态打架。
+ */
+export type ReaderReadingPathSlotProps = {
+  open: boolean;
+  jobId: string;
+  onJump: (anchor: { page_idx?: number; block_id?: string }) => void;
+  onClose: () => void;
+};
+
+export type ReaderReadingPathAdapters = {
+  /** 阅读路径面板由宿主渲染 —— 数据来自 RetainPDF 的 API，包不认识那个端点。
+   *
+   * 和终端槽位同一个道理：包决定它在 dock 里的位置和生命周期，内容宿主给。
+   * 不提供 = 这个 tab 不出现。
+   */
+  renderReaderReadingPath?: (props: ReaderReadingPathSlotProps) => ReactNode;
+};
+
 export type ReaderTerminalAdapters = {
   /** 终端面板由**宿主**渲染。
    *
@@ -130,7 +151,8 @@ export type ReaderAdapters = ReaderSessionAdapters
   & ReaderFavoritesAdapters
   & ReaderCredentialsAdapters
   & ReaderAiAdapters
-  & ReaderTerminalAdapters;
+  & ReaderTerminalAdapters
+  & ReaderReadingPathAdapters;
 
 /**
  * ReaderAdapters 声明键的运行时镜像（TS 类型在运行时被擦除）。
@@ -169,6 +191,7 @@ export const READER_ADAPTER_KEYS = [
   "credentialsPort",
   "askDocumentAi",
   "renderReaderTerminal",
+  "renderReaderReadingPath",
 ] as const satisfies readonly (keyof ReaderAdapters)[];
 
 /** 必填（非 `?`）适配键子集，供门禁断言最小注入面。 */

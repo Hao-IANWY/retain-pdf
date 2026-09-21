@@ -96,7 +96,8 @@ test("ReaderFab exposes favorites/markdown/ai aligned with the tool registry", (
   // FAB 高亮仍以辅助面板为真源，只是终端不在 FAB 的工具注册表（READER_TOOLS）
   // 里、也没有 FAB 图标，所以先滤掉再回退到 tools。两半都钉住：只钉后半句的话，
   // 有人把过滤去掉会让 FAB 拿到一个它渲染不了的 id。
-  assert.match(app, /assistantPanel === "terminal" \? null : assistantPanel/);
+  // 终端和阅读路径都不在 FAB 的工具注册表里，两个都要滤掉。
+  assert.match(app, /assistantPanel === "terminal" \|\| assistantPanel === "reading-path"/);
   assert.match(app, /fabAssistantTool \?\? tools\.active/);
 });
 
