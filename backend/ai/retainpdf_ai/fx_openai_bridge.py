@@ -121,6 +121,12 @@ class FxOpenAIChatBridge:
 
         声明 effort 档位不等于上游一定支持：fx 只据此决定给不给用户这个选择器，
         真正生效与否取决于 provider。不声明的话用户连选都选不了。
+
+        **用户在 TUI 里怎么用到它**：输入 `/model <模型id> `（注意尾部空格），
+        档位列表 default/low/high/max 就出来了。不是 ctrl+p —— 那个选择器只负责
+        选模型，选完就关，从来不进 effort 阶段。我在 ctrl+p 上试了三种进法都没
+        找到，最后是从 fx 源码 src/ui/input/runtime.zig 的测试
+        （`"/model openai/gpt-5 "` + `.effort`）里看出来的。
         """
         entry: dict[str, Any] = {
             "id": self._model,

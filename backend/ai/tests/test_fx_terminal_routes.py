@@ -38,7 +38,7 @@ def _client(
     monkeypatch.setattr(
         fx_terminal_routes,
         "build_terminal_launch",
-        lambda settings, *, session_key, effort="": TerminalLaunch(
+        lambda settings, *, session_key: TerminalLaunch(
             argv=("/bin/cat",),
             cwd=Path("/tmp"),
             env={"PATH": "/usr/bin:/bin", "TERM": "xterm-256color"},

@@ -144,3 +144,14 @@ def test_effort_order_is_preserved() -> None:
 def test_blank_efforts_are_dropped() -> None:
     entry = _catalog(reasoning_efforts=("low", "  ", "", "max"))
     assert entry["reasoning_options"][0]["values"] == ["low", "max"]
+
+
+def test_the_catalog_is_what_unlocks_the_tui_effort_picker() -> None:
+    """这条是提醒，不是断言新行为：TUI 里的档位列表是靠这份目录解锁的。
+
+    入口是 `/model <模型id> `（尾部空格），不是 ctrl+p —— 后者只选模型。
+    删掉 reasoning_options 的话，`/model deepseek-flash ` 后面会是空的，
+    而 fx 不会报任何错。
+    """
+    entry = _catalog(reasoning_efforts=("low", "high", "max"))
+    assert entry.get("reasoning_options"), "没有它，TUI 的 /model 档位列表是空的"

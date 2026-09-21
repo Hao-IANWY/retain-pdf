@@ -21,7 +21,6 @@ fn query(api_key: &str) -> TerminalQuery {
         session: String::new(),
         cols: None,
         rows: None,
-        effort: String::new(),
     }
 }
 
@@ -76,23 +75,6 @@ fn the_upstream_url_points_at_the_ai_service_terminal_path() {
     assert!(url.contains("rows=40"), "{url}");
     // 转发的是浏览器那把 key，和 /ai/ask 一样。
     assert!(url.contains("api_key=browser-key"), "{url}");
-}
-
-#[test]
-fn the_effort_is_forwarded_verbatim() {
-    // rust_api 不做第二份档位白名单：ai_service 才知道自己声明了哪几档，
-    // 两份一定会漂。这里只验「带过去了」。
-    let mut request = query("k");
-    request.effort = "max".to_string();
-    let url = upstream_terminal_url("http://127.0.0.1:41100", &request, "k").unwrap();
-    assert!(url.contains("effort=max"), "{url}");
-}
-
-#[test]
-fn an_empty_effort_is_not_forwarded() {
-    // 空值不该变成 effort= —— 上游会把它当成一个「空档位」去查表。
-    let url = upstream_terminal_url("http://127.0.0.1:41100", &query("k"), "k").unwrap();
-    assert!(!url.contains("effort="), "{url}");
 }
 
 #[test]

@@ -76,19 +76,6 @@ test("终端会话 key 跟着文档走", () => {
   assert.match(APP, /sessionKey: session\.jobId \|\| session\.documentId/);
 });
 
-test("档位控件只提供已知的四档，且 auto 在最前", () => {
-  // 前端不是安全边界（后端也校验），但列一个后端不认的档位会让用户点了发现
-  // 终端连不上 —— 而错误信息只会说「连接失败」。
-  assert.match(HOST, /const EFFORTS = \["auto", "low", "high", "max"\] as const;/);
-});
-
-test("换档必须重连 —— effort 在 session 的依赖里", () => {
-  // fx 进程的上游参数在启动时就定死了，不重开 PTY 改不了。漏掉这个依赖的
-  // 表现是「切了档位没反应」，而不是报错。
-  assert.match(HOST, /\[baseUrl, apiKey, sessionKey, effort\]/);
-  assert.match(HOST, /切换会重开终端/, "得把这件事告诉用户");
-});
-
 test("端点配不出来时槽位返回 null，而不是渲染一个连不上的终端", () => {
   assert.match(HOST, /if \(!base \|\| !apiKey\) return null;/);
 });

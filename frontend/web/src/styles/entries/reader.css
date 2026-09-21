@@ -38,35 +38,6 @@
     display: none;
   }
 
-  .reader-terminal-bar {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0 0.25rem 0.4rem;
-    font-size: 0.75rem;
-    color: var(--muted);
-  }
-
-  .reader-terminal-effort {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-  }
-
-  .reader-terminal-effort select {
-    background: var(--paper);
-    color: var(--ink);
-    border: 1px solid var(--line);
-    border-radius: 6px;
-    padding: 0.1rem 0.3rem;
-    font: inherit;
-  }
-
-  .reader-terminal-hint {
-    margin-left: auto;
-    opacity: 0.7;
-  }
-
   /* xterm 自己算尺寸，容器必须给出确定的高度，否则 fit() 会算成 1 行。 */
   .reader-terminal-surface {
     flex: 1 1 auto;

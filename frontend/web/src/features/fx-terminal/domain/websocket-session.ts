@@ -26,8 +26,6 @@ export type WebSocketTerminalOptions = {
   baseUrl: string;
   /** WebSocket 路径。默认走 Rust API 的代理路由。 */
   path?: string;
-  /** 思考档位。空或 "auto" = 用模型默认，不带这个参数。 */
-  effort?: string;
   apiKey: string;
   /** 同一个 session 名会接回 fx 的同一份私有 workspace。 */
   session?: string;
@@ -43,16 +41,11 @@ export function terminalSocketUrl({
   apiKey,
   session = "default",
   path = DEFAULT_TERMINAL_PATH,
-  effort = "",
 }: WebSocketTerminalOptions): string {
   const url = new URL(path, baseUrl);
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
   url.searchParams.set("api_key", apiKey);
   url.searchParams.set("session", session);
-  // auto 不带参数：让后端走「不设 reasoning_effort」的那条路，而不是把
-  // 字面量 "auto" 发给上游 —— 有的 provider 会对没见过的值直接 400。
-  const level = effort.trim().toLowerCase();
-  if (level && level !== "auto") url.searchParams.set("effort", level);
   return url.toString();
 }
 

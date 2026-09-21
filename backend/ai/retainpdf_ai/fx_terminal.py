@@ -29,10 +29,8 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 from .config import Settings, fx_gateway_chat_url, normalize_fx_gateway_base_url
-from .fx_openai_bridge import merge_safe_extra_body
 from .fx_openai_bridge import FxOpenAIChatBridge
 from .runtimes.fx_process import (
     prepare_fx_state,
@@ -129,41 +127,13 @@ def _terminal_inference_endpoint(settings: Settings) -> tuple[str, str]:
     return "", ""
 
 
-def resolve_effort_override(
-    effort: str, allowed: tuple[str, ...]
-) -> dict[str, Any]:
-    """把用户选的档位变成上游请求上的一个字段。
-
-    只认**已声明**的档位（RETAIN_AI_FX_REASONING_EFFORTS）和 "auto"。前端传什么
-    都不能直接进请求体 —— 上游对没见过的值可能 400，而那会表现成「终端一打开
-    就断」，用户根本看不出是档位选错了。
-
-    只设 reasoning_effort 这个 OpenAI 标准名。provider 特有的伴随字段
-    （DeepSeek 要的 thinking:{"type":"enabled"}）留给 RETAIN_AI_FX_UPSTREAM_EXTRA
-    —— 那是按 provider 配一次的东西，不该跟着每次切档重复。
-    """
-    value = effort.strip().lower()
-    if not value or value == "auto":
-        return {}
-    if value not in {item.strip().lower() for item in allowed}:
-        return {}
-    return {"reasoning_effort": value}
-
-
 def build_terminal_launch(
-    settings: Settings,
-    *,
-    session_key: str,
-    argv: tuple[str, ...] | None = None,
-    effort: str = "",
+    settings: Settings, *, session_key: str, argv: tuple[str, ...] | None = None
 ) -> TerminalLaunch:
     """组装启动参数。
 
     `argv` 留出注入点：本机不一定装了 fx，测试也不该依赖它 —— PTY 这一层
     本来就不关心跑的是什么程序。
-
-    `effort` 是**按会话**的思考档位。fx 0.0.10 的 TUI 里够不到它自己的 effort
-    选择器（ACP 那侧可以），所以只能由宿主在起进程时决定 —— 换档 = 重开终端。
     """
     executable, home, workspace, tmp = prepare_fx_state(
         settings, session_key=session_key, shared_home=True
@@ -192,16 +162,12 @@ def build_terminal_launch(
     cleanup: Callable[[], None] | None = None
     bridge_base_url, bridge_api_key = _terminal_inference_endpoint(settings)
     if bridge_base_url:
-        upstream_extra = merge_safe_extra_body(
-            dict(settings.fx_upstream_extra),
-            resolve_effort_override(effort, settings.fx_reasoning_efforts),
-        )
         bridge = FxOpenAIChatBridge(
             base_url=bridge_base_url,
             api_key=bridge_api_key,
             model=settings.fx_model or settings.llm_model,
             timeout_s=settings.fx_turn_timeout_s,
-            extra_body=upstream_extra,
+            extra_body=settings.fx_upstream_extra,
             reasoning_efforts=settings.fx_reasoning_efforts,
         ).start()
         cleanup = bridge.close

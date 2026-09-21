@@ -12,17 +12,6 @@ import type { ReaderTerminalSlotProps } from "@retainpdf/reader/adapters";
 import { FxTerminal, websocketTerminalSession } from "@/features/fx-terminal/index.js";
 import { apiBase, frontendApiKey } from "@/platform/config/runtime.js";
 
-/** 思考档位。`auto` = 用模型自己的默认。
- *
- * 这个控件存在，是因为 **fx 0.0.10 的 TUI 里够不到它自己的 effort 选择器**
- * （代码里有 .effort 那个阶段，但试过默认 / 去掉 FX_MODEL / 带 provider 前缀
- * 的模型 id 都进不去；ACP 那侧倒是能用）。所以只能由宿主在起进程时决定。
- *
- * 后果是**换档要重开终端** —— fx 进程的上游参数在启动时就定了，改不了。
- */
-const EFFORTS = ["auto", "low", "high", "max"] as const;
-type Effort = (typeof EFFORTS)[number];
-
 export function renderReaderTerminal(props: ReaderTerminalSlotProps) {
   // 浏览器只认 Rust API 这一个地址和一把凭据 —— AI 服务(41100)只监听回环，
   // 前端从不直连它，/ai/ask 也是经 Rust 转发的。终端走同样的路。
@@ -45,17 +34,15 @@ type PanelProps = ReaderTerminalSlotProps & {
 };
 
 function ReaderTerminalPanel({ open, sessionKey, baseUrl, apiKey }: PanelProps) {
-  const [effort, setEffort] = useState<Effort>("auto");
   // useMemo 而不是每次渲染新建：FxTerminal 的 effect 依赖 session，
   // 每次渲染换一个新对象会把 WebSocket 和 PTY 反复拆了重建。
-  //
-  // effort 在依赖里是**有意的**：换档必须重连，因为 fx 进程的上游参数在启动时
-  // 就定死了。这也是下面那句提示存在的原因。
   const session = useMemo(
-    () => websocketTerminalSession({ baseUrl, apiKey, session: sessionKey, effort }),
-    [baseUrl, apiKey, sessionKey, effort],
+    () => websocketTerminalSession({ baseUrl, apiKey, session: sessionKey }),
+    [baseUrl, apiKey, sessionKey],
   );
   const themeId = useThemeId();
+  // 定位、宽度、在哪一侧 —— 全由 @retainpdf/reader 的壳决定。宿主只给内容，
+  // 它不知道 dock 在哪，也不该知道。
   return (
     <div
       className="reader-terminal-panel"
@@ -73,23 +60,6 @@ function ReaderTerminalPanel({ open, sessionKey, baseUrl, apiKey }: PanelProps) 
       hidden={!open}
       aria-label="fx 终端"
     >
-      <div className="reader-terminal-bar">
-        <label className="reader-terminal-effort">
-          <span>思考</span>
-          <select
-            value={effort}
-            onChange={(event) => setEffort(event.target.value as Effort)}
-            aria-label="思考档位（切换会重开终端）"
-          >
-            {EFFORTS.map((level) => (
-              <option key={level} value={level}>
-                {level}
-              </option>
-            ))}
-          </select>
-        </label>
-        <span className="reader-terminal-hint">切换会重开终端</span>
-      </div>
       <FxTerminal
         session={session}
         themeId={themeId}
