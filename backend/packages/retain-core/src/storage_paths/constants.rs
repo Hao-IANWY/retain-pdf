@@ -13,6 +13,8 @@ pub(crate) const OUTPUT_AI_DIR_NAME: &str = "ai";
 pub(crate) const AI_READING_PATH_FILE_NAME: &str = "reading-path.v1.json";
 /// Agent 生成的概念画布。schema 见 canvas_v1（前端 reading-canvas-doc.ts）。
 pub(crate) const AI_CANVAS_FILE_NAME: &str = "canvas.v1.json";
+/// Agent 写的 PDF 页面批注。schema 见 ai_notes_v1（前端 shared/data/ai-notes.ts）。
+pub(crate) const AI_NOTES_FILE_NAME: &str = "notes.v1.json";
 pub(crate) const OUTPUT_TYPST_DIR_NAME: &str = "typst";
 pub(crate) const OUTPUT_TYPST_BOOK_OVERLAYS_DIR_NAME: &str = "book-overlays";
 pub(crate) const LEGACY_LAYOUT_DIR_NAMES: [&str; 4] =

@@ -28,6 +28,8 @@ import {
   ReaderTextHoverLayer,
 } from "./ReaderTextHoverLayer.js";
 import { LiveTranslationOverlay } from "./LiveTranslationOverlay.js";
+import { ReaderAiNoteLayer, type ReaderAiNoteTarget } from "./ReaderAiNoteLayer.js";
+import type { AiNote } from "../shared/data/ai-notes.js";
 import type { ReaderLiveTranslationLayoutPage as LiveTranslationLayoutPage } from "../contracts/live-translation.js";
 import type { LiveTranslationPageState } from "../shared/data/live-translation-state.js";
 
@@ -50,6 +52,9 @@ type PdfPageSlotProps = {
   sentinelRef?: (el: HTMLDivElement | null) => void;
   regionHighlight?: ReaderRegionHighlight | null;
   regionTargets?: ReaderRegionHighlight[];
+  aiNoteTargets?: ReaderAiNoteTarget[];
+  activeAiNoteId?: string | null;
+  onSelectAiNote?: (note: AiNote, rect: { left: number; top: number; width: number; height: number }) => void;
   onSelectRegion?: (selection: ReaderRegionSelection) => void;
   liveTranslationLayout?: LiveTranslationLayoutPage;
   liveTranslationPage?: LiveTranslationPageState;
@@ -69,6 +74,9 @@ function PdfPageSlotInner({
   sentinelRef,
   regionHighlight = null,
   regionTargets = [],
+  aiNoteTargets = [],
+  activeAiNoteId = null,
+  onSelectAiNote,
   onSelectRegion,
   liveTranslationLayout,
   liveTranslationPage,
@@ -234,6 +242,15 @@ function PdfPageSlotInner({
           pageState={liveTranslationPage}
           width={width}
           height={naturalHeight}
+        />
+      ) : null}
+      {onSelectAiNote ? (
+        <ReaderAiNoteLayer
+          width={width}
+          height={naturalHeight}
+          targets={aiNoteTargets}
+          activeNoteId={activeAiNoteId}
+          onSelect={(note, rect) => onSelectAiNote(note, rect)}
         />
       ) : null}
       <ReaderTextHoverLayer target={active ? hoveredTextTarget : null} />

@@ -136,6 +136,26 @@ async function fetchJobMarkdownRange(
   };
 }
 
+/** agent 写在 `<job>/ai/notes.v1.json` 里的页面批注。
+ *
+ * 404 = 还没生成过，是**正常状态**，返回 null 而不是抛错 —— 这是叠加层，没有它
+ * 阅读页照常工作。
+ */
+async function fetchAiNotes(jobId: string, apiPrefix?: string): Promise<unknown> {
+  if (isMockMode()) {
+    void jobId;
+    void apiPrefix;
+    return null;
+  }
+  const prefix = apiPrefix || API_PREFIX;
+  const response = await fetchProtected(
+    resolveResourceUrl(`${prefix}/jobs/${encodeURIComponent(jobId)}/ai-notes`),
+  );
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return await response.json();
+}
+
 async function fetchReaderRegions(jobId: string, apiPrefix?: string): Promise<any> {
   if (isMockMode()) {
     void jobId;
@@ -291,6 +311,7 @@ export const createReaderDataPort = (options: ReaderDataPortOptions = {}) =>
     loadMarkdown: fetchJobMarkdown,
     loadMarkdownSource: fetchJobMarkdownSource,
     fetchMarkdownRange: fetchJobMarkdownRange,
+    loadAiNotes: fetchAiNotes,
     loadRegions: fetchReaderRegions,
     loadMetadata: fetchReaderMetadata,
     fetchProtectedResource: fetchProtected,

@@ -181,6 +181,43 @@ def build_job_workspace_instructions(job_dir: Path) -> str:
 
 图配的说明文字在同页 `sub_type` 为 `image_caption` / `chart_caption` 的块里。
 
+### `./notes.v1.json` — 页面批注，直接标在 PDF 上
+
+页面上只画一个小记号，正文点开才看 —— 所以标多了不会糊住页面，但**你标的每一条
+都得值得点开**。
+
+**最重要的一条：不要写总结。** 原文就在旁边三厘米处，「这段讲了 X」对读者零价值。
+有价值的只有原文**没说**的东西，就三类：
+
+    跨页连接    「这个符号第 12 页才定义」「这个假设第 4 节被推翻」
+    隐含前提    「这里默认了数据 i.i.d.，但实验部分不满足」
+    术语首现    「React-OT 在这里第一次出现」
+
+注意这三类有个共同点：**它们都指向别的地方**。所以每条批注都应该带 `refs`——
+你凭什么这么说。给不出 refs 的批注，多半就是你在复述原文，那就别写。
+refs 会显示成可点的跳转按钮，读者点一下就去看依据。
+
+    {{"schema": "retainpdf_ai_notes_v1",
+     "notes": [
+       {{"id": "n1", "kind": "warning", "level": 1,
+        "anchor": {{"page_idx": 3, "block_id": "p004-b0012"}},
+        "text": "这里默认了数据 i.i.d.，但第 4 节实验不满足",
+        "refs": [{{"page_idx": 7, "block_id": "p008-b0003", "label": "第 4 节实验设置"}}]}}
+     ]}}
+
+    anchor  **必填**，标在哪个块上。block_id 必须真实存在，锚不到的批注直接不画
+            （不会按页码兜底 —— 贴错地方比不贴更糟）
+    text    必填，一句话。这是点开才看的，可以比画布长，但别写成段落
+    kind    question / warning / link / term / note，决定颜色
+    level   1 必看 / 2 有用 / 3 细节。**漏写按 3 算**，别指望默认值帮你占位
+    refs    你的依据，指向别的 block。没有的话记号会画成空心
+
+**整篇 level=1 最多 5 条。** 配额卡在最高级上 —— 什么都标成必看，等于没有分级。
+
+`block_id` 从 `../ocr/normalized/document.v1.json` 取，和画布同一套：
+
+    jq -r '.pages[3].blocks[] | "\\(.block_id) \\(.type) \\(.text[0:40])"' ../ocr/normalized/document.v1.json
+
 ### `./reading-path.v1.json` — 阅读顺序，显示在「阅读路径」标签页
 
     {{"steps": [{{"order": 1, "page_idx": 0, "block_id": "b-abstract",

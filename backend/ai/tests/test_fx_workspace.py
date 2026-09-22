@@ -253,8 +253,8 @@ def test_denying_nothing_is_expressible(tmp_path: Path) -> None:
 # 「agent 照文档写了，界面什么都不显示」，而且两边看起来都没错。
 
 
-def _parser_source() -> str:
-    """前端那份解析器。找不到就让测试红 —— 不 skip。
+def _reader_domain_dir():
+    """前端 reader 功能的 domain 目录。找不到就让测试红 —— 不 skip。
 
     skip 的话文档漂了没人知道，而这正是这一节唯一要防的事。
     """
@@ -262,13 +262,23 @@ def _parser_source() -> str:
 
     here = _Path(__file__).resolve()
     for parent in here.parents:
-        candidate = (
-            parent
-            / "frontend/web/src/features/reader/domain/reading-canvas-doc.ts"
-        )
-        if candidate.is_file():
-            return candidate.read_text(encoding="utf-8")
-    raise AssertionError(f"找不到前端解析器（从 {here} 往上找）")
+        candidate = parent / "frontend/web/src/features/reader/domain"
+        if candidate.is_dir():
+            return candidate
+    raise AssertionError(f"找不到前端 domain 目录（从 {here} 往上找）")
+
+
+def _parser_source() -> str:
+    """画布相关的前端源码，整个目录拼起来。
+
+    **不认具体文件名**：这些模块会被拆分（canvas-doc 就拆成过 doc/render/cards），
+    写死文件名的话拆一次这条门禁就指向空气。上一次拆分正是这么把它弄红的，
+    而当时只跑了前端测试没跑这边。
+    """
+    return "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted(_reader_domain_dir().glob("reading-canvas*.ts"))
+    )
 
 
 def test_the_canvas_fields_match_what_the_frontend_actually_parses(
@@ -287,6 +297,31 @@ def test_the_canvas_fields_match_what_the_frontend_actually_parses(
         assert field in text, f"解析器读 {field}，但工作区说明里没写"
 
 
+def _indented_json_example(text: str, marker: str) -> dict:
+    """把说明里那段缩进 4 格的 JSON 例子抠出来解析。
+
+    不用正则找结尾：`.*?\]\}` 这种非贪婪写法会在**内层**的 `}]}` 提前收尾，
+    例子只截到一半（notes 的例子就是这么漏的；canvas 的例子当时碰巧没踩到）。
+    按缩进取到块尾才可靠。
+    """
+    import json
+
+    lines = text.splitlines()
+    start = next(i for i, line in enumerate(lines) if marker in line)
+    body = []
+    for line in lines[start:]:
+        if line.strip() and not line.startswith("    "):
+            break
+        body.append(line[4:])
+        # 逐行试解析，第一次成功就收尾。按缩进取到块尾会一路吃进后面的字段表
+        # （那张表也缩进 4 格）。
+        try:
+            return json.loads("\n".join(body))
+        except ValueError:
+            continue
+    raise AssertionError(f"{marker} 的例子解析不出来：\n" + "\n".join(body))
+
+
 def test_the_canvas_schema_is_documented_with_a_copyable_example(
     tmp_path: Path,
 ) -> None:
@@ -299,11 +334,7 @@ def test_the_canvas_schema_is_documented_with_a_copyable_example(
     assert "retainpdf_reading_canvas_v1" in text
 
     # 把缩进的 JSON 块抠出来，确认它真能 parse —— 例子本身写错过一次就全白费。
-    block = re.search(
-        r'\n(    \{"schema": "retainpdf_reading_canvas_v1".*?\]\})\n', text, re.S
-    )
-    assert block, "找不到可抄的 canvas 例子"
-    payload = json.loads("\n".join(line[4:] for line in block.group(1).splitlines()))
+    payload = _indented_json_example(text, '"retainpdf_reading_canvas_v1"')
     assert payload["nodes"][0]["id"]
     assert payload["nodes"][0]["anchor"]["block_id"]
     assert payload["edges"][0]["from"] == payload["nodes"][0]["id"]
@@ -366,3 +397,89 @@ def test_the_truncation_limit_in_the_docs_matches_the_code(tmp_path: Path) -> No
     assert f"{match.group(1)} 字" in text, (
         f"前端截断在 {match.group(1)} 字，但说明里没提这个数"
     )
+
+
+# ---------------------------------------------------------------- 页面批注
+
+
+def _ai_notes_parser_source() -> str:
+    from pathlib import Path as _Path
+
+    here = _Path(__file__).resolve()
+    for parent in here.parents:
+        candidate = parent / "frontend/packages/reader/src/shared/data/ai-notes.ts"
+        if candidate.is_file():
+            return candidate.read_text(encoding="utf-8")
+    raise AssertionError(f"找不到批注解析器（从 {here} 往上找）")
+
+
+def test_the_note_fields_match_what_the_frontend_actually_parses(
+    tmp_path: Path,
+) -> None:
+    """文档里的字段名 = 解析器真正读的字段名。
+
+    和 canvas 同一类问题：两边分处 Python 和 TS，没有共享定义，漂了的表现是
+    「agent 照文档写了，页面上什么都没有」，而且两边看起来都没错。
+    """
+    import re
+
+    parser = _ai_notes_parser_source()
+    text = build_job_workspace_instructions(_job(tmp_path, "job-1"))
+    notes_section = text[text.index("notes.v1.json") :]
+
+    assert "notes" in notes_section, "说明里没写顶层 notes[]"
+    # `(?![A-Za-z(])` 排掉方法调用：`raw.forEach` 会被 `[a-z_]+` 截成 "for"。
+    read_fields = set(
+        re.findall(r"\b(?:raw|item)\.([a-z_]+)(?![A-Za-z(])", parser)
+    )
+    flat = set(read_fields)
+    assert flat >= {"anchor", "text", "kind", "level", "refs"}, flat
+    for field in flat:
+        assert field in notes_section, f"解析器读 {field}，但说明里没写"
+    # anchor 里的两个键单独查：它们在嵌套对象里，上面的正则抓不到。
+    for nested in ("block_id", "page_idx"):
+        assert nested in notes_section, f"说明里没写 anchor.{nested}"
+
+
+def test_the_notes_schema_example_parses(tmp_path: Path) -> None:
+    """例子必须能直接抄。写错过一次就全白费。"""
+    import json
+    import re
+
+    text = build_job_workspace_instructions(_job(tmp_path, "job-1"))
+    payload = _indented_json_example(text, '"retainpdf_ai_notes_v1"')
+    note = payload["notes"][0]
+    assert note["anchor"]["block_id"]
+    assert note["refs"][0]["block_id"], "例子里没演示 refs —— 那是这个功能的重点"
+    assert note["level"] in (1, 2, 3)
+
+
+def test_the_instructions_forbid_summaries_and_demand_evidence(tmp_path: Path) -> None:
+    """总结性批注是废话：原文就在旁边三厘米处。
+
+    不明说的话模型默认就会写总结 —— 那是它最擅长的事。refs（凭什么这么说）是
+    唯一能把「跨页连接/隐含前提/术语首现」和「复述」区分开的东西。
+    """
+    text = build_job_workspace_instructions(_job(tmp_path, "job-1"))
+    notes_section = text[text.index("notes.v1.json") :]
+    assert "不要写总结" in notes_section
+    assert "refs" in notes_section
+    assert "跨页" in notes_section and "隐含前提" in notes_section
+
+
+def test_the_notes_level_quota_is_on_the_top_tier(tmp_path: Path) -> None:
+    """配额必须卡在最高级上。
+
+    只说「别标太多」的话，模型会把什么都标成 level 1，分级就等于没有。
+    """
+    text = build_job_workspace_instructions(_job(tmp_path, "job-1"))
+    notes_section = text[text.index("notes.v1.json") :]
+    assert "level=1 最多 5 条" in notes_section
+
+
+def test_the_notes_docs_say_unanchored_notes_are_dropped(tmp_path: Path) -> None:
+    """不说清楚的话，模型会以为只给 page_idx 也能标。"""
+    text = build_job_workspace_instructions(_job(tmp_path, "job-1"))
+    notes_section = text[text.index("notes.v1.json") :]
+    assert "锚不到" in notes_section
+    assert "必须真实存在" in notes_section

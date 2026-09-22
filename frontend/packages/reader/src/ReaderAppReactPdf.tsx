@@ -40,6 +40,12 @@ const ReaderAiPanel = lazy(() => import("./components/react-pdf/ReaderAiPanel.js
 
 import { useMountedSinceFirstOpen } from "./shared/react/use-mounted-since-first-open.js";
 import { ReaderHostPanelShell } from "./components/react-pdf/ReaderHostPanelShell.js";
+import { ReaderAiNotePopover } from "./pdf/ReaderAiNotePopover.js";
+import { useReaderAiNotes } from "./hooks/use-reader-ai-notes.js";
+import type { AiNote } from "./shared/data/ai-notes.js";
+
+/** 稳定的空数组：每次渲染新建一个会让每页的标记层白白重算。 */
+const EMPTY_AI_NOTES: readonly AiNote[] = [];
 import { READER_HOST_PANELS } from "./components/react-pdf/reader-host-panels.js";
 import {
   isReaderAssistantPanel,
@@ -360,6 +366,25 @@ export function ReaderAppReactPdf() {
     ? "notes"
     : (fabAssistantTool ?? tools.active);
 
+  // AI 批注：标记画在每页上，正文在弹窗里。轮询是必须的 —— agent 是在你读的
+  // 时候写的，一次性加载会让「标完了要刷新才看得见」重演（画布那次的 bug）。
+  const aiNoteDoc = useReaderAiNotes(session.jobId);
+  const [activeAiNote, setActiveAiNote] = useState<
+    { note: AiNote; rect: { left: number; top: number; width: number; height: number } } | null
+  >(null);
+  const selectAiNote = useCallback((
+    note: AiNote,
+    rect: { left: number; top: number; width: number; height: number },
+  ) => {
+    // 再点同一个记号就关掉 —— 否则只能去点弹窗的 ×。
+    setActiveAiNote((prev) => (prev?.note.id === note.id ? null : { note, rect }));
+  }, []);
+  const closeAiNote = useCallback(() => setActiveAiNote(null), []);
+  // 换文档时把打开的批注关掉：它锚在上一本书的块上。
+  useEffect(() => {
+    setActiveAiNote(null);
+  }, [session.jobId]);
+
   const hostPanelContext = useMemo(() => ({
     jobId: session.jobId,
     sessionKey: session.jobId || session.documentId || "reader",
@@ -395,6 +420,9 @@ export function ReaderAppReactPdf() {
     sourceFile: c.sessionFiles.sourceFile,
     translatedFile: c.sessionFiles.translatedFile,
     regions: session.regions,
+    aiNotes: aiNoteDoc?.notes ?? EMPTY_AI_NOTES,
+    activeAiNoteId: activeAiNote?.note.id ?? null,
+    onSelectAiNote: selectAiNote,
     readerMetadata: session.readerMetadata,
     activeRegion: c.activeRegion,
     onSelectRegion: c.selectRegion,
@@ -473,6 +501,14 @@ export function ReaderAppReactPdf() {
           {markdownMounted ? <ReaderMarkdownPanel open={assistantPanel === "markdown"} jobId={session.jobId} sourceOnly={c.sourceOnly} layout="workspace" side="right" onClose={closeAssistant} /> : null}
           {aiMounted ? <ReaderAiPanel key={session.documentId || session.jobId || "reader-ai-pending"} open={assistantPanel === "ai"} jobId={session.jobId} documentId={session.documentId} sessionIdentity={session.sessionIdentity} layout={resolveReaderAiLayout(c.mode)} side="right" selectionContext={aiSelectionContext} onClearSelectionContext={() => setAiSelectionContext(null)} onClose={closeAssistant} onJumpCitation={jumpCitation} onDocumentCommitted={refreshCommittedDocument} /> : null}
         </Suspense>
+        {activeAiNote ? (
+          <ReaderAiNotePopover
+            note={activeAiNote.note}
+            anchorRect={activeAiNote.rect}
+            onJump={jumpCitation}
+            onClose={closeAiNote}
+          />
+        ) : null}
         <ReaderNotesPanel
           open={notesOpen}
           groups={annotations.groups}

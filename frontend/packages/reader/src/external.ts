@@ -70,6 +70,7 @@ export const defaultReaderDataPort: ReaderDataPort = {
     readDataPort().loadMarkdownRange(rawUrl, start, endInclusive, etag, signal),
   loadJobPayload: (jobId) => readDataPort().loadJobPayload(jobId),
   loadReaderPayload: (jobId, options) => readDataPort().loadReaderPayload(jobId, options),
+  loadAiNotes: (jobId) => readDataPort().loadAiNotes(jobId),
   get liveTranslation() { return readDataPort().liveTranslation; },
 };
 export const defaultReaderPageConfigPort: ReaderPageConfigPort = {

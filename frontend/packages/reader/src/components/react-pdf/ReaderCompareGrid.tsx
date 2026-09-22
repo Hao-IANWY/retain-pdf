@@ -154,6 +154,10 @@ export function ReaderCompareGrid(props: ReaderCompareGridProps): ReactElement {
   const onNumPagesChange = props.onNumPagesChange ?? ctx?.onNumPagesChange;
   const activeRegion = props.activeRegion ?? ctx?.activeRegion;
   const regions = props.regions ?? ctx?.regions ?? [];
+  // 批注和 regions 同源下去：它们用同一套 bbox 投影，分开传只会漂。
+  const aiNotes = ctx?.aiNotes ?? [];
+  const activeAiNoteId = ctx?.activeAiNoteId ?? null;
+  const onSelectAiNote = ctx?.onSelectAiNote;
   const readerMetadata = props.readerMetadata ?? ctx?.readerMetadata;
   const onSelectRegion = props.onSelectRegion ?? ctx?.onSelectRegion;
 
@@ -204,6 +208,9 @@ export function ReaderCompareGrid(props: ReaderCompareGridProps): ReactElement {
             onNumPagesChange={onNumPagesChange}
             activeRegion={activeRegion}
             regions={regions}
+            aiNotes={aiNotes}
+            activeAiNoteId={activeAiNoteId}
+            onSelectAiNote={onSelectAiNote}
             readerMetadata={readerMetadata}
             onSelectRegion={onSelectRegion}
             // 流式译文直接叠加在源栏原文 PDF 上（overlayOnSource，用户主动触发）。
@@ -243,6 +250,9 @@ export function ReaderCompareGrid(props: ReaderCompareGridProps): ReactElement {
             onNumPagesChange={onNumPagesChange}
             activeRegion={activeRegion}
             regions={regions}
+            aiNotes={aiNotes}
+            activeAiNoteId={activeAiNoteId}
+            onSelectAiNote={onSelectAiNote}
             readerMetadata={readerMetadata}
             onSelectRegion={onSelectRegion}
             // 译文 PDF 栏就是最终译文本身，绝不叠加流式画布。

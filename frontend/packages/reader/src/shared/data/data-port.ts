@@ -47,6 +47,10 @@ function defaultLoadRegions(): Promise<unknown> {
 function defaultLoadMetadata(): Promise<unknown> {
   return Promise.resolve(null);
 }
+/** 没注入 = 宿主没有这个端点。返回 null 表示「还没有」，不是失败。 */
+function defaultLoadAiNotes(): Promise<unknown> {
+  return Promise.resolve(null);
+}
 function defaultFetchProtected(input: any, init?: RequestInit): Promise<Response> {
   if (typeof globalThis.fetch === "function") {
     return (globalThis.fetch as any)(input, init);
@@ -82,6 +86,7 @@ export function createReaderDataPort({
   fetchMarkdownRange = null,
   loadRegions = defaultLoadRegions,
   loadMetadata = defaultLoadMetadata,
+  loadAiNotes = defaultLoadAiNotes,
   fetchProtectedResource = defaultFetchProtected,
   liveTranslation = null,
 }: {
@@ -94,6 +99,10 @@ export function createReaderDataPort({
   fetchMarkdownRange?: ((rawUrl: string, start: number, endInclusive: number, etag?: string, signal?: AbortSignal) => Promise<MarkdownRangeResult>) | null;
   loadRegions?: (jobId: string, apiPrefix: string) => Promise<unknown>;
   loadMetadata?: (jobId: string, apiPrefix: string) => Promise<unknown>;
+  /** agent 写的页面批注。**不跟着 loadReaderPayload 一起加载** —— 它会在阅读过程中
+   * 被 agent 重写，需要轮询，而 payload 是一次性的。所以单独一个方法。
+   * 文件不存在时返回 null（正常状态，不是错误）。 */
+  loadAiNotes?: (jobId: string, apiPrefix: string) => Promise<unknown>;
   fetchProtectedResource?: typeof fetch;
   liveTranslation?: ReaderLiveTranslationPort | null;
 } = {}) {
@@ -228,6 +237,12 @@ export function createReaderDataPort({
     return fetchMarkdownRange(rawUrl, start, endInclusive, etag, signal);
   }
 
+  function loadAiNotesPayload(jobId: string): Promise<unknown> {
+    if (!jobId) return Promise.resolve(null);
+    // 取不到就当「还没有」：批注是叠加层，拿不到不该让阅读页报错。
+    return Promise.resolve(loadAiNotes(jobId, apiPrefix)).catch(() => null);
+  }
+
   return Object.freeze({
     apiPrefix,
     fetchProtected: fetchProtectedResource,
@@ -236,6 +251,7 @@ export function createReaderDataPort({
     loadMarkdownRange,
     loadJobPayload,
     loadReaderPayload,
+    loadAiNotes: loadAiNotesPayload,
     liveTranslation,
   });
 }

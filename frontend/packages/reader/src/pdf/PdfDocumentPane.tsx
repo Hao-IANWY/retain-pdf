@@ -35,11 +35,14 @@ import {
 } from "./reader-dom-contract.js";
 import { readerPdfPort } from "../external.js";
 import {
+  findReaderRegion,
   resolveReaderRegionHighlight,
   type ReaderMetadata,
   type ReaderRegion,
   type ReaderRegionSelection,
 } from "../shared/data/reader-regions.js";
+import type { AiNote } from "../shared/data/ai-notes.js";
+import type { ReaderAiNoteTarget } from "./ReaderAiNoteLayer.js";
 import type { LiveTranslationState } from "../shared/data/live-translation-state.js";
 
 const OVERSCAN = 5;
@@ -91,6 +94,9 @@ type PdfDocumentPaneProps = {
   onNumPagesChange?: (numPages: number, pane: ReaderPaneId) => void;
   activeRegion?: ReaderRegion | null;
   regions?: ReaderRegion[];
+  aiNotes?: readonly AiNote[];
+  activeAiNoteId?: string | null;
+  onSelectAiNote?: (note: AiNote, rect: { left: number; top: number; width: number; height: number }) => void;
   readerMetadata?: ReaderMetadata | null;
   onSelectRegion?: (selection: ReaderRegionSelection) => void;
   liveTranslation?: LiveTranslationState;
@@ -120,6 +126,9 @@ const PdfDocumentPaneInner = forwardRef<HTMLElement, PdfDocumentPaneProps>(
       onNumPagesChange,
       activeRegion = null,
       regions = [],
+      aiNotes = [],
+      activeAiNoteId = null,
+      onSelectAiNote,
       readerMetadata = null,
       onSelectRegion,
       liveTranslation,
@@ -403,6 +412,26 @@ const PdfDocumentPaneInner = forwardRef<HTMLElement, PdfDocumentPaneProps>(
       return map;
     }, [pane, readerMetadata, regions]);
 
+    // 批注按 block_id 找到对应的 region，再按 pane 解析成 bbox —— 和 regions
+    // 完全同一条路。一条批注因此在原文栏和译文栏各自定位：锚点是语义的
+    // （block_id），不是某张 PDF 的坐标。
+    //
+    // 锚不到的批注（block_id 在这本书里不存在）直接不画。**不猜位置** —— 贴错
+    // 地方的批注比没有批注更糟，而且你看不出它贴错了。
+    const aiNoteTargetsByPage = useMemo(() => {
+      const map = new Map<number, ReaderAiNoteTarget[]>();
+      for (const note of aiNotes) {
+        const region = findReaderRegion(regions, note.anchor.blockId);
+        if (!region) continue;
+        const highlight = resolveReaderRegionHighlight(region, readerMetadata, pane);
+        if (!highlight) continue;
+        const list = map.get(highlight.box.page) || [];
+        list.push({ note, highlight });
+        map.set(highlight.box.page, list);
+      }
+      return map;
+    }, [aiNotes, pane, readerMetadata, regions]);
+
     const windowedSet = useMemo(() => {
       if (numPages === 0) return new Set<number>();
       const canWindow = !!scrollRoot && typeof IntersectionObserver !== "undefined" && visible;
@@ -486,6 +515,9 @@ const PdfDocumentPaneInner = forwardRef<HTMLElement, PdfDocumentPaneProps>(
                       sentinelRef={getSentinelRef(pageNumber)}
                       regionHighlight={regionHighlight?.box.page === pageNumber ? regionHighlight : null}
                       regionTargets={regionTargetsByPage.get(pageNumber)}
+                      aiNoteTargets={aiNoteTargetsByPage.get(pageNumber)}
+                      activeAiNoteId={activeAiNoteId}
+                      onSelectAiNote={onSelectAiNote}
                       onSelectRegion={onSelectRegion}
                       liveTranslationLayout={liveTranslation?.layoutByPage.get(pageNumber - 1)}
                       liveTranslationPage={liveTranslation?.pagesByPage.get(pageNumber - 1)}

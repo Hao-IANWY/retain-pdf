@@ -6,6 +6,7 @@
 import { createContext, useContext, type ReactNode } from "react";
 import type { ReaderPaneModel } from "../../hooks/use-reader-pane-model.js";
 import type { ReaderDownloadContext } from "../../hooks/use-reader-session.js";
+import type { AiNote } from "../../shared/data/ai-notes.js";
 import type {
   ReaderMetadata,
   ReaderRegion,
@@ -38,6 +39,11 @@ export type ReaderContextValue = {
   readerMetadata: ReaderMetadata | null;
   activeRegion: ReaderRegion | null;
   onSelectRegion: (selection: ReaderRegionSelection) => void;
+  // AI 批注：标记画在每页上（见 pdf/ReaderAiNoteLayer），正文在弹窗里。
+  // 和 regions 走同一条路下去，因为它们用的是同一套 bbox 投影。
+  aiNotes: readonly AiNote[];
+  activeAiNoteId: string | null;
+  onSelectAiNote: (note: AiNote, rect: { left: number; top: number; width: number; height: number }) => void;
   // session
   /**
    * 真源语义 =「无 job」：判断 Markdown / AI / 收藏等需要任务的能力。
