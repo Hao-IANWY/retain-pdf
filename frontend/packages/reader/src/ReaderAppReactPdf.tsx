@@ -41,6 +41,7 @@ const ReaderAiPanel = lazy(() => import("./components/react-pdf/ReaderAiPanel.js
 import { useMountedSinceFirstOpen } from "./shared/react/use-mounted-since-first-open.js";
 import { ReaderHostPanelShell } from "./components/react-pdf/ReaderHostPanelShell.js";
 import { ReaderAiNotePopover } from "./pdf/ReaderAiNotePopover.js";
+import { ReaderAiNotesPanel } from "./components/react-pdf/ReaderAiNotesPanel.js";
 import { useReaderAiNotes } from "./hooks/use-reader-ai-notes.js";
 import type { AiNote } from "./shared/data/ai-notes.js";
 
@@ -213,6 +214,10 @@ export function ReaderAppReactPdf() {
   const visiblePdfMode = paneComposition.visibleMode;
   // 本地批注：选中文字后生成注记，面板内按页分组 / 编辑 / 删除 / 导出。
   const [notesOpen, setNotesOpen] = useState(false);
+  // AI 批注的索引面板。页面上的记号只有翻到那一页才看得见，没有它这个功能等于
+  // 不存在。**必须声明在 fabActiveTool 之前** —— const 不提升，放在下面那段
+  // aiNoteDoc 旁边会直接 TDZ 报错（踩过）。
+  const [aiNotesOpen, setAiNotesOpen] = useState(false);
   const openNotes = useCallback(() => setNotesOpen(true), []);
   const toggleNotes = useCallback(() => setNotesOpen((value) => !value), []);
   const annotations = useReaderAnnotations(
@@ -344,6 +349,10 @@ export function ReaderAppReactPdf() {
       toggleNotes();
       return;
     }
+    if (id === "ai-notes") {
+      setAiNotesOpen((value) => !value);
+      return;
+    }
     if (id === "markdown" || id === "ai") {
       if (assistantPanel === id) {
         setAssistantPanel(null);
@@ -364,7 +373,9 @@ export function ReaderAppReactPdf() {
   const fabAssistantTool = isReaderHostPanel(assistantPanel) ? null : assistantPanel;
   const fabActiveTool: ReaderFabToolId | null = notesOpen
     ? "notes"
-    : (fabAssistantTool ?? tools.active);
+    : aiNotesOpen
+      ? "ai-notes"
+      : (fabAssistantTool ?? tools.active);
 
   // AI 批注：标记画在每页上，正文在弹窗里。轮询是必须的 —— agent 是在你读的
   // 时候写的，一次性加载会让「标完了要刷新才看得见」重演（画布那次的 bug）。
@@ -480,7 +491,7 @@ export function ReaderAppReactPdf() {
         />
         <ReaderAssistantDock active={assistantPanel} />
         {assistantOpen ? <ReaderAiSplitResizeHandle /> : null}
-        {c.showHud ? <ReaderFab activeTool={fabActiveTool} noteCount={annotations.count} onToggleTool={handleFabTool} /> : null}
+        {c.showHud ? <ReaderFab activeTool={fabActiveTool} noteCount={annotations.count} aiNoteCount={aiNoteDoc?.notes.length ?? 0} onToggleTool={handleFabTool} /> : null}
         <ReaderCompareGrid paneComposition={paneComposition} markdownSplit={assistantPanel === "markdown"} assistantSplit={assistantOpen} liveTranslation={c.liveTranslation} sourcePaneAction={sourcePaneAction} />
         {c.showHud ? (
           <ReaderZoomHud
@@ -509,6 +520,12 @@ export function ReaderAppReactPdf() {
             onClose={closeAiNote}
           />
         ) : null}
+        <ReaderAiNotesPanel
+          open={aiNotesOpen}
+          doc={aiNoteDoc}
+          onClose={() => setAiNotesOpen(false)}
+          onJump={jumpCitation}
+        />
         <ReaderNotesPanel
           open={notesOpen}
           groups={annotations.groups}

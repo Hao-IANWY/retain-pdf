@@ -55,6 +55,8 @@ export type ReaderFabToolRowProps = {
   active: boolean;
   disabled: boolean;
   onClick: () => void;
+  /** 右侧角标。0 或缺省不画 —— 「0 条」比不画更让人以为坏了。 */
+  badge?: number;
 };
 
 export function ReaderFabToolRow({
@@ -65,6 +67,7 @@ export function ReaderFabToolRow({
   active,
   disabled,
   onClick,
+  badge,
 }: ReaderFabToolRowProps): ReactElement {
   return (
     <button
@@ -83,6 +86,7 @@ export function ReaderFabToolRow({
         <span className="reader-fab-row-title">{title}</span>
         <span className="reader-fab-row-sub">{sub}</span>
       </span>
+      {badge ? <span className="reader-fab-row-badge">{badge}</span> : null}
     </button>
   );
 }

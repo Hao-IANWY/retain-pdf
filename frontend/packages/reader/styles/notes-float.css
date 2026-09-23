@@ -307,3 +307,55 @@
   display: flex;
   gap: 8px;
 }
+
+/* ------------------------------------------------------------------ AI 批注索引
+ *
+ * 和手写批注面板共用外壳与分组样式，只有条目不同：这些不可编辑不可删除
+ * （agent 重写整份文件时一起换掉），所以整条就是一个跳转按钮，没有行内操作。
+ */
+.reader-ai-note-row {
+  display: block;
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--ink) 5%, transparent);
+  background: color-mix(in srgb, var(--ink) 3%, transparent);
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.reader-ai-note-row:hover {
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+/* 没有 refs 的多半是复述（见 shared/data/ai-notes.ts）。压暗而不是隐藏 ——
+   这一版只标记不过滤，先让人看见比例。 */
+.reader-ai-note-row[data-weak] {
+  opacity: 0.66;
+}
+.reader-ai-note-kind {
+  display: inline-flex;
+  min-height: 18px;
+  margin-right: 8px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 18px;
+  vertical-align: 1px;
+}
+.reader-ai-note-text {
+  font-size: 13px;
+  line-height: 1.55;
+}
+.reader-ai-note-refs {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted, var(--muted));
+  font-size: 11px;
+  font-weight: 600;
+}

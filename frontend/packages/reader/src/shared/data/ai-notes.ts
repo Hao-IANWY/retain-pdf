@@ -123,6 +123,33 @@ export function parseAiNotes(payload: unknown): AiNotesDoc | null {
   return { notes, weakCount: notes.filter((note) => note.weak).length };
 }
 
+/** 没写页码的批注归到这一档。
+ *
+ * 不能归 0 —— 那会显示成「第 1 页」，点了跳到错的地方，而且看起来完全正常。
+ * 用最大值让它天然排在最后，调用方自己决定这一组叫什么。
+ */
+export const AI_NOTE_NO_PAGE = Number.MAX_SAFE_INTEGER;
+
+/** 按页分组，页码升序，没页码的落在最后一组。
+ *
+ * 放在这里而不是面板里：这是纯逻辑，混进 .tsx 之后想验一条「没写页码」的
+ * 数据就得先起一个组件。
+ */
+export function groupAiNotesByPage(
+  notes: readonly AiNote[],
+): Array<{ page: number; items: AiNote[] }> {
+  const byPage = new Map<number, AiNote[]>();
+  for (const note of notes) {
+    const key = note.anchor.pageIdx ?? AI_NOTE_NO_PAGE;
+    const bucket = byPage.get(key);
+    if (bucket) bucket.push(note);
+    else byPage.set(key, [note]);
+  }
+  return [...byPage.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([page, items]) => ({ page, items }));
+}
+
 /** 按 level 过滤。`maxLevel` 3 = 全部，1 = 只看必看。 */
 export function notesUpToLevel(notes: readonly AiNote[], maxLevel: number): AiNote[] {
   return notes.filter((note) => note.level <= maxLevel);

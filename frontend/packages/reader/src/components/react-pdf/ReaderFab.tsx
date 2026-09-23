@@ -7,7 +7,7 @@
 // use-reader-fab-position / use-reader-fab-menu / use-reader-fab-downloads /
 // ReaderFabMenu。主组件只组合行为并保留 ReaderFab 导出名。
 
-import { Bookmark, FileCode2, Sparkles, StickyNote, X } from "lucide-react";
+import { Bookmark, FileCode2, Highlighter, Sparkles, StickyNote, X } from "lucide-react";
 import { useCallback, useId, useRef, type ReactElement } from "react";
 import type { ReaderDownloadContext } from "../../hooks/use-reader-session.js";
 import type { ReaderToolId } from "../../tools/registry.js";
@@ -22,23 +22,48 @@ import {
   ReaderFabToolRow,
 } from "./ReaderFabMenu.js";
 
-/** FAB 菜单里的工具 id：除注册表工具外，批注由 FAB 直接开合本地面板。 */
-export type ReaderFabToolId = ReaderToolId | "notes";
+/** FAB 菜单里的工具 id：除注册表工具外，两种批注由 FAB 直接开合本地面板。 */
+export type ReaderFabToolId = ReaderToolId | "notes" | "ai-notes";
 
 const TOOL_ICONS: Record<ReaderFabToolId, typeof Bookmark> = {
   favorites: Bookmark,
   markdown: FileCode2,
   ai: Sparkles,
   notes: StickyNote,
+  "ai-notes": Highlighter,
 };
 
 const AUXILIARY_TOOLS = READER_TOOLS;
 
+/** 两种批注：自己写的，和 agent 标的。
+ *
+ * ## 为什么 AI 批注非要有这一行
+ *
+ * 它的数据链路早就通了（轮询 → 页面上的记号 → 点开弹窗），但**界面上没有任何
+ * 东西说明它存在**：没让 agent 标过的时候一片空白，标过了也得正好翻到那一页才
+ * 看得见。一本两百页的论文里有五条批注，等于没有。
+ *
+ * 所以这一行的主要作用不是"打开面板"，是**让人知道有这回事**，以及有几条。
+ * 角标为 0 时行还在（空状态会教你怎么生成），这一点是有意的。
+ *
+ * ## 为什么不合进「批注」那一行
+ *
+ * 手写批注可改可删可导出；AI 批注是 agent 重写整份文件时一起换掉的，改了下一轮
+ * 就没了。放一起的话，同一个列表里一半条目能编辑一半不能，而且分不出哪条是谁
+ * 写的 —— 那比多一行糟得多。
+ */
+const LOCAL_TOOLS = [
+  { id: "notes" as const, title: "批注", idle: "本地批注 · 导出" },
+  { id: "ai-notes" as const, title: "AI 批注", idle: "agent 标在页面上" },
+];
+
 export type ReaderFabProps = {
   /** 当前打开的工具 id；null 表示都关 */
   activeTool: ReaderFabToolId | null;
-  /** 本批注数量，用于工具项 badge */
+  /** 本地批注数量，用于工具项 badge */
   noteCount: number;
+  /** agent 批注数量。0 也要把那一行画出来 —— 它同时是这个功能的唯一入口。 */
+  aiNoteCount: number;
   /** 无 job 时为 true；缺省从 reader context 取 controller.sourceOnly（不是 sourceViewOnly） */
   sourceOnly?: boolean;
   onToggleTool: (id: ReaderFabToolId) => void;
@@ -47,7 +72,7 @@ export type ReaderFabProps = {
 };
 
 export function ReaderFab(props: ReaderFabProps): ReactElement {
-  const { activeTool, noteCount, onToggleTool } = props;
+  const { activeTool, noteCount, aiNoteCount, onToggleTool } = props;
   const ctx = useReaderContext();
   const sourceOnly = props.sourceOnly ?? ctx?.sourceOnly ?? false;
   const download = props.download ?? ctx?.download;
@@ -82,32 +107,22 @@ export function ReaderFab(props: ReaderFabProps): ReactElement {
         >
           <ReaderFabMenuHeader onClose={closeMenu} />
 
-          {(() => {
-            const notesActive = activeTool === "notes";
+          {LOCAL_TOOLS.map((tool, index) => {
+            const isActive = activeTool === tool.id;
             return (
-              <button
-                type="button"
-                role="menuitem"
-                className={`reader-fab-row${notesActive ? " is-active" : ""}`}
-                aria-pressed={notesActive}
-                onClick={() => handleTool("notes")}
-                style={{ ["--fab-i" as string]: 0 }}
-              >
-                <span className="reader-fab-row-icon" aria-hidden="true">
-                  <StickyNote size={18} strokeWidth={2} />
-                </span>
-                <span className="reader-fab-row-copy">
-                  <span className="reader-fab-row-title">批注</span>
-                  <span className="reader-fab-row-sub">
-                    {notesActive ? "关闭悬浮窗" : "本地批注 · 导出"}
-                  </span>
-                </span>
-                {noteCount > 0 ? (
-                  <span className="reader-fab-row-badge">{noteCount}</span>
-                ) : null}
-              </button>
+              <ReaderFabToolRow
+                key={tool.id}
+                index={index - 1}
+                icon={TOOL_ICONS[tool.id]}
+                title={tool.title}
+                sub={isActive ? "关闭悬浮窗" : tool.idle}
+                active={isActive}
+                disabled={false}
+                badge={tool.id === "notes" ? noteCount : aiNoteCount}
+                onClick={() => handleTool(tool.id)}
+              />
             );
-          })()}
+          })}
 
           {AUXILIARY_TOOLS.map((tool, index) => {
             const Icon = TOOL_ICONS[tool.id];
@@ -120,7 +135,7 @@ export function ReaderFab(props: ReaderFabProps): ReactElement {
             return (
               <ReaderFabToolRow
                 key={tool.id}
-                index={index}
+                index={index + 1}
                 icon={Icon}
                 title={tool.label}
                 sub={sub}

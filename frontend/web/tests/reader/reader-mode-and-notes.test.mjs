@@ -65,10 +65,16 @@ test("ReaderFab exposes notes as a tool row with a count badge", () => {
   );
   assert.match(fab, /ReaderFabToolId = ReaderToolId \| "notes"/);
   assert.match(fab, /notes: StickyNote/);
-  assert.match(fab, /reader-fab-row-badge/);
-  assert.match(fab, />批注</);
-  assert.match(fab, /handleTool\("notes"\)/);
+  assert.match(fab, /title: "批注"/);
+  assert.match(fab, /handleTool\(tool\.id\)/);
   assert.match(fab, /noteCount/);
+  // 角标的标记搬到了 ReaderFabMenu 的共用行里 —— 本地工具（批注 / AI 批注）
+  // 和注册表工具现在走同一条渲染路径,不再各写一份。
+  const row = readerSource(
+    "../../../../frontend/packages/reader/src/components/react-pdf/ReaderFabMenu.tsx",
+  );
+  assert.match(row, /reader-fab-row-badge/);
+  assert.match(row, /badge\?: number;/);
 });
 
 test("ReaderAppReactPdf routes notes through ReaderFab instead of a duplicate left rail", () => {
