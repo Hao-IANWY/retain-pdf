@@ -5,6 +5,7 @@ use crate::storage_paths::{
     resolve_output_pdf,
 };
 
+use super::ai_carryover::carry_over_ai_workspace;
 use super::pdf::linearized_pdf_or_original;
 use super::{DownloadJobsDeps, FileDownload};
 
@@ -48,6 +49,14 @@ impl DocumentDownloadKind {
         }
     }
 
+    /// 是不是 agent 自己写的产物（而不是流水线产物）。
+    ///
+    /// 只有这几个需要在重译后做工作区接力 —— 流水线产物每个 job 各跑各的，
+    /// 天然就该是新的。
+    fn is_agent_artifact(self) -> bool {
+        matches!(self, Self::AiReadingPath | Self::AiCanvas | Self::AiNotes)
+    }
+
     fn resolve_path(
         self,
         job: &JobSnapshot,
@@ -70,6 +79,11 @@ pub(super) fn document_download(
     kind: DocumentDownloadKind,
 ) -> Result<FileDownload, AppError> {
     let content_type = kind.content_type();
+    // 解析路径**之前**接力：这几个端点在阅读页首屏就会被打，接力发生在用户
+    // 看到空面板之前。
+    if kind.is_agent_artifact() {
+        carry_over_ai_workspace(deps.db, deps.data_root, job);
+    }
     let path = kind.resolve_path(job, deps.data_root).ok_or_else(|| {
         AppError::not_found(format!("{}: {}", kind.not_ready_label(), job.job_id))
     })?;

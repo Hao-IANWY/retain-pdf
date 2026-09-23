@@ -70,12 +70,23 @@ fn resolve_ai_artifact(
     data_root: &Path,
     file_name: &'static str,
 ) -> Option<PathBuf> {
+    Some(resolve_ai_dir(job, data_root)?.join(file_name))
+}
+
+/// `<job>/ai/` —— agent 工作区本身。
+///
+/// 返回目录是为了让调用方能**整体**处理这个工作区（重译时把上一次的产物接力
+/// 过来）。逐个产物的 `pub fn` 不够用：接力要连 `board/` 里的任意文件一起搬，
+/// 而那些文件名是 agent 定的，这里列不出来。
+///
+/// 不接受文件名参数 —— 拼文件名的职责仍然留在上面那个私有函数和 api 侧的
+/// `ai_board.rs` 里。
+pub fn resolve_ai_dir(job: &JobSnapshot, data_root: &Path) -> Option<PathBuf> {
     let job_root = job.artifacts.as_ref()?.job_root.as_ref()?;
     Some(
         resolve_data_path(data_root, job_root)
             .ok()?
-            .join(OUTPUT_AI_DIR_NAME)
-            .join(file_name),
+            .join(OUTPUT_AI_DIR_NAME),
     )
 }
 
@@ -100,13 +111,7 @@ pub fn resolve_ai_notes(job: &JobSnapshot, data_root: &Path) -> Option<PathBuf> 
 /// 校验必须在调用方做 —— 见 api 侧 `services/jobs/downloads/ai_board.rs`，
 /// 那里挡了路径穿越、符号链接和类型。
 pub fn resolve_ai_board_dir(job: &JobSnapshot, data_root: &Path) -> Option<PathBuf> {
-    let job_root = job.artifacts.as_ref()?.job_root.as_ref()?;
-    Some(
-        resolve_data_path(data_root, job_root)
-            .ok()?
-            .join(OUTPUT_AI_DIR_NAME)
-            .join(AI_BOARD_DIR_NAME),
-    )
+    Some(resolve_ai_dir(job, data_root)?.join(AI_BOARD_DIR_NAME))
 }
 
 pub fn resolve_typst_source(job: &JobSnapshot, data_root: &Path) -> Option<PathBuf> {

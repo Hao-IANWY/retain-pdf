@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use rusqlite::{params, params_from_iter, types::Value, Row};
+use rusqlite::{params, params_from_iter, types::Value, OptionalExtension, Row};
 
 use crate::models::domain::{
     JobFailureInfo, JobRuntimeInfo, JobSnapshot, JobStatusKind, WorkflowKind,
@@ -227,6 +227,27 @@ impl Db {
             jobs.push(row?);
         }
         Ok(jobs)
+    }
+
+    /// job 归属的 document(= 源文件字节的 sha256)。
+    ///
+    /// `JOB_SELECT_SQL` 不选这一列，所以 `JobSnapshot` 上拿不到。单独查一次比
+    /// 给所有 job 读路径多带一列便宜 —— 只有「找同一本书的其它 job」这一个
+    /// 场景需要它。
+    ///
+    /// 归属是 `link_job_to_document` 在建 job 之后补写的，也可能被回填补上，
+    /// 所以**空字符串和 NULL 都当作没归属**，返回 None。
+    pub fn document_id_for_job(&self, job_id: &str) -> Result<Option<String>> {
+        let conn = self.connect()?;
+        let document_id: Option<String> = conn
+            .query_row(
+                "SELECT document_id FROM jobs \
+                 WHERE job_id = ?1 AND document_id IS NOT NULL AND document_id <> ''",
+                params![job_id],
+                |row| row.get(0),
+            )
+            .optional()?;
+        Ok(document_id)
     }
 
     pub fn count_jobs_for_document(&self, document_id: &str) -> Result<u64> {

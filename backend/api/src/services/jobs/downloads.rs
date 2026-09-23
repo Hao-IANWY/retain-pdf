@@ -13,6 +13,7 @@ mod artifact_deps;
 mod artifacts;
 mod deps;
 mod ai_board;
+mod ai_carryover;
 mod documents;
 mod markdown;
 mod paths;
@@ -22,6 +23,8 @@ mod service;
 mod side_by_side;
 mod word;
 
+#[cfg(all(test, unix))]
+mod ai_carryover_tests;
 #[cfg(all(test, unix))]
 mod tests;
 

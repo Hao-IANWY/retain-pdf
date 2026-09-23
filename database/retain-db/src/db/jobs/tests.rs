@@ -343,3 +343,54 @@ fn streaming_stops_after_the_matching_page() {
     assert_eq!(ids(&jobs), ["2-match"]);
     assert_eq!(visited, ["4-skip", "3-match", "2-match"]);
 }
+
+/// job 归属的 document。
+///
+/// 归属是 `link_job_to_document` 在**建完 job 之后**补写的,也可能由回填补上,
+/// 所以「查不到」是正常状态而不是错误。重译后接力 agent 工作区靠这个查询找
+/// 同一本书的其它 job —— 它要是把空串当成一个合法 document_id,接力就会去找
+/// 「所有没归属的 job」,等于在不相干的书之间搬批注。
+#[test]
+fn document_id_for_job_treats_null_and_empty_as_unlinked() {
+    let db = TestDb::new();
+    db.seed(
+        "linked",
+        WorkflowKind::Translate,
+        JobStatusKind::Succeeded,
+        OcrProviderKind::Mineru,
+    );
+    db.seed(
+        "never-linked",
+        WorkflowKind::Translate,
+        JobStatusKind::Succeeded,
+        OcrProviderKind::Mineru,
+    );
+    db.seed(
+        "empty-linked",
+        WorkflowKind::Translate,
+        JobStatusKind::Succeeded,
+        OcrProviderKind::Mineru,
+    );
+    let conn = db.db.connect().unwrap();
+    conn.execute(
+        "UPDATE jobs SET document_id = 'sha256-abc' WHERE job_id = 'linked'",
+        [],
+    )
+    .unwrap();
+    // 历史行可能留下空串而不是 NULL。
+    conn.execute(
+        "UPDATE jobs SET document_id = '' WHERE job_id = 'empty-linked'",
+        [],
+    )
+    .unwrap();
+    drop(conn);
+
+    assert_eq!(
+        db.db.document_id_for_job("linked").unwrap().as_deref(),
+        Some("sha256-abc")
+    );
+    assert_eq!(db.db.document_id_for_job("never-linked").unwrap(), None);
+    assert_eq!(db.db.document_id_for_job("empty-linked").unwrap(), None);
+    // 根本不存在的 job 也是 None,不是错误。
+    assert_eq!(db.db.document_id_for_job("no-such-job").unwrap(), None);
+}

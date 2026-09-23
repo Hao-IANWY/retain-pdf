@@ -30,6 +30,7 @@ use serde::Serialize;
 use crate::error::AppError;
 use crate::storage_paths::resolve_ai_board_dir;
 
+use super::ai_carryover::carry_over_ai_workspace;
 use super::super::query::load_supported_job;
 use super::{DownloadJobsDeps, FileDownload};
 
@@ -120,6 +121,7 @@ pub(super) fn ai_board_listing(
     job_id: &str,
 ) -> Result<AiBoardListing, AppError> {
     let job = load_supported_job(deps.db, deps.data_root, job_id)?;
+    carry_over_ai_workspace(deps.db, deps.data_root, &job);
     let empty = AiBoardListing {
         schema: "retainpdf_ai_board_v1",
         items: Vec::new(),
@@ -193,6 +195,7 @@ pub(super) fn ai_board_file_download(
     name: &str,
 ) -> Result<FileDownload, AppError> {
     let job = load_supported_job(deps.db, deps.data_root, job_id)?;
+    carry_over_ai_workspace(deps.db, deps.data_root, &job);
     let dir = resolve_ai_board_dir(&job, deps.data_root)
         .ok_or_else(|| AppError::not_found(format!("board not found: {job_id}")))?;
     let name = safe_board_name(name)?;
