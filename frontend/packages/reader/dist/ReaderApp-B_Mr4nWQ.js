@@ -3395,7 +3395,7 @@ const ec = {
     adapterKey: "renderReaderReadingCanvas",
     slot: "document",
     storageKey: "retainpdf.reader.reading-canvas-float.pos.v1",
-    ariaLabel: "阅读路径画布",
+    ariaLabel: "AI 画布",
     width: 520,
     keepMounted: !0
   },
@@ -7034,7 +7034,7 @@ function jl(e) {
     };
   }, [e]), t;
 }
-const Ul = gn(() => import("./ReaderFavoritesPanel-Dy5V1aAv.js").then((e) => ({ default: e.ReaderFavoritesPanel }))), Bl = gn(() => import("./ReaderMarkdownPanel-Bh6uOk3n.js").then((e) => ({ default: e.ReaderMarkdownPanel }))), Hl = gn(() => import("./ReaderAiPanel-CSVuHUaz.js").then((e) => ({ default: e.ReaderAiPanel }))), Wl = [];
+const Ul = gn(() => import("./ReaderFavoritesPanel--ULY_ThZ.js").then((e) => ({ default: e.ReaderFavoritesPanel }))), Bl = gn(() => import("./ReaderMarkdownPanel-d9jEUA1u.js").then((e) => ({ default: e.ReaderMarkdownPanel }))), Hl = gn(() => import("./ReaderAiPanel-eDVXFwQw.js").then((e) => ({ default: e.ReaderAiPanel }))), Wl = [];
 function Jl(e) {
   return "workspace";
 }
@@ -7303,4 +7303,4 @@ export {
   gd as j,
   pd as r
 };
-//# sourceMappingURL=ReaderApp-DoNlIm7-.js.map
+//# sourceMappingURL=ReaderApp-B_Mr4nWQ.js.map

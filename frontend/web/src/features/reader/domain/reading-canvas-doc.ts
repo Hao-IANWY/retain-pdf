@@ -36,7 +36,6 @@
  * 所以每一步都往「少画一个」偏，不往「整块崩掉」偏：缺 id 或缺文字的节点丢掉，
  * 指向不存在节点的边丢掉，认不出的 kind 退回灰色。
  */
-import type { ReadingStep } from "./reading-path-cards.js";
 
 export type CanvasAnchor = { page_idx?: number; block_id?: string };
 
@@ -119,53 +118,28 @@ export function imageRefsOf(doc: CanvasDoc): string[] {
 export type CanvasSource =
   /** `canvas.v1.json` —— agent 画的概念图。 */
   | { kind: "canvas"; doc: CanvasDoc }
-  /** 没有概念图时退回 `reading-path.v1.json` 的步骤卡片。
-   *
-   * 类型是 ReadingStep[]，不是 unknown[]：调用方拿到 unknown 就只能 `as` 硬转，
-   * 而那正是这个功能白屏那次的成因（`as never` 抹掉了 props 检查）。收窄的活
-   * 在下面 `chooseCanvasSource` 里做一次，做对了所有调用方都受益。 */
-  | { kind: "path"; steps: ReadingStep[] }
-  /** 两份都没有。这是正常状态（还没让 agent 画过），不是错误。 */
+  /** 还没画过。这是正常状态，不是错误。 */
   | { kind: "empty" }
-  /** 概念图存在但读不懂。**不静默退回阅读路径** —— 那样 agent 写坏了文件，
+  /** 概念图存在但读不懂。**不静默退回别的东西** —— 那样 agent 写坏了文件，
    * 用户只会看到一张旧图，永远不知道该让它重写。 */
   | { kind: "broken"; reason: string };
 
-/** 这份文件也是 agent 写的：只留 block_id 是字符串的步骤，其余丢掉。没有 block_id
- * 的步骤点了跳不了，画出来就是个死卡片。 */
-function isReadingStep(value: unknown): value is ReadingStep {
-  if (!value || typeof value !== "object") return false;
-  const step = value as ReadingStep;
-  return typeof step.block_id === "string";
-}
-
 /** `null` 表示那个文件不存在（HTTP 404）。 */
-export function chooseCanvasSource(input: {
-  canvasText: string | null;
-  pathText: string | null;
-}): CanvasSource {
-  if (input.canvasText !== null) {
-    let payload: unknown;
-    try {
-      payload = JSON.parse(input.canvasText);
-    } catch (error) {
-      return { kind: "broken", reason: `不是合法 JSON：${String(error).slice(0, 80)}` };
-    }
-    const doc = parseCanvasDoc(payload);
-    if (doc) return { kind: "canvas", doc };
-    return { kind: "broken", reason: "没有一个可用的节点（需要 nodes[]，每项要有 id 和 text）" };
+/** `null` 表示 `canvas.v1.json` 不存在（HTTP 404）。
+ *
+ * **没有退路分支。** 早先这里在没有概念图时会退回 `reading-path.v1.json` 的
+ * 步骤卡片 —— 而阅读路径本来就在旁边那个 tab 里有自己的面板。结果是同一份数据
+ * 两个地方画，而且打开「画布」看到的是一列卡片，会让人以为那就是概念图。
+ */
+export function chooseCanvasSource(input: { canvasText: string | null }): CanvasSource {
+  if (input.canvasText === null) return { kind: "empty" };
+  let payload: unknown;
+  try {
+    payload = JSON.parse(input.canvasText);
+  } catch (error) {
+    return { kind: "broken", reason: `不是合法 JSON：${String(error).slice(0, 80)}` };
   }
-  if (input.pathText !== null) {
-    try {
-      const payload = JSON.parse(input.pathText) as { steps?: unknown };
-      const steps = Array.isArray(payload?.steps)
-        ? payload.steps.filter(isReadingStep)
-        : [];
-      if (steps.length > 0) return { kind: "path", steps };
-    } catch {
-      // 阅读路径读不懂就当没有：它只是退路，在这里报错会盖住「去画一张图」这个
-      // 真正该给的提示。
-    }
-  }
-  return { kind: "empty" };
+  const doc = parseCanvasDoc(payload);
+  if (doc) return { kind: "canvas", doc };
+  return { kind: "broken", reason: "没有一个可用的节点（需要 nodes[]，每项要有 id 和 text）" };
 }

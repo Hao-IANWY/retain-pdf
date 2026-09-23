@@ -37,7 +37,6 @@ import {
   buildCanvasShapes,
   nodeForShapeId,
 } from "../domain/reading-canvas-render.js";
-import { buildShapes, stepForShapeId } from "../domain/reading-path-cards.js";
 import {
   READER_CANVAS_STYLESHEET,
   ensureLazyStylesheet,
@@ -78,9 +77,8 @@ function ReadingCanvasPanel({ open, jobId, onJump }: ReaderReadingPathSlotProps)
     let cancelled = false;
     const tick = async () => {
       try {
-        const [canvasText, pathText, listing] = await Promise.all([
+        const [canvasText, listing] = await Promise.all([
           fetchArtifact(jobId, "canvas"),
-          fetchArtifact(jobId, "reading-path"),
           fetchBoardListing(jobId),
         ]);
         if (cancelled) return;
@@ -89,12 +87,12 @@ function ReadingCanvasPanel({ open, jobId, onJump }: ReaderReadingPathSlotProps)
         const boardRaw = (listing ?? [])
           .map((item) => `${item.name}@${item.modifiedMs}`)
           .join(",");
-        const raw = `${canvasText ?? ""}\u0000${pathText ?? ""}\u0000${boardRaw}`;
+        const raw = `${canvasText ?? ""}\u0000${boardRaw}`;
         setFailure("");
         if (raw === lastRawRef.current) return;
         lastRawRef.current = raw;
         setBoard(listing ?? []);
-        setSource(chooseCanvasSource({ canvasText, pathText }));
+        setSource(chooseCanvasSource({ canvasText }));
       } catch (error) {
         if (!cancelled) setFailure(String(error).slice(0, 120));
       }
@@ -125,8 +123,9 @@ function ReadingCanvasPanel({ open, jobId, onJump }: ReaderReadingPathSlotProps)
   if (source.kind === "empty" && board.length === 0) {
     return (
       <p className="reader-reading-path-note">
-        画布是空的。在终端里让 fx 往里放东西 —— 它有 python3、jq、pdftoppm，
-        产物丢进 <code>./board/</code> 就会出现在这里：
+        画布是空的。阅读路径在旁边那个 tab —— 这里放的是概念图和 agent 画的东西。
+        在终端里让 fx 往里放：它有 python3、jq、pdftoppm，产物丢进
+        <code>./board/</code> 就会出现在这里：
         <code>把每页的翻译问题数画成柱状图，存到 ./board/issues.png</code>
       </p>
     );
@@ -222,9 +221,7 @@ function Canvas({
   const draw = useCallback(() => {
     const editor = editorRef.current;
     if (!editor) return;
-    // 概念图（或退回的步骤卡片）占左边，画板从它右边开始往下铺。
-    //
-    // 显式分支而不是嵌套三元：三元链在这里收窄不到 `source.steps`。
+    // 概念图占左边，画板从它右边开始往下铺。
     let leftShapes: TldrawShapes = [];
     let leftAssets: TldrawAssets = [];
     let leftPlaced: PlacedNodes | null = null;
@@ -233,8 +230,6 @@ function Canvas({
       leftShapes = built.shapes;
       leftAssets = built.assets;
       leftPlaced = built.placed;
-    } else if (source.kind === "path") {
-      leftShapes = buildShapes(source.steps);
     }
     const right = buildBoardShapes(boardItems, leftShapes.length ? LEFT_COLUMN_W : 0);
 
@@ -290,13 +285,9 @@ function anchorForShape(
 ): { page_idx?: number; block_id?: string } | null {
   // 画板上的东西没有锚点（它们是 agent 用 shell 产出的文件，不一定对应某个块），
   // 点了不跳 —— 跳到第 1 页比不动更让人困惑。
-  if (source.kind === "empty" || source.kind === "broken") return null;
-  if (source.kind === "canvas") {
-    const node = placed ? nodeForShapeId(placed, shapeId) : undefined;
-    // 没锚点的节点（画成虚线的那些）点了不该跳 —— 跳到第 1 页比不动更让人困惑。
-    if (!node?.anchor?.block_id) return null;
-    return { page_idx: node.anchor.page_idx, block_id: node.anchor.block_id };
-  }
-  const step = stepForShapeId(source.steps, shapeId);
-  return step ? { page_idx: step.page_idx, block_id: step.block_id } : null;
+  if (source.kind !== "canvas") return null;
+  const node = placed ? nodeForShapeId(placed, shapeId) : undefined;
+  // 没锚点的节点（画成虚线的那些）同理，点了不该跳。
+  if (!node?.anchor?.block_id) return null;
+  return { page_idx: node.anchor.page_idx, block_id: node.anchor.block_id };
 }

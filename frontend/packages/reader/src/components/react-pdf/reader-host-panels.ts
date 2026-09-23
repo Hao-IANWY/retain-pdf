@@ -88,7 +88,7 @@ const SPECS = {
     adapterKey: "renderReaderReadingCanvas",
     slot: "document",
     storageKey: "retainpdf.reader.reading-canvas-float.pos.v1",
-    ariaLabel: "阅读路径画布",
+    ariaLabel: "AI 画布",
     width: 520,
     keepMounted: true,
   },

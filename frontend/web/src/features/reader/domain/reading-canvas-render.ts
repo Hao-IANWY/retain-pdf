@@ -188,8 +188,8 @@ export function buildCanvasShapes(
   const shapes: CanvasBuild["shapes"] = [];
 
   // 回调/字面量的类型是显式写出来的：只标注外层数组类型的话，属性名拼错 tsc
-  // 不报（`.map()` 会去推断回调返回值，对象字面量就没有上下文类型）。见
-  // reading-path-cards.ts 里那段同样的注释 —— 是踩过的坑。
+  // 不报（`.map()` 会去推断回调返回值，对象字面量就没有上下文类型）。原委见
+  // tldraw-primitives.ts 顶部那段 —— 是踩过的坑，画布为此白屏过一次。
   placed.forEach((item, index) => {
     const { node, x, y, imageH, image } = item;
     if (image && imageH !== undefined) {

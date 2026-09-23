@@ -12,6 +12,10 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 
 import { readFileSync, readdirSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
+const read = (relative) =>
+  readFileSync(fileURLToPath(new URL(relative, import.meta.url)), "utf8");
 
 import {
   imageRefsOf,
@@ -183,41 +187,34 @@ const { chooseCanvasSource } = await import(
   "../../src/features/reader/domain/reading-canvas-doc.ts"
 );
 
-const PATH_JSON = JSON.stringify({ steps: [{ order: 1, page_idx: 0, block_id: "b-1" }] });
-
-test("有概念图就用概念图，没有才退回阅读路径", () => {
-  assert.equal(
-    chooseCanvasSource({ canvasText: JSON.stringify(DOC), pathText: PATH_JSON }).kind,
-    "canvas",
-  );
-  assert.equal(
-    chooseCanvasSource({ canvasText: null, pathText: PATH_JSON }).kind,
-    "path",
-  );
-  assert.equal(chooseCanvasSource({ canvasText: null, pathText: null }).kind, "empty");
+test("有概念图就用概念图，没有就是空 —— 没有任何退路", () => {
+  // 早先这里在没有 canvas.v1.json 时会退回 reading-path.v1.json 的步骤卡片。
+  // 而阅读路径在旁边那个 tab 里有自己的面板:同一份数据两个地方画,并且打开
+  // 「画布」看到一列卡片,会让人以为那就是概念图。
+  assert.equal(chooseCanvasSource({ canvasText: JSON.stringify(DOC) }).kind, "canvas");
+  assert.equal(chooseCanvasSource({ canvasText: null }).kind, "empty");
 });
 
-test("概念图写坏了要说出来，不能静默退回阅读路径", () => {
-  // 静默退回的话，agent 写坏了文件用户只会看到一张旧图，永远不知道该让它重写。
+test("退路不能被悄悄加回来", () => {
+  // 加回来的表现是「画布 tab 里出现了阅读路径」—— 不报错、不失败,只是两个 tab
+  // 显示同一份东西,而且其中一个挂着错的标题。
+  const DOC_SRC = read("../../src/features/reader/domain/reading-canvas-doc.ts");
+  assert.doesNotMatch(DOC_SRC, /pathText/, "chooseCanvasSource 又收阅读路径了");
+  assert.doesNotMatch(DOC_SRC, /kind: "path"/, "CanvasSource 又多了 path 变体");
+  const PANEL = read("../../src/features/reader/ui/reading-canvas.tsx");
+  assert.doesNotMatch(PANEL, /fetchArtifact\(jobId, "reading-path"\)/,
+    "画布又去拉阅读路径了 —— 每 4 秒一次的白拉请求");
+  // 空状态得把人指到旁边那个 tab,否则「画布是空的」看起来像功能坏了。
+  assert.match(PANEL, /阅读路径在旁边那个 tab/);
+});
+
+test("概念图写坏了要说出来，不能静默当成空", () => {
+  // 静默的话,agent 写坏了文件用户只会看到「画布是空的」,永远不知道该让它重写。
   for (const bad of ["{ 不是 json", JSON.stringify({ nodes: [] }), JSON.stringify({})]) {
-    const chosen = chooseCanvasSource({ canvasText: bad, pathText: PATH_JSON });
+    const chosen = chooseCanvasSource({ canvasText: bad });
     assert.equal(chosen.kind, "broken", `「${bad.slice(0, 20)}」该报 broken`);
     assert.ok(chosen.reason.length > 0, "得说清楚哪里不对");
   }
-});
-
-test("阅读路径自己坏了就当没有 —— 它只是退路", () => {
-  // 在这里报错会盖住「去画一张图」这个真正该给的提示。
-  assert.equal(chooseCanvasSource({ canvasText: null, pathText: "{ 坏的" }).kind, "empty");
-  assert.equal(
-    chooseCanvasSource({ canvasText: null, pathText: JSON.stringify({ steps: [] }) }).kind,
-    "empty",
-  );
-  assert.equal(
-    chooseCanvasSource({ canvasText: null, pathText: JSON.stringify({ steps: [{}] }) }).kind,
-    "empty",
-    "步骤全都没有 block_id 等于没有路径",
-  );
 });
 
 
