@@ -19,9 +19,11 @@
  */
 @import "@xterm/xterm/css/xterm.css" layer(pages);
 
-/* tldraw 的画布样式。同样只取结构 —— 它自己有主题变量，但这一版先用它的默认，
- * 配色统一留到确认画布真的有用之后再做。 */
-@import "tldraw/tldraw.css" layer(pages);
+/* tldraw 的画布样式**不在这里** —— 见 entries/reader-canvas.css。
+ * 它 98 KB，而画布是多数会话不会打开的面板；JS 已经懒加载，样式也得懒。
+ * 注入时机在 domain/lazy-stylesheet.ts。
+ *
+ * xterm.css 留在上面没拆：只有 6 KB，不值得再建一套机制。 */
 
 @layer pages {
   /* 面板在 ReaderFloatShell 里面（placement="workspace"），所以这里不做定位，

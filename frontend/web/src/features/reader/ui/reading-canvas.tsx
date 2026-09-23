@@ -27,7 +27,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReaderReadingPathSlotProps } from "@retainpdf/reader/adapters";
 
-import { apiBase, frontendApiKey } from "@/platform/config/runtime.js";
 import {
   type CanvasSource,
   chooseCanvasSource,
@@ -39,6 +38,10 @@ import {
   nodeForShapeId,
 } from "../domain/reading-canvas-render.js";
 import { buildShapes, stepForShapeId } from "../domain/reading-path-cards.js";
+import {
+  READER_CANVAS_STYLESHEET,
+  ensureLazyStylesheet,
+} from "../domain/lazy-stylesheet.js";
 import { type BoardItem, type BoardListing, buildBoardShapes } from "../domain/board.js";
 import {
   fetchArtifact,
@@ -195,9 +198,13 @@ function Canvas({
     let cancelled = false;
     void (async () => {
       try {
-        // 只动态 import 组件。样式走 CSS 链（见 styles/entries/reader.css）——
-        // 从 JS 里 import CSS 在这套 esbuild 配置下没有类型，也进不了 CSS 产物。
-        const loaded = await import("tldraw");
+        // 样式和组件**并行**加载，但都等到齐再渲染：先渲染再上样式会闪一下
+        // 无样式的画布。样式是单独产物（75 KB），不进 reader.html 的渲染阻塞链
+        // —— 见 domain/lazy-stylesheet.ts。
+        const [loaded] = await Promise.all([
+          import("tldraw"),
+          ensureLazyStylesheet(READER_CANVAS_STYLESHEET),
+        ]);
         if (!cancelled) setMod(loaded);
       } catch {
         if (!cancelled) setLoadFailed(true);

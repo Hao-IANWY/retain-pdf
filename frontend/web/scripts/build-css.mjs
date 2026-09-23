@@ -18,6 +18,8 @@ const ENTRIES = [
   { in: "src/styles/entries/home.css", out: "dist/css/home.css" },
   { in: "src/styles/entries/detail.css", out: "dist/css/detail.css" },
   { in: "src/styles/entries/reader.css", out: "dist/css/reader.css" },
+  // 画布面板按需加载，不进 reader.html 的渲染阻塞链。见 entries/reader-canvas.css。
+  { in: "src/styles/entries/reader-canvas.css", out: "dist/css/reader-canvas.css" },
 ];
 
 mkdirSync(join(ROOT, "dist/css"), { recursive: true });
