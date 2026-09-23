@@ -24,7 +24,11 @@
     "test:translation:contract": "python3 backend/pipeline/devtools/run_translation_tests.py --suite benchmarks",
     "dev:backend": "python3 ops/development/dev_stack.py",
     "build:doc": "npm run build --workspace retainpdf2doc",
-    "test:doc": "npm test --workspace retainpdf2doc"
+    "test:doc": "npm test --workspace retainpdf2doc",
+    "verify:web": "npm run verify --workspace=front-tailwind-ui",
+    "verify:ai": "cd backend/ai && uv run pytest -q",
+    "verify:rust": "cargo check --workspace",
+    "verify": "npm run verify:rust && npm run verify:ai && npm run verify:web"
   },
   "engines": {
     "node": ">=20"

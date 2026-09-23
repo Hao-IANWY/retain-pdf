@@ -237,6 +237,11 @@ jobs:
       - name: Test backend source resolver
         run: uv run --project "$RETAIN_PDF_SERVICES_ROOT" python -m pytest .github/scripts/tests -q
 
+      # ops/ 下的开发与发布工具此前没有任何 CI 门禁 —— 43 条用例写了但从不运行，
+      # 而它们守的是「本地栈起不来」「发布包缺文件」这类很难查的东西。
+      - name: Test ops tooling
+        run: uv run --project "$RETAIN_PDF_SERVICES_ROOT" python -m pytest ops/development/tests ops/release/tests -q
+
       - name: Check backend contract mirror parity
         run: |
           python3 "$RETAIN_PDF_SERVICES_ROOT/contracts/check_parity.py"
