@@ -1,4 +1,4 @@
-import { R as p, a as r } from "./ReaderApp-3ZWL-tcJ.js";
+import { R as p, a as r } from "./ReaderApp-DoNlIm7-.js";
 const e = "0.1.0-cut";
 export {
   e as READER_PACKAGE_VERSION,

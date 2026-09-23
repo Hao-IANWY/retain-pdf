@@ -658,3 +658,18 @@
   font-size: 11.5px;
   opacity: 0.7;
 }
+
+/* keepMounted 的面板关掉时：留在树上、保住真实尺寸，只是挪出视线。
+ *
+ * **不用 display:none / visibility:hidden** —— 两者都会让 xterm 的容器尺寸算成
+ * 0，fit() 于是算出 1 行，切回来那段输出全挤在一行里。挪到视口外是唯一既看不见
+ * 又保住布局的做法。
+ *
+ * 配合组件上的 inert + aria-hidden：藏起来的面板不参与 Tab，也不被读屏念出来。
+ */
+.reader-notes-panel[data-hidden] {
+  position: absolute;
+  left: -200vw;
+  top: 0;
+  pointer-events: none;
+}

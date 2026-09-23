@@ -74,6 +74,7 @@ export function ReaderHostPanelShell({
       storageKey={panel.storageKey}
       ariaLabel={panel.ariaLabel}
       width={panel.width}
+      keepMounted={panel.keepMounted}
       placement="workspace"
       showHeader={false}
       className="is-pane-right"

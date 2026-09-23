@@ -180,30 +180,30 @@ function Aa(e) {
   }), [d, u] = L({
     documentId: "",
     jobId: ""
-  }), f = c.documentId === t ? c.jobId : "", m = d.documentId === t ? d.jobId : "", v = n || f, [p, g] = L({
+  }), f = c.documentId === t ? c.jobId : "", m = d.documentId === t ? d.jobId : "", v = n || f, [p, b] = L({
     jobId: "",
     documentId: ""
-  }), y = p.jobId === v ? p.documentId : "", P = t || y, w = !!t && !v, [b, S] = L(null), N = (b == null ? void 0 : b.sessionIdentity) === r && b.documentId === P ? b : null, E = w || !!N, _ = A((M) => {
+  }), y = p.jobId === v ? p.documentId : "", S = t || y, w = !!t && !v, [g, P] = L(null), k = (g == null ? void 0 : g.sessionIdentity) === r && g.documentId === S ? g : null, E = w || !!k, _ = A((M) => {
     const R = `${M.documentId || ""}`.trim();
     if (!R || o.current && o.current !== R) return;
     if (!o.current && s.current)
-      g({
+      b({
         jobId: s.current,
         documentId: R
       });
     else if (!o.current)
       return;
     const I = `${M.revision || ""}`.trim() || `${Date.now()}`;
-    S({
+    P({
       documentId: R,
       revision: I,
       sessionIdentity: a.current
     }), l();
   }, []);
   O(() => {
-    S((M) => M && M.sessionIdentity !== r ? null : M);
+    P((M) => M && M.sessionIdentity !== r ? null : M);
   }, [r]);
-  const T = A((M) => {
+  const N = A((M) => {
     switch (M.type) {
       case "resolved-document-job":
         i({ documentId: M.documentId, jobId: M.jobId });
@@ -215,10 +215,10 @@ function Aa(e) {
         u({ documentId: M.documentId, jobId: M.jobId });
         break;
       case "resolved-job-document":
-        g((R) => R.jobId === M.jobId && R.documentId === M.documentId ? R : { jobId: M.jobId, documentId: M.documentId });
+        b((R) => R.jobId === M.jobId && R.documentId === M.documentId ? R : { jobId: M.jobId, documentId: M.documentId });
         break;
       case "committed-source":
-        S({
+        P({
           documentId: M.documentId,
           revision: M.revision,
           sessionIdentity: M.sessionIdentity
@@ -235,16 +235,16 @@ function Aa(e) {
     rejectedDocumentJobId: m,
     sessionJobId: v,
     resolvedJobDocument: p,
-    setResolvedJobDocument: g,
+    setResolvedJobDocument: b,
     jobDocumentId: y,
-    documentId: P,
+    documentId: S,
     sourceOnly: w,
-    committedDocumentSource: b,
-    setCommittedDocumentSource: S,
-    activeCommittedDocumentSource: N,
+    committedDocumentSource: g,
+    setCommittedDocumentSource: P,
+    activeCommittedDocumentSource: k,
     sourceViewOnly: E,
     refreshCommittedDocument: _,
-    applyIdentityEvent: T
+    applyIdentityEvent: N
   };
 }
 const Na = /* @__PURE__ */ new Set(["succeeded", "failed", "cancelled", "canceled"]);
@@ -326,39 +326,39 @@ function _a(e) {
     sessionJobIdRef: a,
     sessionEpochRef: o,
     closingRef: s
-  } = e, [l, c] = L(null), [i, d] = L(null), [u, f] = L(""), [m, v] = L(0), p = u === n ? l : null, g = u === n ? i : null, y = Jn(p), P = Na.has(y), w = A(() => {
-    v((T) => T + 1);
-  }, []), b = A((T) => {
-    c(T.jobPayload), d(T.manifestPayload), f(T.sessionIdentity);
-  }, []), S = A((T) => {
-    c(null), d(null), f(T);
-  }, []), N = x(""), E = x(""), _ = A(async () => {
-    const T = a.current;
-    if (!T || N.current === T) return;
+  } = e, [l, c] = L(null), [i, d] = L(null), [u, f] = L(""), [m, v] = L(0), p = u === n ? l : null, b = u === n ? i : null, y = Jn(p), S = Na.has(y), w = A(() => {
+    v((N) => N + 1);
+  }, []), g = A((N) => {
+    c(N.jobPayload), d(N.manifestPayload), f(N.sessionIdentity);
+  }, []), P = A((N) => {
+    c(null), d(null), f(N);
+  }, []), k = x(""), E = x(""), _ = A(async () => {
+    const N = a.current;
+    if (!N || k.current === N) return;
     const M = yn().loadJobPayload;
     if (typeof M != "function") return;
     const R = o.current.value;
-    N.current = T;
+    k.current = N;
     try {
-      const I = await M(T);
-      if (s.current || o.current.value !== R || a.current !== T || !I || typeof I != "object")
+      const I = await M(N);
+      if (s.current || o.current.value !== R || a.current !== N || !I || typeof I != "object")
         return;
-      const k = Jn(I);
-      c(I), f(r.current), k === "succeeded" && E.current !== T && (E.current = T, v((D) => D + 1));
+      const T = Jn(I);
+      c(I), f(r.current), T === "succeeded" && E.current !== N && (E.current = N, v((D) => D + 1));
     } catch {
     } finally {
-      N.current === T && (N.current = "");
+      k.current === N && (k.current = "");
     }
   }, []);
   return O(() => {
     E.current = "";
   }, [n]), O(() => {
-    if (!t || P || !p) return;
-    const T = window.setInterval(() => {
+    if (!t || S || !p) return;
+    const N = window.setInterval(() => {
       _();
     }, 1e3);
-    return () => window.clearInterval(T);
-  }, [P, _, p, t]), {
+    return () => window.clearInterval(N);
+  }, [S, _, p, t]), {
     jobPayload: l,
     setJobPayload: c,
     manifestPayload: i,
@@ -366,14 +366,14 @@ function _a(e) {
     payloadSessionIdentity: u,
     setPayloadSessionIdentity: f,
     scopedJobPayload: p,
-    scopedManifestPayload: g,
+    scopedManifestPayload: b,
     jobStatus: y,
-    jobTerminal: P,
+    jobTerminal: S,
     jobRefreshRevision: m,
     refreshJobArtifacts: w,
     refreshJobStatus: _,
-    publishPayload: b,
-    clearPayload: S
+    publishPayload: g,
+    clearPayload: P
   };
 }
 function Xt(e) {
@@ -561,9 +561,9 @@ function qa(e) {
     switchSessionMode: m,
     jobRefreshRevision: v,
     sessionEpochRef: p,
-    closingRef: g,
+    closingRef: b,
     activeLoadAbortRef: y
-  } = e, [P, w] = L(""), [b, S] = L(""), [N, E] = L(null), [_, T] = L(null), [M, R] = L(!1), [I, k] = L(""), [D, $] = L([]), [B, Y] = L(() => ({
+  } = e, [S, w] = L(""), [g, P] = L(""), [k, E] = L(null), [_, N] = L(null), [M, R] = L(!1), [I, T] = L(""), [D, $] = L([]), [B, Y] = L(() => ({
     source: null,
     translated: null
   })), [j, W] = L(
@@ -578,13 +578,13 @@ function qa(e) {
   return O(() => {
     const ae = new AbortController(), U = p.current.value, q = Ja({
       sessionEpochRef: p,
-      closingRef: g,
+      closingRef: b,
       abort: ae,
       sessionEpoch: U
     });
     y.current = ae;
     const te = yn();
-    if (g.current)
+    if (b.current)
       return ae.abort(), () => {
         y.current === ae && (y.current = null);
       };
@@ -655,7 +655,7 @@ function qa(e) {
       }
       const se = ue();
       if (q.isInactive()) return;
-      w(se), S(""), k(""), f(c);
+      w(se), P(""), T(""), f(c);
       const be = await en({
         url: se,
         label: "正在下载原文 PDF…",
@@ -727,7 +727,7 @@ function qa(e) {
         i.documentId,
         i.revision
       ) : Ae || (St ? te.resolveResourceUrl(`/api/v1/documents/${encodeURIComponent(St)}/source.pdf`) : ""), tt = i ? "" : fe || "";
-      if (w(Be || ""), S(tt), k(Ca(ee.jobPayload, t)), u({
+      if (w(Be || ""), P(tt), T(Ca(ee.jobPayload, t)), u({
         jobPayload: ee.jobPayload || null,
         manifestPayload: ee.manifestPayload || null,
         sessionIdentity: c
@@ -746,11 +746,11 @@ function qa(e) {
           ne("PDF 下载失败，请重试", "PDF 下载失败");
           return;
         }
-        E(He.sourceBytes), T(He.translatedBytes), de();
+        E(He.sourceBytes), N(He.translatedBytes), de();
       }
     }
     async function _e() {
-      R(!1), E(null), T(null), $([]), Y({ source: null, translated: null }), W(It), xt(X, 8, Re.metadata, "metadata");
+      R(!1), E(null), N(null), $([]), Y({ source: null, translated: null }), W(It), xt(X, 8, Re.metadata, "metadata");
       try {
         if (s) {
           await pe();
@@ -783,9 +783,9 @@ function qa(e) {
       ae.abort(), y.current === ae && (y.current = null);
     };
   }, [t, r, a, o, s, l, i, v, n, c, d, u, f, m]), {
-    sourceUrl: P,
-    translatedUrl: b,
-    sourceFile: N,
+    sourceUrl: S,
+    translatedUrl: g,
+    sourceFile: k,
     translatedFile: _,
     assetsReady: M,
     title: I,
@@ -814,12 +814,12 @@ function Va() {
     sessionJobId: m,
     documentId: v,
     sourceOnly: p,
-    sourceViewOnly: g
-  } = f, { mode: y, setMode: P, switchSessionMode: w } = za(g);
+    sourceViewOnly: b
+  } = f, { mode: y, setMode: S, switchSessionMode: w } = za(b);
   d.current = () => {
     w("source");
   }, l.current = o, c.current = v, i.current = m;
-  const b = _a({
+  const g = _a({
     sessionJobId: m,
     sessionIdentity: o,
     sessionIdentityRef: l,
@@ -827,14 +827,14 @@ function Va() {
     sessionEpochRef: s,
     closingRef: e
   }), {
-    scopedJobPayload: S,
-    scopedManifestPayload: N,
+    scopedJobPayload: P,
+    scopedManifestPayload: k,
     jobStatus: E,
     jobTerminal: _,
-    jobRefreshRevision: T,
+    jobRefreshRevision: N,
     refreshJobArtifacts: M,
     refreshJobStatus: R
-  } = b, I = qa({
+  } = g, I = qa({
     sessionJobId: m,
     jobId: r,
     routeDocumentId: a,
@@ -845,38 +845,38 @@ function Va() {
     sessionIdentity: o,
     committedSource: f.activeCommittedDocumentSource,
     applyIdentityEvent: f.applyIdentityEvent,
-    publishPayload: b.publishPayload,
-    clearPayload: b.clearPayload,
+    publishPayload: g.publishPayload,
+    clearPayload: g.clearPayload,
     switchSessionMode: w,
-    jobRefreshRevision: T,
+    jobRefreshRevision: N,
     sessionEpochRef: s,
     closingRef: e,
     activeLoadAbortRef: t
-  }), k = A(() => {
+  }), T = A(() => {
     var $;
     e.current = !0, ($ = t.current) == null || $.abort();
   }, []), D = V(
     () => ({
       fetchProtected: yn().fetchProtected,
       jobId: m,
-      jobPayload: S,
-      manifestPayload: N,
+      jobPayload: P,
+      manifestPayload: k,
       sourceUrl: I.sourceUrl,
       translatedUrl: I.translatedUrl,
-      sourceOnly: g
+      sourceOnly: b
     }),
-    [m, S, N, I.sourceUrl, I.translatedUrl, g]
+    [m, P, k, I.sourceUrl, I.translatedUrl, b]
   );
   return {
     jobId: m,
     jobStatus: E,
-    workflow: `${(S == null ? void 0 : S.workflow) || ""}`.trim().toLowerCase(),
+    workflow: `${(P == null ? void 0 : P.workflow) || ""}`.trim().toLowerCase(),
     jobTerminal: _,
     documentId: v,
     sessionIdentity: o,
     sourceOnly: p,
     mode: y,
-    setMode: P,
+    setMode: S,
     sourceUrl: I.sourceUrl,
     translatedUrl: I.translatedUrl,
     sourceFile: I.sourceFile,
@@ -891,7 +891,7 @@ function Va() {
     refreshJobArtifacts: M,
     refreshJobStatus: R,
     refreshCommittedDocument: f.refreshCommittedDocument,
-    prepareClose: k
+    prepareClose: T
   };
 }
 const Ga = 160, Ya = 8, Za = 960;
@@ -943,45 +943,45 @@ function es(e, t) {
   const [u, f] = L(() => ({
     identity: i,
     pages: Ht
-  })), [m, v] = L(() => ({ identity: i, tick: 0 })), p = u.identity === i ? u.pages : Ht, g = m.identity === i ? m.tick : 0, y = Qa({
+  })), [m, v] = L(() => ({ identity: i, tick: 0 })), p = u.identity === i ? u.pages : Ht, b = m.identity === i ? m.tick : 0, y = Qa({
     mode: n,
     sourceOnly: r,
     assetsReady: a,
     hasSource: !!l || !!o,
     hasTranslated: !!c
-  }), { primaryPane: P } = y, w = A((R, I) => {
-    d.current === i && f((k) => {
-      const D = k.identity === i ? k.pages : Ht;
-      return D[I] === R && k.identity === i ? k : {
+  }), { primaryPane: S } = y, w = A((R, I) => {
+    d.current === i && f((T) => {
+      const D = T.identity === i ? T.pages : Ht;
+      return D[I] === R && T.identity === i ? T : {
         identity: i,
         pages: { ...D, [I]: R }
       };
     });
-  }, [i]), b = x(null), S = A(() => {
-    b.current && clearTimeout(b.current);
+  }, [i]), g = x(null), P = A(() => {
+    g.current && clearTimeout(g.current);
     const R = i;
-    b.current = setTimeout(() => {
-      b.current = null, d.current === R && v((I) => ({
+    g.current = setTimeout(() => {
+      g.current = null, d.current === R && v((I) => ({
         identity: R,
         tick: I.identity === R ? I.tick + 1 : 1
       }));
     }, 60);
   }, [i]);
-  O(() => (b.current && (clearTimeout(b.current), b.current = null), f((R) => R.identity === i && R.pages.source === 0 && R.pages.translated === 0 ? R : { identity: i, pages: { source: 0, translated: 0 } }), v((R) => R.identity === i && R.tick === 0 ? R : { identity: i, tick: 0 }), () => {
-    b.current && (clearTimeout(b.current), b.current = null);
+  O(() => (g.current && (clearTimeout(g.current), g.current = null), f((R) => R.identity === i && R.pages.source === 0 && R.pages.translated === 0 ? R : { identity: i, pages: { source: 0, translated: 0 } }), v((R) => R.identity === i && R.tick === 0 ? R : { identity: i, tick: 0 }), () => {
+    g.current && (clearTimeout(g.current), g.current = null);
   }), [i]);
-  const N = V(
+  const k = V(
     () => Math.max(p.source, p.translated),
     [p]
-  ), E = P === "translated" ? p.translated : p.source || p.translated, _ = t == null ? void 0 : t.userZoom, T = t == null ? void 0 : t.shellWidth, M = `${i}-${g}-${_}-${n}-${p.source}-${p.translated}-${T}`;
+  ), E = S === "translated" ? p.translated : p.source || p.translated, _ = t == null ? void 0 : t.userZoom, N = t == null ? void 0 : t.shellWidth, M = `${i}-${b}-${_}-${n}-${p.source}-${p.translated}-${N}`;
   return {
     ...y,
     numPagesByPane: p,
-    hudNumPages: N,
+    hudNumPages: k,
     primaryNumPages: E,
-    metricsTick: g,
+    metricsTick: b,
     onNumPages: w,
-    onMetrics: S,
+    onMetrics: P,
     rowSyncRevision: M
   };
 }
@@ -1194,47 +1194,47 @@ function Rs(e, t = !0) {
       return;
     const s = () => {
       var $, B;
-      const p = e.current, g = ($ = globalThis.getSelection) == null ? void 0 : $.call(globalThis);
-      if (!p || !g || g.isCollapsed || !g.rangeCount) {
+      const p = e.current, b = ($ = globalThis.getSelection) == null ? void 0 : $.call(globalThis);
+      if (!p || !b || b.isCollapsed || !b.rangeCount) {
         r(null);
         return;
       }
-      const y = g.getRangeAt(0);
+      const y = b.getRangeAt(0);
       if (!p.contains(y.commonAncestorContainer)) {
         r(null);
         return;
       }
-      const P = `${g.toString() || ""}`.replace(/\s+/g, " ").trim();
-      if (P.length < 2) {
+      const S = `${b.toString() || ""}`.replace(/\s+/g, " ").trim();
+      if (S.length < 2) {
         r(null);
         return;
       }
       let w = y.commonAncestorContainer;
       w.nodeType === Node.TEXT_NODE && (w = w.parentElement);
-      const b = (B = w == null ? void 0 : w.closest) == null ? void 0 : B.call(
+      const g = (B = w == null ? void 0 : w.closest) == null ? void 0 : B.call(
         w,
         mt()
       );
-      if (!b || !p.contains(b)) {
+      if (!g || !p.contains(g)) {
         r(null);
         return;
       }
-      const S = Math.max(1, Math.floor($t(b) || 1)), E = b.getAttribute(Xe) === "translated" ? "translated" : "source", _ = y.getClientRects(), T = _[_.length - 1] || y.getBoundingClientRect();
-      if (!T || T.width === 0 && T.height === 0) {
+      const P = Math.max(1, Math.floor($t(g) || 1)), E = g.getAttribute(Xe) === "translated" ? "translated" : "source", _ = y.getClientRects(), N = _[_.length - 1] || y.getBoundingClientRect();
+      if (!N || N.width === 0 && N.height === 0) {
         r(null);
         return;
       }
-      const M = typeof window < "u" ? window.innerWidth : 800, R = typeof window < "u" ? window.innerHeight : 600, I = 16, k = Math.min(Math.max(I, T.left), M - I), D = Math.min(Math.max(I, T.top), R - I);
+      const M = typeof window < "u" ? window.innerWidth : 800, R = typeof window < "u" ? window.innerHeight : 600, I = 16, T = Math.min(Math.max(I, N.left), M - I), D = Math.min(Math.max(I, N.top), R - I);
       r({
         selectionType: "text",
-        quote: P,
-        page: S,
+        quote: S,
+        page: P,
         pane: E,
         rect: {
-          left: k,
+          left: T,
           top: D,
-          width: T.width,
-          height: T.height
+          width: N.width,
+          height: N.height
         }
       });
     }, l = () => {
@@ -1392,7 +1392,7 @@ function As(e, t, n = !0, r = "", a) {
       const p = Array.from(l.querySelectorAll(u));
       if (!p.length)
         return;
-      const g = Jr(l), y = Kr(p, g);
+      const b = Jr(l), y = Kr(p, b);
       y && s(y.page);
     }, m = () => {
       c || (d && cancelAnimationFrame(d), d = requestAnimationFrame(() => {
@@ -1455,12 +1455,12 @@ function _s(e, t, n = "", r) {
     }
     let c = !1, i = 0, d = !1, u = !1;
     const f = () => {
-      var S;
+      var P;
       if (c) return;
       const w = e.current;
       if (!w) return;
-      const b = Cs(w);
-      Ls(s.current, b) || (s.current = b, o(b)), d && !u && (u = !0, (S = l.current) == null || S.call(l));
+      const g = Cs(w);
+      Ls(s.current, g) || (s.current = g, o(g)), d && !u && (u = !0, (P = l.current) == null || P.call(l));
     }, m = () => {
       cancelAnimationFrame(i), i = requestAnimationFrame(() => {
         requestAnimationFrame(f);
@@ -1469,10 +1469,10 @@ function _s(e, t, n = "", r) {
     m();
     const v = window.setTimeout(m, 100), p = window.setTimeout(() => {
       d = !0, m();
-    }, 300), g = window.setTimeout(m, 700), y = e.current;
-    let P = null;
-    return y && typeof ResizeObserver < "u" && (P = new ResizeObserver(() => m()), P.observe(y)), () => {
-      c = !0, cancelAnimationFrame(i), window.clearTimeout(v), window.clearTimeout(p), window.clearTimeout(g), P == null || P.disconnect();
+    }, 300), b = window.setTimeout(m, 700), y = e.current;
+    let S = null;
+    return y && typeof ResizeObserver < "u" && (S = new ResizeObserver(() => m()), S.observe(y)), () => {
+      c = !0, cancelAnimationFrame(i), window.clearTimeout(v), window.clearTimeout(p), window.clearTimeout(b), S == null || S.disconnect();
     };
   }, [e, t, n]), a;
 }
@@ -1487,20 +1487,20 @@ function Us(e, t) {
     restoreReady: s = !0
   } = t, l = x(
     ((R = Me(o)) == null ? void 0 : R.anchor) || { page: 1, fraction: 0 }
-  ), c = x(null), i = x(!1), d = x(r), u = x(null), f = x(null), m = x(null), v = x(null), p = x(o), g = x(""), y = x(n);
+  ), c = x(null), i = x(!1), d = x(r), u = x(null), f = x(null), m = x(null), v = x(null), p = x(o), b = x(""), y = x(n);
   y.current = n;
-  const P = A(() => {
+  const S = A(() => {
     var I;
     (I = u.current) == null || I.call(u), u.current = null, f.current != null && (clearTimeout(f.current), f.current = null);
   }, []), w = A((I = !1) => {
     v.current != null && (clearTimeout(v.current), v.current = null);
-    const k = () => {
+    const T = () => {
       v.current = null, Ct(p.current, {
         anchor: ve(l.current)
       });
     };
-    I ? k() : v.current = setTimeout(k, js);
-  }, []), b = A((I) => {
+    I ? T() : v.current = setTimeout(T, js);
+  }, []), g = A((I) => {
     l.current = ve(I), c.current = null, m.current != null && clearTimeout(m.current), m.current = setTimeout(() => {
       m.current = null, i.current = !1;
     }, $s);
@@ -1508,7 +1508,7 @@ function Us(e, t) {
   O(() => {
     if (!a)
       return;
-    let I = !1, k = null, D = null, $ = null;
+    let I = !1, T = null, D = null, $ = null;
     const B = () => {
       if (I) return;
       const Y = e.current;
@@ -1516,50 +1516,50 @@ function Us(e, t) {
         $ = setTimeout(B, 50);
         return;
       }
-      k = Y, D = () => {
+      T = Y, D = () => {
         if (i.current)
           return;
-        const j = Wt(k, y.current);
+        const j = Wt(T, y.current);
         j && (l.current = j, w());
-      }, k.addEventListener("scroll", D, { passive: !0 }), i.current || D();
+      }, T.addEventListener("scroll", D, { passive: !0 }), i.current || D();
     };
     return B(), () => {
-      I = !0, $ != null && clearTimeout($), k && D && k.removeEventListener("scroll", D);
+      I = !0, $ != null && clearTimeout($), T && D && T.removeEventListener("scroll", D);
     };
   }, [a, r, n, e, w]), $e(() => {
-    var k;
+    var T;
     if (p.current === o) return;
-    w(!0), P(), m.current != null && (clearTimeout(m.current), m.current = null), p.current = o, g.current = "";
-    const I = (k = Me(o)) == null ? void 0 : k.anchor;
+    w(!0), S(), m.current != null && (clearTimeout(m.current), m.current = null), p.current = o, b.current = "";
+    const I = (T = Me(o)) == null ? void 0 : T.anchor;
     l.current = I ? ve(I) : { page: 1, fraction: 0 }, c.current = null, i.current = !!o, d.current = r;
-  }, [o, r, w, P]), O(() => {
-    var k;
-    if (!a || !s || !o || g.current === o) return;
-    g.current = o;
+  }, [o, r, w, S]), O(() => {
+    var T;
+    if (!a || !s || !o || b.current === o) return;
+    b.current = o;
     const I = ve(
-      ((k = Me(o)) == null ? void 0 : k.anchor) || { page: 1, fraction: 0 }
+      ((T = Me(o)) == null ? void 0 : T.anchor) || { page: 1, fraction: 0 }
     );
-    return l.current = I, c.current = I, i.current = !0, P(), u.current = nn(
+    return l.current = I, c.current = I, i.current = !0, S(), u.current = nn(
       () => e.current,
       I,
       {
         behavior: "auto",
         pane: y.current,
         delaysMs: Yn,
-        onDone: () => b(I)
+        onDone: () => g(I)
       }
     ), f.current = setTimeout(() => {
-      f.current = null, b(I);
-    }, Math.max(...Yn) + 160), () => P();
-  }, [a, s, o, e, b, P]), O(() => {
+      f.current = null, g(I);
+    }, Math.max(...Yn) + 160), () => S();
+  }, [a, s, o, e, g, S]), O(() => {
     if (d.current === r)
       return;
     if (d.current = r, !a) {
-      i.current = !1, c.current = null, P();
+      i.current = !1, c.current = null, S();
       return;
     }
     const I = c.current ? ve(c.current) : ve(l.current);
-    return i.current = !0, c.current = I, l.current = I, P(), u.current = nn(
+    return i.current = !0, c.current = I, l.current = I, S(), u.current = nn(
       () => e.current,
       I,
       {
@@ -1567,44 +1567,44 @@ function Us(e, t) {
         pane: n,
         // 等页宽/行高同步后再钉；同一 locked 幂等，不会越滚越远
         delaysMs: Ds,
-        onDone: () => b(I)
+        onDone: () => g(I)
       }
     ), f.current = setTimeout(() => {
-      f.current = null, b(I);
+      f.current = null, g(I);
     }, zs), () => {
-      P();
+      S();
     };
-  }, [r, a, n, e, b, P]), O(() => () => {
-    P(), m.current != null && (clearTimeout(m.current), m.current = null), w(!0);
-  }, [P, w]);
-  const S = A(() => {
+  }, [r, a, n, e, g, S]), O(() => () => {
+    S(), m.current != null && (clearTimeout(m.current), m.current = null), w(!0);
+  }, [S, w]);
+  const P = A(() => {
     const I = Wt(
       e.current,
       y.current
     );
     return ve(I || l.current);
-  }, [e]), N = A(() => {
+  }, [e]), k = A(() => {
     i.current = !0;
     const I = Wt(
       e.current,
       y.current
-    ), k = ve(I ?? l.current);
-    return l.current = k, c.current = k, w(), k;
-  }, [e, w]), E = A((I, k, D) => {
-    const $ = D || y.current, B = _t(I, k || 1), Y = { page: B, fraction: 0 };
-    l.current = Y, i.current = !0, c.current = Y, w(), P(), Ms(e.current, B, "smooth", $), u.current = ks(
+    ), T = ve(I ?? l.current);
+    return l.current = T, c.current = T, w(), T;
+  }, [e, w]), E = A((I, T, D) => {
+    const $ = D || y.current, B = _t(I, T || 1), Y = { page: B, fraction: 0 };
+    l.current = Y, i.current = !0, c.current = Y, w(), S(), Ms(e.current, B, "smooth", $), u.current = ks(
       () => e.current,
       B,
       {
         behavior: "auto",
         pane: $,
         delaysMs: Os,
-        onDone: () => b(Y)
+        onDone: () => g(Y)
       }
     ), f.current = setTimeout(() => {
-      f.current = null, b(Y);
+      f.current = null, g(Y);
     }, Fs);
-  }, [e, b, P, w]), _ = A(() => ve(l.current), []), T = A(() => i.current, []), M = A(() => {
+  }, [e, g, S, w]), _ = A(() => ve(l.current), []), N = A(() => i.current, []), M = A(() => {
     if (!i.current || !c.current)
       return;
     const I = ve(c.current);
@@ -1616,11 +1616,11 @@ function Us(e, t) {
     );
   }, [e]);
   return {
-    lockFromShell: S,
-    beginModeSwitch: N,
+    lockFromShell: P,
+    beginModeSwitch: k,
     goToPage: E,
     getAnchor: _,
-    isRestoring: T,
+    isRestoring: N,
     repinIfRestoring: M
   };
 }
@@ -1651,32 +1651,32 @@ function Ks(e, t, n) {
   f.current = l;
   const m = x(n);
   m.current = n, O(() => {
-    var w, b;
+    var w, g;
     if (!r || !Number.isFinite(a) || a < 1)
       return;
-    const v = wa(), p = Bs(v, u.current), g = qr(v, p, { jobId: c, documentId: i });
-    if (t.current === g)
+    const v = wa(), p = Bs(v, u.current), b = qr(v, p, { jobId: c, documentId: i });
+    if (t.current === b)
       return;
     if (p == null) {
-      t.current = g, (w = m.current) == null || w.call(m);
+      t.current = b, (w = m.current) == null || w.call(m);
       return;
     }
-    t.current = g, v && ((b = f.current) == null || b.call(f, v, p));
+    t.current = b, v && ((g = f.current) == null || g.call(f, v, p));
     const y = [];
-    let P = 0;
-    for (const S of Hs)
-      P = Math.max(P, S), y.push(
+    let S = 0;
+    for (const P of Hs)
+      S = Math.max(S, P), y.push(
         setTimeout(() => {
           d.current(p);
-        }, S)
+        }, P)
       );
     return y.push(
       setTimeout(() => {
-        var S;
-        (S = m.current) == null || S.call(m);
-      }, P + Ws)
+        var P;
+        (P = m.current) == null || P.call(m);
+      }, S + Ws)
     ), () => {
-      for (const S of y) clearTimeout(S);
+      for (const P of y) clearTimeout(P);
     };
   }, [r, a, c, i, t]);
 }
@@ -1707,9 +1707,9 @@ function Vs(e, t, n) {
       var y;
       const v = ((y = globalThis.location) == null ? void 0 : y.search) || "", p = Oo(v, a, d.current);
       if (f.current = a, p === null) return;
-      const g = `${new URLSearchParams(p).get("block_id") || ""}`.trim();
+      const b = `${new URLSearchParams(p).get("block_id") || ""}`.trim();
       t.current = qr(
-        { blockId: g },
+        { blockId: b },
         a,
         { jobId: l, documentId: c }
       ), (u.current || qs)(p);
@@ -1865,37 +1865,37 @@ function ei({
       error: ""
     };
     s.current = p, o(p);
-    const g = (w) => {
-      m.signal.aborted || o((b) => {
-        const S = w(b);
-        return s.current = S, S;
+    const b = (w) => {
+      m.signal.aborted || o((g) => {
+        const P = w(g);
+        return s.current = P, P;
       });
     }, y = async () => {
       let w = 0;
       for (; !m.signal.aborted; )
         try {
-          const b = await u.fetchLayout(c, { signal: m.signal });
-          v = !0, g((S) => ({
-            ...S,
-            layoutByPage: Ys(b),
+          const g = await u.fetchLayout(c, { signal: m.signal });
+          v = !0, b((P) => ({
+            ...P,
+            layoutByPage: Ys(g),
             jobStatus: i,
             error: ""
           }));
           return;
-        } catch (b) {
-          if ((b == null ? void 0 : b.name) === "AbortError") return;
-          const S = Tn(b);
-          if (!(S === "LIVE_TRANSLATION_LAYOUT_NOT_READY" || !S)) {
-            g((E) => ({
+        } catch (g) {
+          if ((g == null ? void 0 : g.name) === "AbortError") return;
+          const P = Tn(g);
+          if (!(P === "LIVE_TRANSLATION_LAYOUT_NOT_READY" || !P)) {
+            b((E) => ({
               ...E,
               connection: d ? "terminal" : "unavailable",
               jobStatus: i,
-              error: Rt(b, "实时译文暂不可用")
+              error: Rt(g, "实时译文暂不可用")
             }));
             return;
           }
           if (d) {
-            g((E) => ({
+            b((E) => ({
               ...E,
               connection: "terminal",
               jobStatus: i,
@@ -1903,11 +1903,11 @@ function ei({
             }));
             return;
           }
-          g((E) => ({
+          b((E) => ({
             ...E,
             connection: "connecting",
             jobStatus: i,
-            error: Rt(b, "正在等待 OCR 版面数据")
+            error: Rt(g, "正在等待 OCR 版面数据")
           })), await rn(Xn[Math.min(w, Xn.length - 1)], m.signal).catch(() => {
           }), w += 1;
         }
@@ -1916,41 +1916,41 @@ function ei({
       if (await y(), !v || m.signal.aborted) return;
       let w = 0;
       for (; !m.signal.aborted; ) {
-        d || g((b) => ({
-          ...b,
-          connection: b.lastSeq > 0 ? "reconnecting" : "connecting",
+        d || b((g) => ({
+          ...g,
+          connection: g.lastSeq > 0 ? "reconnecting" : "connecting",
           jobStatus: i,
           // 保留已有错误：首页还没提交（lastSeq 为 0）时恰恰是最容易出错的阶段，
           // 此前这里把它清成空串，UI 于是一直显示「连接中」，用户看到的是
           // "正在努力"，实际可能已经在反复失败。
-          error: b.error
+          error: g.error
         }));
         try {
           await u.streamEvents(c, {
             afterSeq: s.current.lastSeq,
             signal: m.signal,
-            onEvent: async (b) => {
-              if (b.seq <= s.current.lastSeq) return;
-              let S;
+            onEvent: async (g) => {
+              if (g.seq <= s.current.lastSeq) return;
+              let P;
               try {
-                S = await Qs(
+                P = await Qs(
                   c,
-                  b,
+                  g,
                   s.current,
                   m.signal,
                   u
                 );
-              } catch (N) {
-                if ((N == null ? void 0 : N.name) === "AbortError" || m.signal.aborted) throw N;
-                g((E) => ({
+              } catch (k) {
+                if ((k == null ? void 0 : k.name) === "AbortError" || m.signal.aborted) throw k;
+                b((E) => ({
                   ...E,
-                  lastSeq: Math.max(E.lastSeq, b.seq),
-                  error: Rt(N, "部分页面的实时译文暂时取不到")
+                  lastSeq: Math.max(E.lastSeq, g.seq),
+                  error: Rt(k, "部分页面的实时译文暂时取不到")
                 }));
                 return;
               }
-              g((N) => {
-                const E = Zs(N, b, S);
+              b((k) => {
+                const E = Zs(k, g, P);
                 return d ? {
                   ...E,
                   connection: "terminal",
@@ -1962,19 +1962,19 @@ function ei({
               }), w = 0;
             }
           });
-        } catch (b) {
-          if ((b == null ? void 0 : b.name) === "AbortError" || m.signal.aborted) return;
-          g((S) => ({
-            ...S,
+        } catch (g) {
+          if ((g == null ? void 0 : g.name) === "AbortError" || m.signal.aborted) return;
+          b((P) => ({
+            ...P,
             connection: d ? "terminal" : "reconnecting",
             jobStatus: i,
-            error: Rt(b, "实时译文连接已中断，正在重连")
+            error: Rt(g, "实时译文连接已中断，正在重连")
           }));
         }
         if (m.signal.aborted) return;
         if (d) {
-          g((b) => ({
-            ...b,
+          b((g) => ({
+            ...g,
             connection: "terminal",
             jobStatus: i
           }));
@@ -2044,7 +2044,7 @@ function ai() {
   ), {
     beginModeSwitch: v,
     goToPage: p,
-    repinIfRestoring: g
+    repinIfRestoring: b
   } = Us(o, {
     primaryPane: m.primaryPane,
     mode: e.mode,
@@ -2053,14 +2053,14 @@ function ai() {
     restoreReady: m.primaryNumPages > 0
   });
   O(() => {
-    g();
-  }, [l, g]);
+    b();
+  }, [l, b]);
   const y = _s(
     o,
     m.compareMode,
     m.rowSyncRevision,
-    g
-  ), P = As(
+    b
+  ), S = As(
     o,
     m.primaryNumPages,
     !e.boot.loading,
@@ -2075,16 +2075,16 @@ function ai() {
       Number((de = m.numPagesByPane) == null ? void 0 : de.translated) || 0
     );
     p(U, te, q);
-  }, [p, m.hudNumPages, m.primaryNumPages, m.numPagesByPane]), [b, S] = L(null), N = x(null), E = A((U) => {
-    N.current && clearTimeout(N.current), S(U), U && (N.current = setTimeout(() => S(null), ti));
+  }, [p, m.hudNumPages, m.primaryNumPages, m.numPagesByPane]), [g, P] = L(null), k = x(null), E = A((U) => {
+    k.current && clearTimeout(k.current), P(U), U && (k.current = setTimeout(() => P(null), ti));
   }, []);
   O(() => () => {
-    N.current && clearTimeout(N.current);
+    k.current && clearTimeout(k.current);
   }, []);
   const _ = A((U) => {
     const q = Mt(e.regions, U);
     return q ? Hn(q, m.primaryPane).page : null;
-  }, [e.regions, m.primaryPane]), T = A((U, q) => {
+  }, [e.regions, m.primaryPane]), N = A((U, q) => {
     const te = q || m.primaryPane, ne = typeof U == "object" && U ? `${U.block_id || ""}`.trim() : "", de = typeof U == "object" && U ? `${U.image_url || ""}`.trim() : "", ue = typeof U == "object" && U ? U.page_idx != null ? Number(U.page_idx) + 1 : U.page != null ? Number(U.page) : null : typeof U == "number" ? U + 1 : null, pe = jo(e.regions, de, ue) || Mt(e.regions, ne) || (typeof U == "object" ? Uo(e.regions, U) : null);
     let ye = pe ? Hn(pe, te).page : null;
     ye == null && (ye = ni(U)), !(ye == null || ye < 1) && (E(pe), w(ye, te));
@@ -2093,7 +2093,7 @@ function ai() {
     enabled: !e.boot.loading && !e.boot.failed && e.assetsReady,
     syncEnabled: !e.boot.loading && !e.boot.failed && e.assetsReady,
     numPages: m.hudNumPages || 0,
-    currentPage: P,
+    currentPage: S,
     goToPage: w,
     resolveBlockPage: _,
     jobId: e.jobId,
@@ -2107,7 +2107,7 @@ function ai() {
     setMode: e.setMode,
     beginModeSwitch: v
   }), [R, I] = L(null), {
-    selection: k,
+    selection: T,
     clearSelection: D
   } = Rs(o, !e.boot.loading && !e.boot.failed), $ = A(() => {
     I(null), D();
@@ -2115,14 +2115,14 @@ function ai() {
     D(), I(U);
   }, [D]);
   O(() => {
-    k && I(null);
-  }, [k]), O(() => {
+    T && I(null);
+  }, [T]), O(() => {
     const U = o.current;
     if (!U) return;
     const q = () => I(null);
     return U.addEventListener("scroll", q, { passive: !0 }), () => U.removeEventListener("scroll", q);
   }, [s, o]);
-  const Y = k || R;
+  const Y = T || R;
   O(() => {
     E(null), $();
   }, [d, E, $]);
@@ -2143,8 +2143,8 @@ function ai() {
     sessionFiles: X,
     rowHeights: y,
     goToPage: w,
-    activeRegion: b,
-    jumpToAnchor: T,
+    activeRegion: g,
+    jumpToAnchor: N,
     setModeKeepingPage: M,
     download: e.download,
     showHud: j,
@@ -2155,11 +2155,11 @@ function ai() {
     viewStateKey: i,
     liveTranslation: r,
     liveTranslationAvailable: n
-  }), [e, K, m, X, y, w, b, T, M, j, W, Y, $, B, u, f, i, r, n]);
+  }), [e, K, m, X, y, w, g, N, M, j, W, Y, $, B, u, f, i, r, n]);
   return V(() => ({
     ...ae,
-    currentPage: P
-  }), [ae, P]);
+    currentPage: S
+  }), [ae, S]);
 }
 const si = [
   { action: "mode-source", keys: ["1"], mode: "source" },
@@ -2507,7 +2507,7 @@ function ki(e, t) {
     Ee(n == null ? void 0 : n.padding_right_pt) || 0,
     Ee(n == null ? void 0 : n.padding_bottom_pt) || 0,
     Ee(n == null ? void 0 : n.padding_left_pt) || 0
-  ].map((g) => g * r);
+  ].map((b) => b * r);
   return {
     fontFamily: `${(n == null ? void 0 : n.font_family) || ""}`.trim() || Ri,
     fontSizePx: Math.max(u, Math.min(f, m)),
@@ -2588,11 +2588,11 @@ function Li({ item: e, pageScale: t }) {
   }, [r]), $e(() => {
     const u = n.current;
     if (!u) return;
-    const [f, m, v, p] = s.padding, g = Math.max(1, e.rect.width - p - m), y = Math.max(1, e.rect.height - f - v), P = xi(a, g, y, s);
-    let w = at.get(P);
+    const [f, m, v, p] = s.padding, b = Math.max(1, e.rect.width - p - m), y = Math.max(1, e.rect.height - f - v), S = xi(a, b, y, s);
+    let w = at.get(S);
     if (w === void 0 && (w = Ai(
-      (b) => (u.style.fontSize = `${b}px`, { width: u.scrollWidth, height: u.scrollHeight }),
-      g,
+      (g) => (u.style.fontSize = `${g}px`, { width: u.scrollWidth, height: u.scrollHeight }),
+      b,
       y,
       {
         minFontSizePx: s.minFontSizePx,
@@ -2600,9 +2600,9 @@ function Li({ item: e, pageScale: t }) {
         requestedFontSizePx: s.fontSizePx,
         exact: s.exact
       }
-    ), at.set(P, w), at.size > Ni)) {
-      const b = at.keys().next().value;
-      b !== void 0 && at.delete(b);
+    ), at.set(S, w), at.size > Ni)) {
+      const g = at.keys().next().value;
+      g !== void 0 && at.delete(g);
     }
     u.style.fontSize = `${w.toFixed(2)}px`;
   }, [a, e.rect.height, e.rect.width, s]);
@@ -2731,28 +2731,28 @@ function Oi({
   activeAiNoteId: m = null,
   onSelectAiNote: v,
   onSelectRegion: p,
-  liveTranslationLayout: g,
+  liveTranslationLayout: b,
   liveTranslationPage: y,
-  showLiveTranslation: P = r === "source"
+  showLiveTranslation: S = r === "source"
 }) {
-  const w = x(l ?? Yr), [b, S] = L(w.current);
+  const w = x(l ?? Yr), [g, P] = L(w.current);
   O(() => {
-    l != null && Math.abs(l - w.current) >= 1e-3 && (w.current = l, S(l));
+    l != null && Math.abs(l - w.current) >= 1e-3 && (w.current = l, P(l));
   }, [l]);
-  const N = x(i);
-  N.current = i;
+  const k = x(i);
+  k.current = i;
   const E = x((j) => {
     var W;
-    (W = N.current) == null || W.call(N, j);
-  }).current, _ = Math.max(120, Math.floor(t * b)), T = Math.max(_, Math.ceil(o || 0)), M = yt(d, t, _), R = V(
+    (W = k.current) == null || W.call(k, j);
+  }).current, _ = Math.max(120, Math.floor(t * g)), N = Math.max(_, Math.ceil(o || 0)), M = yt(d, t, _), R = V(
     () => wi(u, t, _),
     [_, u, t]
-  ), [I, k] = L(null), D = V(
+  ), [I, T] = L(null), D = V(
     () => R.find((j) => j.itemId === I) || null,
     [I, R]
   ), $ = (j) => {
     if (j.buttons !== 0) {
-      k(null);
+      T(null);
       return;
     }
     const W = j.currentTarget.getBoundingClientRect(), K = tr(
@@ -2760,7 +2760,7 @@ function Oi({
       j.clientX - W.left,
       j.clientY - W.top
     ), X = (K == null ? void 0 : K.itemId) || null;
-    k((ae) => ae === X ? ae : X);
+    T((ae) => ae === X ? ae : X);
   }, B = (j) => {
     var X, ae, U;
     if (!p || (ae = (X = j.target) == null ? void 0 : X.closest) != null && ae.call(X, ".reader-structure-selection-target") || `${((U = window.getSelection()) == null ? void 0 : U.toString()) || ""}`.trim()) return;
@@ -2783,7 +2783,7 @@ function Oi({
       }
     });
   }, Y = (j) => {
-    !Number.isFinite(j) || j <= 0 || Math.abs(w.current - j) < 1e-3 || (w.current = j, S(j), c == null || c(e, j));
+    !Number.isFinite(j) || j <= 0 || Math.abs(w.current - j) < 1e-3 || (w.current = j, P(j), c == null || c(e, j));
   };
   return /* @__PURE__ */ C(
     "div",
@@ -2795,11 +2795,11 @@ function Oi({
       className: Sn,
       onPointerMoveCapture: $,
       onClick: B,
-      onPointerLeave: () => k(null),
+      onPointerLeave: () => T(null),
       style: {
         width: t,
-        height: T,
-        minHeight: T
+        height: N,
+        minHeight: N
       },
       children: [
         a ? /* @__PURE__ */ h(
@@ -2850,10 +2850,10 @@ function Oi({
             "aria-hidden": "true"
           }
         ) : null,
-        a && P ? /* @__PURE__ */ h(
+        a && S ? /* @__PURE__ */ h(
           _i,
           {
-            layoutPage: g,
+            layoutPage: b,
             pageState: y,
             width: t,
             height: _
@@ -2915,19 +2915,19 @@ const Hi = Mo(
     onNumPagesChange: m,
     activeRegion: v = null,
     regions: p = [],
-    aiNotes: g = [],
+    aiNotes: b = [],
     activeAiNoteId: y = null,
-    onSelectAiNote: P,
+    onSelectAiNote: S,
     readerMetadata: w = null,
-    onSelectRegion: b,
-    liveTranslation: S,
-    showLiveTranslation: N = t === "source",
+    onSelectRegion: g,
+    liveTranslation: P,
+    showLiveTranslation: k = t === "source",
     liveTranslationPendingLabel: E = "",
     paneAction: _
-  }, T) {
+  }, N) {
     bi();
-    const { file: M, loading: R, error: I } = Wa(n, r), k = `${n}\0${Ui(M)}`, D = x(k);
-    D.current = k;
+    const { file: M, loading: R, error: I } = Wa(n, r), T = `${n}\0${Ui(M)}`, D = x(T);
+    D.current = T;
     const $ = V(
       () => Ua(M),
       [M, n]
@@ -2936,7 +2936,7 @@ const Hi = Mo(
       cMapPacked: !0,
       standardFontDataUrl: ft().resolvePdfjsVendorUrl("standard_fonts/")
     }), []);
-    fn(T, () => K, [K]), O(() => {
+    fn(N, () => K, [K]), O(() => {
       const z = (H) => {
         !Number.isFinite(H) || H < 80 || Math.abs(H - te.current) < 8 || (te.current = H, U(H));
       }, G = c && c >= 80 ? c : (l == null ? void 0 : l.clientWidth) || 0;
@@ -3034,19 +3034,19 @@ const Hi = Mo(
       const z = F.current;
       for (const G of z.values()) clearTimeout(G);
       z.clear(), m == null || m(0, t);
-    }, [k, m, t]);
+    }, [T, m, t]);
     const tt = A(
       ({ numPages: z }) => {
-        D.current === k && (Y(z), W(""), m == null || m(z, t), u == null || u({ numPages: z, pane: t }));
+        D.current === T && (Y(z), W(""), m == null || m(z, t), u == null || u({ numPages: z, pane: t }));
       },
-      [k, u, m, t]
+      [T, u, m, t]
     ), He = A(
       (z) => {
-        if (D.current !== k) return;
+        if (D.current !== T) return;
         const G = (z == null ? void 0 : z.message) || "PDF 解析失败";
         W(G), Y(0), m == null || m(0, t), f == null || f(z, t);
       },
-      [k, f, m, t]
+      [T, f, m, t]
     ), Ne = V(
       () => B > 0 ? Array.from({ length: B }, (z, G) => G + 1) : [],
       [B]
@@ -3068,7 +3068,7 @@ const Hi = Mo(
       return z;
     }, [t, w, p]), Io = V(() => {
       const z = /* @__PURE__ */ new Map();
-      for (const G of g) {
+      for (const G of b) {
         const J = Mt(p, G.anchor.blockId);
         if (!J) continue;
         const H = Ut(J, w, t);
@@ -3077,7 +3077,7 @@ const Hi = Mo(
         ie.push({ note: G, highlight: H }), z.set(H.box.page, ie);
       }
       return z;
-    }, [g, t, w, p]), Ro = V(() => {
+    }, [b, t, w, p]), Ro = V(() => {
       if (B === 0) return /* @__PURE__ */ new Set();
       if (!(!!l && typeof IntersectionObserver < "u" && o)) return new Set(Ne);
       if (_e.size === 0) {
@@ -3100,7 +3100,7 @@ const Hi = Mo(
         [Xe]: t,
         "data-reader-engine": "react-pdf",
         "data-reader-visible": o ? "true" : "false",
-        "data-live-translation-status": (S == null ? void 0 : S.jobStatus) || void 0,
+        "data-live-translation-status": (P == null ? void 0 : P.jobStatus) || void 0,
         "aria-hidden": o ? void 0 : !0,
         "aria-label": t === "source" ? "原文 PDF" : "译文 PDF",
         children: [
@@ -3140,11 +3140,11 @@ const Hi = Mo(
                       regionTargets: Po.get(z),
                       aiNoteTargets: Io.get(z),
                       activeAiNoteId: y,
-                      onSelectAiNote: P,
-                      onSelectRegion: b,
-                      liveTranslationLayout: S == null ? void 0 : S.layoutByPage.get(z - 1),
-                      liveTranslationPage: S == null ? void 0 : S.pagesByPage.get(z - 1),
-                      showLiveTranslation: N
+                      onSelectAiNote: S,
+                      onSelectRegion: g,
+                      liveTranslationLayout: P == null ? void 0 : P.layoutByPage.get(z - 1),
+                      liveTranslationPage: P == null ? void 0 : P.pagesByPage.get(z - 1),
+                      showLiveTranslation: k
                     },
                     `${t}-${z}`
                   );
@@ -3175,7 +3175,7 @@ const Hi = Mo(
                 );
               })
             },
-            k
+            T
           ) }) : null
         ]
       }
@@ -3219,7 +3219,7 @@ function Gi(e) {
     assistantSplit: r = !1,
     liveTranslation: a,
     paneComposition: o
-  } = e, s = (o == null ? void 0 : o.visibleMode) ?? e.mode ?? "compare", l = (o == null ? void 0 : o.compareMode) ?? e.compareMode ?? s === "compare", c = (o == null ? void 0 : o.showSource) ?? e.showSource ?? !0, i = (o == null ? void 0 : o.showTranslated) ?? e.showTranslated ?? (s === "compare" || s === "translated"), d = (o == null ? void 0 : o.overlayOnSource) ?? e.overlayOnSource ?? !1, u = e.bindShell ?? (t == null ? void 0 : t.bindShell), f = e.shellEl ?? (t == null ? void 0 : t.shellEl) ?? null, m = e.userZoom ?? (t == null ? void 0 : t.userZoom) ?? vt, v = e.shellWidth ?? (t == null ? void 0 : t.shellWidth) ?? 0, p = e.rowHeights ?? (t == null ? void 0 : t.rowHeights), g = e.mountSource ?? (t == null ? void 0 : t.mountSource) ?? !1, y = e.mountTranslated ?? (t == null ? void 0 : t.mountTranslated) ?? !1, P = e.sourceViewOnly ?? (t == null ? void 0 : t.sourceViewOnly) ?? !1, w = e.sourceUrl ?? (t == null ? void 0 : t.sourceUrl) ?? "", b = e.translatedUrl ?? (t == null ? void 0 : t.translatedUrl) ?? "", S = e.sourceFile ?? (t == null ? void 0 : t.sourceFile) ?? null, N = e.translatedFile ?? (t == null ? void 0 : t.translatedFile) ?? null, E = e.onMetrics ?? (t == null ? void 0 : t.onMetrics), _ = e.onNumPagesChange ?? (t == null ? void 0 : t.onNumPagesChange), T = e.activeRegion ?? (t == null ? void 0 : t.activeRegion), M = e.regions ?? (t == null ? void 0 : t.regions) ?? [], R = (t == null ? void 0 : t.aiNotes) ?? [], I = (t == null ? void 0 : t.activeAiNoteId) ?? null, k = t == null ? void 0 : t.onSelectAiNote, D = e.readerMetadata ?? (t == null ? void 0 : t.readerMetadata), $ = e.onSelectRegion ?? (t == null ? void 0 : t.onSelectRegion), B = Ki({
+  } = e, s = (o == null ? void 0 : o.visibleMode) ?? e.mode ?? "compare", l = (o == null ? void 0 : o.compareMode) ?? e.compareMode ?? s === "compare", c = (o == null ? void 0 : o.showSource) ?? e.showSource ?? !0, i = (o == null ? void 0 : o.showTranslated) ?? e.showTranslated ?? (s === "compare" || s === "translated"), d = (o == null ? void 0 : o.overlayOnSource) ?? e.overlayOnSource ?? !1, u = e.bindShell ?? (t == null ? void 0 : t.bindShell), f = e.shellEl ?? (t == null ? void 0 : t.shellEl) ?? null, m = e.userZoom ?? (t == null ? void 0 : t.userZoom) ?? vt, v = e.shellWidth ?? (t == null ? void 0 : t.shellWidth) ?? 0, p = e.rowHeights ?? (t == null ? void 0 : t.rowHeights), b = e.mountSource ?? (t == null ? void 0 : t.mountSource) ?? !1, y = e.mountTranslated ?? (t == null ? void 0 : t.mountTranslated) ?? !1, S = e.sourceViewOnly ?? (t == null ? void 0 : t.sourceViewOnly) ?? !1, w = e.sourceUrl ?? (t == null ? void 0 : t.sourceUrl) ?? "", g = e.translatedUrl ?? (t == null ? void 0 : t.translatedUrl) ?? "", P = e.sourceFile ?? (t == null ? void 0 : t.sourceFile) ?? null, k = e.translatedFile ?? (t == null ? void 0 : t.translatedFile) ?? null, E = e.onMetrics ?? (t == null ? void 0 : t.onMetrics), _ = e.onNumPagesChange ?? (t == null ? void 0 : t.onNumPagesChange), N = e.activeRegion ?? (t == null ? void 0 : t.activeRegion), M = e.regions ?? (t == null ? void 0 : t.regions) ?? [], R = (t == null ? void 0 : t.aiNotes) ?? [], I = (t == null ? void 0 : t.activeAiNoteId) ?? null, T = t == null ? void 0 : t.onSelectAiNote, D = e.readerMetadata ?? (t == null ? void 0 : t.readerMetadata), $ = e.onSelectRegion ?? (t == null ? void 0 : t.onSelectRegion), B = Ki({
     mode: s,
     compareMode: l,
     showSource: c,
@@ -3245,25 +3245,25 @@ function Gi(e) {
           className: `${ns} reader-mode-${B.mode}`,
           "data-reader-mode": n ? "markdown-split" : r ? "assistant-split" : s,
           children: [
-            g ? /* @__PURE__ */ h(
+            b ? /* @__PURE__ */ h(
               ar,
               {
                 pane: "source",
                 url: w,
-                preloadedFile: S,
+                preloadedFile: P,
                 userZoom: m,
                 visible: B.showSource,
                 scrollRoot: f,
                 pageWidthOverride: Y,
                 rowHeights: B.compareMode ? p : void 0,
                 onMetrics: E,
-                emptyLabel: P ? "源文件不可用：该文档没有可读取的源 PDF。" : "暂无原文 PDF",
+                emptyLabel: S ? "源文件不可用：该文档没有可读取的源 PDF。" : "暂无原文 PDF",
                 onNumPagesChange: _,
-                activeRegion: T,
+                activeRegion: N,
                 regions: M,
                 aiNotes: R,
                 activeAiNoteId: I,
-                onSelectAiNote: k,
+                onSelectAiNote: T,
                 readerMetadata: D,
                 onSelectRegion: $,
                 liveTranslation: d ? a : void 0,
@@ -3287,8 +3287,8 @@ function Gi(e) {
               ar,
               {
                 pane: "translated",
-                url: b,
-                preloadedFile: N,
+                url: g,
+                preloadedFile: k,
                 userZoom: m,
                 visible: B.showTranslated,
                 scrollRoot: f,
@@ -3297,11 +3297,11 @@ function Gi(e) {
                 onMetrics: E,
                 emptyLabel: "暂无译文 PDF",
                 onNumPagesChange: _,
-                activeRegion: T,
+                activeRegion: N,
                 regions: M,
                 aiNotes: R,
                 activeAiNoteId: I,
-                onSelectAiNote: k,
+                onSelectAiNote: T,
                 readerMetadata: D,
                 onSelectRegion: $,
                 liveTranslation: void 0,
@@ -3672,15 +3672,15 @@ function no(e) {
     for (const p of o)
       if (p.hasAttribute("data-panel")) {
         v++;
-        const g = r.find(
+        const b = r.find(
           (y) => y.element === p
         );
-        if (g) {
+        if (b) {
           if (f) {
-            const y = f.element.getBoundingClientRect(), P = p.getBoundingClientRect();
+            const y = f.element.getBoundingClientRect(), S = p.getBoundingClientRect();
             let w;
             if (c) {
-              const b = n === "horizontal" ? new DOMRect(
+              const g = n === "horizontal" ? new DOMRect(
                 y.right,
                 y.top,
                 0,
@@ -3690,24 +3690,24 @@ function no(e) {
                 y.bottom,
                 y.width,
                 0
-              ), S = n === "horizontal" ? new DOMRect(P.left, P.top, 0, P.height) : new DOMRect(P.left, P.top, P.width, 0);
+              ), P = n === "horizontal" ? new DOMRect(S.left, S.top, 0, S.height) : new DOMRect(S.left, S.top, S.width, 0);
               switch (m.length) {
                 case 0: {
                   w = [
-                    b,
-                    S
+                    g,
+                    P
                   ];
                   break;
                 }
                 case 1: {
-                  const N = m[0], E = uc({
+                  const k = m[0], E = uc({
                     orientation: n,
-                    rects: [y, P],
-                    targetRect: N.element.getBoundingClientRect()
+                    rects: [y, S],
+                    targetRect: k.element.getBoundingClientRect()
                   });
                   w = [
-                    N,
-                    E === y ? S : b
+                    k,
+                    E === y ? P : g
                   ];
                   break;
                 }
@@ -3720,55 +3720,55 @@ function no(e) {
               m.length ? w = m : w = [
                 n === "horizontal" ? new DOMRect(
                   y.right,
-                  P.top,
-                  P.left - y.right,
-                  P.height
+                  S.top,
+                  S.left - y.right,
+                  S.height
                 ) : new DOMRect(
-                  P.left,
+                  S.left,
                   y.bottom,
-                  P.width,
-                  P.top - y.bottom
+                  S.width,
+                  S.top - y.bottom
                 )
               ];
-            for (const b of w) {
-              let S = "width" in b ? b : b.element.getBoundingClientRect();
-              const N = fc() ? e.resizeTargetMinimumSize.coarse : e.resizeTargetMinimumSize.fine;
-              if (S.width < N) {
-                const _ = N - S.width;
-                S = new DOMRect(
-                  S.x - _ / 2,
-                  S.y,
-                  S.width + _,
-                  S.height
+            for (const g of w) {
+              let P = "width" in g ? g : g.element.getBoundingClientRect();
+              const k = fc() ? e.resizeTargetMinimumSize.coarse : e.resizeTargetMinimumSize.fine;
+              if (P.width < k) {
+                const _ = k - P.width;
+                P = new DOMRect(
+                  P.x - _ / 2,
+                  P.y,
+                  P.width + _,
+                  P.height
                 );
               }
-              if (S.height < N) {
-                const _ = N - S.height;
-                S = new DOMRect(
-                  S.x,
-                  S.y - _ / 2,
-                  S.width,
-                  S.height + _
+              if (P.height < k) {
+                const _ = k - P.height;
+                P = new DOMRect(
+                  P.x,
+                  P.y - _ / 2,
+                  P.width,
+                  P.height + _
                 );
               }
               const E = v <= i || v > d;
               !l && !E && s.push({
                 group: e,
                 groupSize: Qe({ group: e }),
-                panels: [f, g],
-                separator: "width" in b ? void 0 : b,
-                rect: S
+                panels: [f, b],
+                separator: "width" in g ? void 0 : g,
+                rect: P
               }), l = !1;
             }
           }
-          c = !1, f = g, m = [];
+          c = !1, f = b, m = [];
         }
       } else if (p.hasAttribute("data-separator")) {
         p.ariaDisabled !== null && (l = !0);
-        const g = a.find(
+        const b = a.find(
           (y) => y.element === p
         );
-        g ? m.push(g) : (f = void 0, m = []);
+        b ? m.push(b) : (f = void 0, m = []);
       } else
         c = !0;
   }
@@ -4156,103 +4156,103 @@ function pt({
   switch (o) {
     case "keyboard": {
       {
-        const p = e < 0 ? u : d, g = n[p];
+        const p = e < 0 ? u : d, b = n[p];
         Z(
-          g,
+          b,
           `Panel constraints not found for index ${p}`
         );
         const {
           collapsedSize: y = 0,
-          collapsible: P,
+          collapsible: S,
           minSize: w = 0
-        } = g;
-        if (P) {
-          const b = l[p];
+        } = b;
+        if (S) {
+          const g = l[p];
           if (Z(
-            b != null,
+            g != null,
             `Previous layout not found for panel index ${p}`
-          ), me(b, y)) {
-            const S = w - b;
-            Pe(S, Math.abs(e)) > 0 && (e = e < 0 ? 0 - S : S);
+          ), me(g, y)) {
+            const P = w - g;
+            Pe(P, Math.abs(e)) > 0 && (e = e < 0 ? 0 - P : P);
           }
         }
       }
       {
-        const p = e < 0 ? d : u, g = n[p];
+        const p = e < 0 ? d : u, b = n[p];
         Z(
-          g,
+          b,
           `No panel constraints found for index ${p}`
         );
         const {
           collapsedSize: y = 0,
-          collapsible: P,
+          collapsible: S,
           minSize: w = 0
-        } = g;
-        if (P) {
-          const b = l[p];
+        } = b;
+        if (S) {
+          const g = l[p];
           if (Z(
-            b != null,
+            g != null,
             `Previous layout not found for panel index ${p}`
-          ), me(b, w)) {
-            const S = b - y;
-            Pe(S, Math.abs(e)) > 0 && (e = e < 0 ? 0 - S : S);
+          ), me(g, w)) {
+            const P = g - y;
+            Pe(P, Math.abs(e)) > 0 && (e = e < 0 ? 0 - P : P);
           }
         }
       }
       break;
     }
     default: {
-      const p = e < 0 ? u : d, g = n[p];
+      const p = e < 0 ? u : d, b = n[p];
       Z(
-        g,
+        b,
         `Panel constraints not found for index ${p}`
       );
-      const y = l[p], { collapsible: P, collapsedSize: w, minSize: b } = g;
-      if (P && Pe(y, b) < 0)
+      const y = l[p], { collapsible: S, collapsedSize: w, minSize: g } = b;
+      if (S && Pe(y, g) < 0)
         if (e > 0) {
-          const S = b - w, N = S / 2, E = y + e;
-          Pe(E, b) < 0 && (e = Pe(e, N) <= 0 ? 0 : S);
+          const P = g - w, k = P / 2, E = y + e;
+          Pe(E, g) < 0 && (e = Pe(e, k) <= 0 ? 0 : P);
         } else {
-          const S = b - w, N = 100 - S / 2, E = y - e;
-          Pe(E, b) < 0 && (e = Pe(100 + e, N) > 0 ? 0 : -S);
+          const P = g - w, k = 100 - P / 2, E = y - e;
+          Pe(E, g) < 0 && (e = Pe(100 + e, k) > 0 ? 0 : -P);
         }
       break;
     }
   }
   {
     const p = e < 0 ? 1 : -1;
-    let g = e < 0 ? u : d, y = 0;
+    let b = e < 0 ? u : d, y = 0;
     for (; ; ) {
-      const w = l[g];
+      const w = l[b];
       Z(
         w != null,
-        `Previous layout not found for panel index ${g}`
+        `Previous layout not found for panel index ${b}`
       );
-      const b = qe({
+      const g = qe({
         overrideDisabledPanels: s,
-        panelConstraints: n[g],
+        panelConstraints: n[b],
         prevSize: w,
         size: 100
       }) - w;
-      if (y += b, g += p, g < 0 || g >= n.length)
+      if (y += g, b += p, b < 0 || b >= n.length)
         break;
     }
-    const P = Math.min(Math.abs(e), Math.abs(y));
-    e = e < 0 ? 0 - P : P;
+    const S = Math.min(Math.abs(e), Math.abs(y));
+    e = e < 0 ? 0 - S : S;
   }
   {
     let p = e < 0 ? d : u;
     for (; p >= 0 && p < n.length; ) {
-      const g = Math.abs(e) - Math.abs(f), y = l[p];
+      const b = Math.abs(e) - Math.abs(f), y = l[p];
       Z(
         y != null,
         `Previous layout not found for panel index ${p}`
       );
-      const P = y - g, w = qe({
+      const S = y - b, w = qe({
         overrideDisabledPanels: s,
         panelConstraints: n[p],
         prevSize: y,
-        size: P
+        size: S
       });
       if (!me(y, w) && (f += y - w, i[p] = w, f.toFixed(3).localeCompare(Math.abs(e).toFixed(3), void 0, {
         numeric: !0
@@ -4264,45 +4264,45 @@ function pt({
   if (Ec(c, i))
     return a;
   {
-    const p = e < 0 ? u : d, g = l[p];
+    const p = e < 0 ? u : d, b = l[p];
     Z(
-      g != null,
+      b != null,
       `Previous layout not found for panel index ${p}`
     );
-    const y = g + f, P = qe({
+    const y = b + f, S = qe({
       overrideDisabledPanels: s,
       panelConstraints: n[p],
-      prevSize: g,
+      prevSize: b,
       size: y
     });
-    if (i[p] = P, !me(P, y)) {
-      let w = y - P, b = e < 0 ? u : d;
-      for (; b >= 0 && b < n.length; ) {
-        const S = i[b];
+    if (i[p] = S, !me(S, y)) {
+      let w = y - S, g = e < 0 ? u : d;
+      for (; g >= 0 && g < n.length; ) {
+        const P = i[g];
         Z(
-          S != null,
-          `Previous layout not found for panel index ${b}`
+          P != null,
+          `Previous layout not found for panel index ${g}`
         );
-        const N = S + w, E = qe({
+        const k = P + w, E = qe({
           overrideDisabledPanels: s,
-          panelConstraints: n[b],
-          prevSize: S,
-          size: N
+          panelConstraints: n[g],
+          prevSize: P,
+          size: k
         });
-        if (me(S, E) || (w -= E - S, i[b] = E), me(w, 0))
+        if (me(P, E) || (w -= E - P, i[g] = E), me(w, 0))
           break;
-        e > 0 ? b-- : b++;
+        e > 0 ? g-- : g++;
       }
     }
   }
   const m = Object.values(i).reduce(
-    (p, g) => g + p,
+    (p, b) => b + p,
     0
   );
   if (!me(m, 100, 0.1))
     return a;
   const v = Object.keys(a);
-  return i.reduce((p, g, y) => (p[v[y]] = g, p), {});
+  return i.reduce((p, b, y) => (p[v[y]] = b, p), {});
 }
 function Oe(e, t) {
   if (Object.keys(e).length !== Object.keys(t).length)
@@ -4410,15 +4410,15 @@ function fo({
     prevLayout: d,
     derivedPanelConstraints: u
   }) => {
-    const f = o(), m = i.findIndex((g) => g.id === t), v = m === 0, p = m === i.length - 1;
-    if (p && c < f && (v || i.slice(0, m).every((g, y) => {
-      const P = u[y];
-      return (P == null ? void 0 : P.collapsible) && me(P.collapsedSize, d[P.panelId]);
+    const f = o(), m = i.findIndex((b) => b.id === t), v = m === 0, p = m === i.length - 1;
+    if (p && c < f && (v || i.slice(0, m).every((b, y) => {
+      const S = u[y];
+      return (S == null ? void 0 : S.collapsible) && me(S.collapsedSize, d[S.panelId]);
     }))) {
-      const g = i.slice(0, m).reduce((y, P) => y + d[P.id], 0);
+      const b = i.slice(0, m).reduce((y, S) => y + d[S.id], 0);
       return {
         ...d,
-        [t]: he(100 - g)
+        [t]: he(100 - b)
       };
     }
     return pt({
@@ -4440,13 +4440,13 @@ function fo({
       groupSize: m,
       layout: v,
       separatorToPanels: p
-    } = n(), g = s({
+    } = n(), b = s({
       nextSize: c,
       panels: f.panels,
       prevLayout: v,
       derivedPanelConstraints: u
     }), y = Fe({
-      layout: g,
+      layout: b,
       panelConstraints: u
     });
     Oe(v, y) || ke(f, {
@@ -4687,26 +4687,26 @@ function ho({
     const { group: d, groupSize: u } = i, { orientation: f, panels: m } = d, { disableCursor: v } = d.mutableState;
     let p = 0;
     o ? f === "horizontal" ? p = (t.clientX - o.x) / u * 100 : p = (t.clientY - o.y) / u * 100 : f === "horizontal" ? p = t.clientX < 0 ? -100 : 100 : p = t.clientY < 0 ? -100 : 100;
-    const g = r.get(d), y = a.get(d);
-    if (!g || !y)
+    const b = r.get(d), y = a.get(d);
+    if (!b || !y)
       return;
     const {
-      defaultLayoutDeferred: P,
+      defaultLayoutDeferred: S,
       derivedPanelConstraints: w,
-      groupSize: b,
-      layout: S,
-      separatorToPanels: N
+      groupSize: g,
+      layout: P,
+      separatorToPanels: k
     } = y;
-    if (w && S && N) {
+    if (w && P && k) {
       const E = pt({
         delta: p,
-        initialLayout: g,
+        initialLayout: b,
         panelConstraints: w,
         pivotIndices: i.panels.map((_) => m.indexOf(_)),
-        prevLayout: S,
+        prevLayout: P,
         trigger: "mouse-or-touch"
       });
-      if (Oe(E, S)) {
+      if (Oe(E, P)) {
         if (p !== 0 && !v)
           switch (f) {
             case "horizontal": {
@@ -4720,11 +4720,11 @@ function ho({
           }
       } else
         ke(i.group, {
-          defaultLayoutDeferred: P,
+          defaultLayoutDeferred: S,
           derivedPanelConstraints: w,
-          groupSize: b,
+          groupSize: g,
           layout: E,
-          separatorToPanels: N
+          separatorToPanels: k
         });
     }
   });
@@ -4915,39 +4915,39 @@ function xc(e) {
   );
   const n = e.element.ownerDocument.defaultView.ResizeObserver, r = /* @__PURE__ */ new Set(), a = /* @__PURE__ */ new Set(), o = new n((v) => {
     for (const p of v) {
-      const { borderBoxSize: g, target: y } = p;
+      const { borderBoxSize: b, target: y } = p;
       if (y === e.element) {
         if (t) {
-          const P = Qe({ group: e });
-          if (P === 0)
+          const S = Qe({ group: e });
+          if (S === 0)
             return;
           const w = Ce(e.id);
           if (!w)
             return;
-          const b = an(e), S = w.defaultLayoutDeferred ? Pr(b) : w.layout, N = Ac({
+          const g = an(e), P = w.defaultLayoutDeferred ? Pr(g) : w.layout, k = Ac({
             group: e,
-            nextGroupSize: P,
+            nextGroupSize: S,
             prevGroupSize: w.groupSize,
-            prevLayout: S
+            prevLayout: P
           }), E = Fe({
-            layout: N,
-            panelConstraints: b
+            layout: k,
+            panelConstraints: g
           });
           if (!w.defaultLayoutDeferred && Oe(w.layout, E) && kc(
             w.derivedPanelConstraints,
-            b
-          ) && w.groupSize === P)
+            g
+          ) && w.groupSize === S)
             return;
           ke(e, {
             defaultLayoutDeferred: !1,
-            derivedPanelConstraints: b,
-            groupSize: P,
+            derivedPanelConstraints: g,
+            groupSize: S,
             layout: E,
             separatorToPanels: w.separatorToPanels
           });
         }
       } else
-        Mc(e, y, g);
+        Mc(e, y, b);
     }
   });
   o.observe(e.element), e.panels.forEach((v) => {
@@ -5084,26 +5084,26 @@ function go({
     onLayoutChanged: {}
   }), p = lt((R) => {
     Oe(v.current.onLayoutChange, R) || (v.current.onLayoutChange = R, c == null || c(R));
-  }), g = lt(
+  }), b = lt(
     (R, I) => {
       Oe(v.current.onLayoutChanged, R) || (v.current.onLayoutChanged = R, i == null || i(R, { isUserInteraction: I }));
     }
-  ), y = Nn(l), P = x(null), [w, b] = Lc(), S = x({
+  ), y = Nn(l), S = x(null), [w, g] = Lc(), P = x({
     lastExpandedPanelSizes: {},
     layouts: {},
     panels: [],
     resizeTargetMinimumSize: u,
     separators: []
-  }), N = xn(P, o);
+  }), k = xn(S, o);
   Cc(y, s);
   const E = lt(
     (R, I) => {
-      const k = ze(), D = dr(R), $ = Ce(R);
+      const T = ze(), D = dr(R), $ = Ce(R);
       if ($) {
         let B = !1;
-        switch (k.state) {
+        switch (T.state) {
           case "active": {
-            B = k.hitRegions.some(
+            B = T.hitRegions.some(
               (Y) => Y.group === D
             );
             break;
@@ -5122,7 +5122,7 @@ function go({
   ), _ = Ln({
     defaultLayout: n,
     disableCursor: r
-  }), T = V(
+  }), N = V(
     () => ({
       get disableCursor() {
         return !!_.disableCursor;
@@ -5131,32 +5131,32 @@ function go({
       id: y,
       orientation: d,
       registerPanel: (R) => {
-        const I = S.current;
+        const I = P.current;
         return I.panels = sn(d, [
           ...I.panels,
           R
-        ]), b(), () => {
+        ]), g(), () => {
           I.panels = I.panels.filter(
-            (k) => k !== R
-          ), b();
+            (T) => T !== R
+          ), g();
         };
       },
       registerSeparator: (R) => {
-        const I = S.current;
+        const I = P.current;
         return I.separators = sn(d, [
           ...I.separators,
           R
-        ]), b(), () => {
+        ]), g(), () => {
           I.separators = I.separators.filter(
-            (k) => k !== R
-          ), b();
+            (T) => T !== R
+          ), g();
         };
       },
       updatePanelProps: (R, { disabled: I }) => {
-        const k = S.current.panels.find(
+        const T = P.current.panels.find(
           (B) => B.id === R
         );
-        k && (k.panelConstraints.disabled = I);
+        T && (T.panelConstraints.disabled = I);
         const D = dr(y), $ = Ce(y);
         D && $ && ke(D, {
           ...$,
@@ -5165,27 +5165,27 @@ function go({
       },
       updateSeparatorProps: (R, {
         disabled: I,
-        disableDoubleClick: k
+        disableDoubleClick: T
       }) => {
-        const D = S.current.separators.find(
+        const D = P.current.separators.find(
           ($) => $.id === R
         );
-        D && (D.disabled = I, D.disableDoubleClick = k);
+        D && (D.disabled = I, D.disableDoubleClick = T);
       }
     }),
-    [E, y, b, d, _]
+    [E, y, g, d, _]
   ), M = x(null);
   return Ue(() => {
-    const R = P.current;
+    const R = S.current;
     if (R === null)
       return;
-    const I = S.current;
-    let k;
+    const I = P.current;
+    let T;
     if (_.defaultLayout !== void 0 && Object.keys(_.defaultLayout).length === I.panels.length) {
-      k = {};
+      T = {};
       for (const K of I.panels) {
         const X = _.defaultLayout[K.id];
-        X !== void 0 && (k[K.id] = X);
+        X !== void 0 && (T[K.id] = X);
       }
     }
     const D = {
@@ -5193,10 +5193,10 @@ function go({
       element: R,
       id: y,
       mutableState: {
-        defaultLayout: k,
+        defaultLayout: T,
         disableCursor: !!_.disableCursor,
-        expandedPanelSizes: S.current.lastExpandedPanelSizes,
-        layouts: S.current.layouts
+        expandedPanelSizes: P.current.lastExpandedPanelSizes,
+        layouts: P.current.layouts
       },
       orientation: d,
       panels: I.panels,
@@ -5205,7 +5205,7 @@ function go({
     };
     M.current = D;
     const $ = xc(D), { defaultLayoutDeferred: B, derivedPanelConstraints: Y, layout: j } = Ce(D.id, !0);
-    !B && Y.length > 0 && (p(j), g(j, !1));
+    !B && Y.length > 0 && (p(j), b(j, !1));
     const W = kn(y, (K) => {
       const { defaultLayoutDeferred: X, derivedPanelConstraints: ae, layout: U } = K.next;
       if (X || ae.length === 0)
@@ -5227,7 +5227,7 @@ function go({
         }
       });
       const te = ze().state !== "active";
-      p(U), te && g(U, K.isUserInteraction);
+      p(U), te && b(U, K.isUserInteraction);
     });
     return () => {
       M.current = null, $(), W();
@@ -5235,7 +5235,7 @@ function go({
   }, [
     a,
     y,
-    g,
+    b,
     p,
     d,
     w,
@@ -5243,7 +5243,7 @@ function go({
   ]), O(() => {
     const R = M.current;
     R && (R.mutableState.defaultLayout = n, R.mutableState.disableCursor = !!r);
-  }), /* @__PURE__ */ h(po.Provider, { value: T, children: /* @__PURE__ */ h(
+  }), /* @__PURE__ */ h(po.Provider, { value: N, children: /* @__PURE__ */ h(
     "div",
     {
       ...m,
@@ -5251,7 +5251,7 @@ function go({
       "data-group": !0,
       "data-testid": y,
       id: y,
-      ref: N,
+      ref: k,
       style: {
         height: "100%",
         width: "100%",
@@ -5313,31 +5313,31 @@ function cn({
   style: m,
   ...v
 }) {
-  const p = !!c, g = Nn(c), y = Ln({
+  const p = !!c, b = Nn(c), y = Ln({
     disabled: o
-  }), P = x(null), w = xn(P, s), {
-    getPanelStyles: b,
-    id: S,
-    orientation: N,
+  }), S = x(null), w = xn(S, s), {
+    getPanelStyles: g,
+    id: P,
+    orientation: k,
     registerPanel: E,
     updatePanelProps: _
-  } = Cn(), T = u !== null, M = lt(
+  } = Cn(), N = u !== null, M = lt(
     (D, $, B) => {
       u == null || u(D, c, B);
     }
   );
   Ue(() => {
-    const D = P.current;
+    const D = S.current;
     if (D !== null) {
       const $ = {
         element: D,
-        id: g,
+        id: b,
         idIsStable: p,
         mutableValues: {
           expandToSize: void 0,
           prevSize: void 0
         },
-        onResize: T ? M : void 0,
+        onResize: N ? M : void 0,
         panelConstraints: {
           groupResizeBehavior: l,
           collapsedSize: n,
@@ -5355,8 +5355,8 @@ function cn({
     n,
     r,
     a,
-    T,
-    g,
+    N,
+    b,
     p,
     i,
     d,
@@ -5364,30 +5364,30 @@ function cn({
     E,
     y
   ]), O(() => {
-    _(g, { disabled: o });
-  }, [o, g, _]), _c(g, f);
+    _(b, { disabled: o });
+  }, [o, b, _]), _c(b, f);
   const R = () => {
-    const D = b(S, g);
+    const D = g(P, b);
     if (D)
       return JSON.stringify(D);
   }, I = ko(
-    (D) => kn(S, D),
+    (D) => kn(P, D),
     R,
     R
   );
-  let k;
-  return I ? k = JSON.parse(I) : a !== void 0 ? k = {
+  let T;
+  return I ? T = JSON.parse(I) : a !== void 0 ? T = {
     flexGrow: void 0,
     flexShrink: void 0,
     flexBasis: a
-  } : k = { flexGrow: 1 }, /* @__PURE__ */ h(
+  } : T = { flexGrow: 1 }, /* @__PURE__ */ h(
     "div",
     {
       ...v,
       "data-disabled": o || void 0,
       "data-panel": !0,
-      "data-testid": g,
-      id: g,
+      "data-testid": b,
+      id: b,
       ref: w,
       style: {
         ...Dc,
@@ -5395,7 +5395,7 @@ function cn({
         flexBasis: 0,
         flexShrink: 1,
         overflow: "visible",
-        ...k
+        ...T
       },
       children: /* @__PURE__ */ h(
         "div",
@@ -5411,7 +5411,7 @@ function cn({
             // but still allow users to scroll content within panels in the non-resizing direction
             // NOTE This is not an inherited style
             // See github.com/bvaughn/react-resizable-panels/issues/662
-            touchAction: N === "horizontal" ? "pan-y" : "pan-x"
+            touchAction: k === "horizontal" ? "pan-y" : "pan-x"
           },
           children: e
         }
@@ -5484,22 +5484,22 @@ function bo({
   const c = Nn(o), i = Ln({
     disabled: n,
     disableDoubleClick: r
-  }), [d, u] = L({}), [f, m] = L("inactive"), [v, p] = L(!1), g = x(null), y = xn(g, a), {
-    disableCursor: P,
+  }), [d, u] = L({}), [f, m] = L("inactive"), [v, p] = L(!1), b = x(null), y = xn(b, a), {
+    disableCursor: S,
     id: w,
-    orientation: b,
-    registerSeparator: S,
-    updateSeparatorProps: N
-  } = Cn(), E = b === "horizontal" ? "vertical" : "horizontal";
+    orientation: g,
+    registerSeparator: P,
+    updateSeparatorProps: k
+  } = Cn(), E = g === "horizontal" ? "vertical" : "horizontal";
   Ue(() => {
-    const M = g.current;
+    const M = b.current;
     if (M !== null) {
       const R = {
         disabled: i.disabled,
         disableDoubleClick: i.disableDoubleClick,
         element: M,
         id: c
-      }, I = S(R), k = mc(
+      }, I = P(R), T = mc(
         ($) => {
           m(
             $.next.state !== "inactive" && $.next.hitRegions.some(
@@ -5525,25 +5525,25 @@ function bo({
         }
       );
       return () => {
-        k(), D(), I();
+        T(), D(), I();
       };
     }
-  }, [w, c, S, i]), O(() => {
-    N(c, { disabled: n, disableDoubleClick: r });
-  }, [n, r, c, N]);
+  }, [w, c, P, i]), O(() => {
+    k(c, { disabled: n, disableDoubleClick: r });
+  }, [n, r, c, k]);
   let _;
-  n && !P && (_ = "not-allowed");
-  let T;
+  n && !S && (_ = "not-allowed");
+  let N;
   if (n)
-    T = "disabled";
+    N = "disabled";
   else
     switch (f) {
       case "active": {
-        T = "active";
+        N = "active";
         break;
       }
       default:
-        v ? T = "focus" : T = f;
+        v ? N = "focus" : N = f;
     }
   return /* @__PURE__ */ h(
     "div",
@@ -5557,7 +5557,7 @@ function bo({
       "aria-valuenow": d.valueNow,
       children: e,
       className: t,
-      "data-separator": T,
+      "data-separator": N,
       "data-testid": c,
       id: c,
       onBlur: () => p(!1),
@@ -5724,76 +5724,80 @@ function vo({
   width: c = 360,
   placement: i = "floating",
   showHeader: d = !0,
-  onClose: u,
-  toolbar: f,
-  children: m
+  keepMounted: u = !1,
+  onClose: f,
+  toolbar: m,
+  children: v
 }) {
-  const v = i === "workspace", p = i === "dock-right", g = p || v, [y, P] = L(() => Jc(o, c)), [w, b] = L(!1), S = x(null);
+  const p = i === "workspace", b = i === "dock-right", y = b || p, [S, w] = L(() => Jc(o, c)), [g, P] = L(!1), k = x(null);
   O(() => {
-    !t || g || P((T) => Ve(T.x, T.y, c));
-  }, [g, t, c]), O(() => {
-    if (!t || g) return;
-    const T = () => P((M) => Ve(M.x, M.y, c));
-    return window.addEventListener("resize", T), () => window.removeEventListener("resize", T);
-  }, [g, t, c]), O(() => {
+    !t || y || w((M) => Ve(M.x, M.y, c));
+  }, [y, t, c]), O(() => {
+    if (!t || y) return;
+    const M = () => w((R) => Ve(R.x, R.y, c));
+    return window.addEventListener("resize", M), () => window.removeEventListener("resize", M);
+  }, [y, t, c]), O(() => {
     if (!t) return;
-    const T = (M) => {
-      var I;
-      if (M.key !== "Escape") return;
-      const R = M.target;
-      (I = R == null ? void 0 : R.closest) != null && I.call(R, "textarea, input, select, [contenteditable='true']") || (M.preventDefault(), u());
+    const M = (R) => {
+      var T;
+      if (R.key !== "Escape") return;
+      const I = R.target;
+      (T = I == null ? void 0 : I.closest) != null && T.call(I, "textarea, input, select, [contenteditable='true']") || (R.preventDefault(), f());
     };
-    return window.addEventListener("keydown", T), () => window.removeEventListener("keydown", T);
-  }, [t, u]);
-  const N = A((T) => {
-    var M, R;
-    g || T.button === 0 && ((R = (M = T.target) == null ? void 0 : M.closest) != null && R.call(M, "button") || (T.currentTarget.setPointerCapture(T.pointerId), S.current = {
-      pointerId: T.pointerId,
-      startX: T.clientX,
-      startY: T.clientY,
-      originX: y.x,
-      originY: y.y,
+    return window.addEventListener("keydown", M), () => window.removeEventListener("keydown", M);
+  }, [t, f]);
+  const E = A((M) => {
+    var R, I;
+    y || M.button === 0 && ((I = (R = M.target) == null ? void 0 : R.closest) != null && I.call(R, "button") || (M.currentTarget.setPointerCapture(M.pointerId), k.current = {
+      pointerId: M.pointerId,
+      startX: M.clientX,
+      startY: M.clientY,
+      originX: S.x,
+      originY: S.y,
       moved: !1
-    }, b(!0)));
-  }, [g, y.x, y.y]), E = A((T) => {
-    const M = S.current;
-    if (!M || M.pointerId !== T.pointerId) return;
-    const R = T.clientX - M.startX, I = T.clientY - M.startY;
-    !M.moved && Math.hypot(R, I) < Wc || (M.moved = !0, P(Ve(M.originX + R, M.originY + I, c)));
-  }, [c]), _ = A((T) => {
-    const M = S.current;
-    if (!(!M || M.pointerId !== T.pointerId)) {
-      S.current = null, b(!1);
+    }, P(!0)));
+  }, [y, S.x, S.y]), _ = A((M) => {
+    const R = k.current;
+    if (!R || R.pointerId !== M.pointerId) return;
+    const I = M.clientX - R.startX, T = M.clientY - R.startY;
+    !R.moved && Math.hypot(I, T) < Wc || (R.moved = !0, w(Ve(R.originX + I, R.originY + T, c)));
+  }, [c]), N = A((M) => {
+    const R = k.current;
+    if (!(!R || R.pointerId !== M.pointerId)) {
+      k.current = null, P(!1);
       try {
-        T.currentTarget.releasePointerCapture(T.pointerId);
+        M.currentTarget.releasePointerCapture(M.pointerId);
       } catch {
       }
-      M.moved && P((R) => {
-        const I = Ve(R.x, R.y, c);
-        return Kc(o, I), I;
+      R.moved && w((I) => {
+        const T = Ve(I.x, I.y, c);
+        return Kc(o, T), T;
       });
     }
   }, [o, c]);
-  return t ? /* @__PURE__ */ C(
+  return !t && !u ? null : /* @__PURE__ */ C(
     "aside",
     {
       id: e,
-      className: `reader-notes-panel reader-notes-panel--${v ? "workspace" : p ? "docked" : "float"}${g ? "" : " reader-floating-surface"}${d ? " has-panel-header" : " is-headerless"}${f ? " has-panel-toolbar" : ""}${w ? " is-dragging" : ""} ${l}`.trim(),
-      style: g ? void 0 : { left: y.x, top: y.y, width: Math.min(c, typeof window < "u" ? window.innerWidth - 24 : c) },
+      className: `reader-notes-panel reader-notes-panel--${p ? "workspace" : b ? "docked" : "float"}${y ? "" : " reader-floating-surface"}${d ? " has-panel-header" : " is-headerless"}${m ? " has-panel-toolbar" : ""}${g ? " is-dragging" : ""} ${l}`.trim(),
+      style: y ? void 0 : { left: S.x, top: S.y, width: Math.min(c, typeof window < "u" ? window.innerWidth - 24 : c) },
       "aria-label": s,
       role: "dialog",
       "aria-modal": "false",
+      "data-hidden": t ? void 0 : "",
+      inert: t ? void 0 : !0,
+      "aria-hidden": t ? void 0 : !0,
       children: [
         d ? /* @__PURE__ */ C(
           "header",
           {
             className: "reader-notes-panel-head",
-            onPointerDown: N,
-            onPointerMove: E,
-            onPointerUp: _,
-            onPointerCancel: _,
+            onPointerDown: E,
+            onPointerMove: _,
+            onPointerUp: N,
+            onPointerCancel: N,
             children: [
-              g ? null : /* @__PURE__ */ h("div", { className: "reader-notes-panel-drag", "aria-hidden": "true", children: /* @__PURE__ */ h(Qo, { size: 14, strokeWidth: 2.25 }) }),
+              y ? null : /* @__PURE__ */ h("div", { className: "reader-notes-panel-drag", "aria-hidden": "true", children: /* @__PURE__ */ h(Qo, { size: 14, strokeWidth: 2.25 }) }),
               /* @__PURE__ */ C("div", { className: "reader-notes-panel-head-text", children: [
                 /* @__PURE__ */ C("strong", { children: [
                   a,
@@ -5801,15 +5805,15 @@ function vo({
                 ] }),
                 r ? /* @__PURE__ */ h("span", { children: r }) : null
               ] }),
-              /* @__PURE__ */ h("button", { type: "button", className: "reader-notes-close reader-floating-close", "aria-label": `关闭${n}`, onClick: u, children: /* @__PURE__ */ h(et, { size: 14, strokeWidth: 2.5, "aria-hidden": !0 }) })
+              /* @__PURE__ */ h("button", { type: "button", className: "reader-notes-close reader-floating-close", "aria-label": `关闭${n}`, onClick: f, children: /* @__PURE__ */ h(et, { size: 14, strokeWidth: 2.5, "aria-hidden": !0 }) })
             ]
           }
         ) : null,
-        f ? /* @__PURE__ */ h("div", { className: "reader-notes-panel-toolbar", children: f }) : null,
-        /* @__PURE__ */ h("div", { className: "reader-notes-panel-body", children: m })
+        m ? /* @__PURE__ */ h("div", { className: "reader-notes-panel-toolbar", children: m }) : null,
+        /* @__PURE__ */ h("div", { className: "reader-notes-panel-body", children: v })
       ]
     }
-  ) : null;
+  );
 }
 function qc({
   note: e,
@@ -6003,7 +6007,7 @@ function Xc({
   const [a, o] = L(!1), s = e ? e.selectionType === "text" ? `${e.pane}:${e.page}:${e.quote}` : `${e.region.itemId}:${e.pane}` : "";
   if (O(() => o(!1), [s]), !e)
     return null;
-  const l = typeof window < "u" ? window.innerWidth : 800, c = typeof window < "u" ? window.innerHeight : 600, i = e.rect.left + e.rect.width / 2, d = 170, u = Math.min(Math.max(16 + d, i), l - 16 - d), f = e.rect.top > 72, m = f ? Math.max(12, e.rect.top - 8) : Math.min(c - 12, e.rect.top + e.rect.height + 8), v = f ? "above" : "below", p = e.pane === "translated" ? "译文" : "原文", g = e.selectionType === "text" ? "text" : e.kind, y = e.selectionType === "text" ? e.quote : xr(e.region, e.pane), P = g === "formula" ? "公式" : g === "table" ? "表格" : g === "figure" ? "图片" : g === "text" ? "文字" : "区域", w = g === "formula" ? Bo(y) : y, b = g === "formula" ? ea : g === "table" ? ta : g === "text" ? na : ra;
+  const l = typeof window < "u" ? window.innerWidth : 800, c = typeof window < "u" ? window.innerHeight : 600, i = e.rect.left + e.rect.width / 2, d = 170, u = Math.min(Math.max(16 + d, i), l - 16 - d), f = e.rect.top > 72, m = f ? Math.max(12, e.rect.top - 8) : Math.min(c - 12, e.rect.top + e.rect.height + 8), v = f ? "above" : "below", p = e.pane === "translated" ? "译文" : "原文", b = e.selectionType === "text" ? "text" : e.kind, y = e.selectionType === "text" ? e.quote : xr(e.region, e.pane), S = b === "formula" ? "公式" : b === "table" ? "表格" : b === "figure" ? "图片" : b === "text" ? "文字" : "区域", w = b === "formula" ? Bo(y) : y, g = b === "formula" ? ea : b === "table" ? ta : b === "text" ? na : ra;
   return /* @__PURE__ */ C(
     "div",
     {
@@ -6011,14 +6015,14 @@ function Xc({
       style: { left: u, top: m },
       role: "toolbar",
       "aria-label": "选区操作",
-      onPointerDown: (S) => {
-        S.preventDefault();
+      onPointerDown: (P) => {
+        P.preventDefault();
       },
       children: [
         /* @__PURE__ */ C("div", { className: "reader-sel-pop-card reader-floating-surface", children: [
           /* @__PURE__ */ C("div", { className: "reader-sel-pop-context", children: [
-            /* @__PURE__ */ h(b, { size: 15, strokeWidth: 2.1, "aria-hidden": !0 }),
-            /* @__PURE__ */ h("span", { children: P }),
+            /* @__PURE__ */ h(g, { size: 15, strokeWidth: 2.1, "aria-hidden": !0 }),
+            /* @__PURE__ */ h("span", { children: S }),
             /* @__PURE__ */ h("span", { className: "reader-sel-pop-context-divider", "aria-hidden": !0, children: "·" }),
             /* @__PURE__ */ h("span", { children: p }),
             /* @__PURE__ */ h("span", { className: "reader-sel-pop-context-divider", "aria-hidden": !0, children: "·" }),
@@ -6036,13 +6040,13 @@ function Xc({
                 onClick: async () => {
                   try {
                     await Zc(w), o(!0), window.setTimeout(() => o(!1), 1400);
-                  } catch (S) {
-                    console.warn("[reader-selection] copy failed", S);
+                  } catch (P) {
+                    console.warn("[reader-selection] copy failed", P);
                   }
                 },
                 children: [
                   a ? /* @__PURE__ */ h(oa, { size: 15, strokeWidth: 2.4, "aria-hidden": !0 }) : /* @__PURE__ */ h(aa, { size: 15, strokeWidth: 2.2, "aria-hidden": !0 }),
-                  /* @__PURE__ */ h("span", { children: a ? "已复制" : g === "formula" ? "复制 LaTeX" : "复制" })
+                  /* @__PURE__ */ h("span", { children: a ? "已复制" : b === "formula" ? "复制 LaTeX" : "复制" })
                 ]
               }
             ) : /* @__PURE__ */ h("span", { className: "reader-sel-pop-selection-hint", children: "已选择图片" }),
@@ -6438,10 +6442,10 @@ const bl = {
   notes: Ft
 }, yl = tl;
 function vl(e) {
-  const { activeTool: t, noteCount: n, onToggleTool: r } = e, a = wt(), o = e.sourceOnly ?? (a == null ? void 0 : a.sourceOnly) ?? !1, s = e.download ?? (a == null ? void 0 : a.download), l = x(null), c = pn(), { open: i, setOpen: d, closeMenu: u, toggleMenu: f } = sl(l), { pos: m, openUp: v, onPointerDown: p, onPointerMove: g, onPointerUp: y } = ul({
+  const { activeTool: t, noteCount: n, onToggleTool: r } = e, a = wt(), o = e.sourceOnly ?? (a == null ? void 0 : a.sourceOnly) ?? !1, s = e.download ?? (a == null ? void 0 : a.download), l = x(null), c = pn(), { open: i, setOpen: d, closeMenu: u, toggleMenu: f } = sl(l), { pos: m, openUp: v, onPointerDown: p, onPointerMove: b, onPointerUp: y } = ul({
     onDragStart: u,
     onActivate: f
-  }), { urls: P, downloadItems: w, busyActions: b, handleDownload: S } = al(s), N = A((E) => {
+  }), { urls: S, downloadItems: w, busyActions: g, handleDownload: P } = al(s), k = A((E) => {
     r(E), d(!1);
   }, [r, d]);
   return /* @__PURE__ */ C(
@@ -6470,7 +6474,7 @@ function vl(e) {
                     role: "menuitem",
                     className: `reader-fab-row${E ? " is-active" : ""}`,
                     "aria-pressed": E,
-                    onClick: () => N("notes"),
+                    onClick: () => k("notes"),
                     style: { "--fab-i": 0 },
                     children: [
                       /* @__PURE__ */ h("span", { className: "reader-fab-row-icon", "aria-hidden": "true", children: /* @__PURE__ */ h(Ft, { size: 18, strokeWidth: 2 }) }),
@@ -6484,18 +6488,18 @@ function vl(e) {
                 );
               })(),
               yl.map((E, _) => {
-                const T = bl[E.id], M = t === E.id, R = E.needsJob && o;
+                const N = bl[E.id], M = t === E.id, R = E.needsJob && o;
                 let I = M ? E.subOpen : E.subIdle;
                 return R && (I = "需打开任务阅读"), /* @__PURE__ */ h(
                   pl,
                   {
                     index: _,
-                    icon: T,
+                    icon: N,
                     title: E.label,
                     sub: I,
                     active: M,
                     disabled: R,
-                    onClick: () => N(E.id)
+                    onClick: () => k(E.id)
                   },
                   E.id
                 );
@@ -6503,10 +6507,10 @@ function vl(e) {
               /* @__PURE__ */ h(
                 gl,
                 {
-                  urls: P,
+                  urls: S,
                   items: w,
-                  busyActions: b,
-                  onDownload: S
+                  busyActions: g,
+                  onDownload: P
                 }
               )
             ]
@@ -6522,7 +6526,7 @@ function vl(e) {
             "aria-controls": i ? c : void 0,
             "aria-haspopup": "menu",
             onPointerDown: p,
-            onPointerMove: g,
+            onPointerMove: b,
             onPointerUp: y,
             onPointerCancel: y,
             children: /* @__PURE__ */ h("span", { className: "reader-fab-icon", "aria-hidden": "true", children: i ? /* @__PURE__ */ h(et, { size: 20, strokeWidth: 2.5 }) : /* @__PURE__ */ C("span", { className: "reader-fab-dots", children: [
@@ -6538,15 +6542,15 @@ function vl(e) {
 }
 function wl(e) {
   const t = wt(), n = Ji(), { mode: r = "compare", modeControls: a } = e, o = e.userZoom ?? (t == null ? void 0 : t.userZoom) ?? vt, s = e.onZoomChange ?? (t == null ? void 0 : t.onZoomChange) ?? (() => {
-  }), l = e.currentPage ?? (n == null ? void 0 : n.currentPage) ?? 1, c = e.numPages ?? (n == null ? void 0 : n.numPages) ?? 0, i = e.onGoToPage ?? (t == null ? void 0 : t.goToPage), d = ls(o), u = o > $r + 1e-3, f = o < jr - 1e-3, m = ct(), v = "50%（半屏，对照铺满）", [p, g] = L(!1), [y, P] = L(`${l}`);
+  }), l = e.currentPage ?? (n == null ? void 0 : n.currentPage) ?? 1, c = e.numPages ?? (n == null ? void 0 : n.numPages) ?? 0, i = e.onGoToPage ?? (t == null ? void 0 : t.goToPage), d = ls(o), u = o > $r + 1e-3, f = o < jr - 1e-3, m = ct(), v = "50%（半屏，对照铺满）", [p, b] = L(!1), [y, S] = L(`${l}`);
   O(() => {
-    p || P(`${Math.min(Math.max(l, 1), Math.max(c, 1))}`);
+    p || S(`${Math.min(Math.max(l, 1), Math.max(c, 1))}`);
   }, [l, c, p]);
   const w = () => {
-    if (g(!1), !i || c <= 0)
+    if (b(!1), !i || c <= 0)
       return;
-    const b = Number(`${y}`.trim());
-    i(_t(b, c));
+    const g = Number(`${y}`.trim());
+    i(_t(g, c));
   };
   return /* @__PURE__ */ C("div", { className: "reader-react-hud", "data-reader-hud": "true", children: [
     a ? /* @__PURE__ */ h("div", { className: "reader-react-hud-group reader-react-hud-modes", children: a }) : null,
@@ -6554,8 +6558,8 @@ function wl(e) {
       "form",
       {
         className: "reader-react-hud-page-form",
-        onSubmit: (b) => {
-          b.preventDefault(), w();
+        onSubmit: (g) => {
+          g.preventDefault(), w();
         },
         children: [
           /* @__PURE__ */ h(
@@ -6568,10 +6572,10 @@ function wl(e) {
               "aria-label": "跳转到页码",
               value: y,
               autoFocus: !0,
-              onChange: (b) => P(b.target.value.replace(/[^\d]/g, "")),
+              onChange: (g) => S(g.target.value.replace(/[^\d]/g, "")),
               onBlur: w,
-              onKeyDown: (b) => {
-                b.key === "Escape" && (b.preventDefault(), g(!1), P(`${l}`));
+              onKeyDown: (g) => {
+                g.key === "Escape" && (g.preventDefault(), b(!1), S(`${l}`));
               }
             }
           ),
@@ -6590,7 +6594,7 @@ function wl(e) {
         title: c > 0 ? "点击输入页码跳转" : void 0,
         disabled: !i || c <= 0,
         onClick: () => {
-          !i || c <= 0 || (P(`${l}`), g(!0));
+          !i || c <= 0 || (S(`${l}`), b(!0));
         },
         children: c > 0 ? `${Math.min(l, c)} / ${c}` : "—"
       }
@@ -6766,7 +6770,7 @@ function Nl(e, t = {}) {
     const p = `${v.quote || ""}`.trim();
     if (!p)
       return null;
-    const g = {
+    const b = {
       id: Pl(),
       page: Math.max(1, Math.floor(Number(v.page) || 1)),
       pane: v.pane === "translated" ? "translated" : "source",
@@ -6774,19 +6778,19 @@ function Nl(e, t = {}) {
       note: `${v.note || ""}`.trim(),
       createdAt: (/* @__PURE__ */ new Date()).toISOString()
     };
-    return s((y) => So([g, ...y])), l == null || l(), g;
+    return s((y) => So([b, ...y])), l == null || l(), b;
   }, [l]), d = A((v, p) => {
-    const g = `${p || ""}`.trim();
-    s((y) => y.map((P) => P.id === v ? { ...P, note: g } : P));
+    const b = `${p || ""}`.trim();
+    s((y) => y.map((S) => S.id === v ? { ...S, note: b } : S));
   }, []), u = A((v) => {
-    s((p) => p.filter((g) => g.id !== v));
+    s((p) => p.filter((b) => b.id !== v));
   }, []), f = A(async (v = "") => {
-    var g, y;
+    var b, y;
     const p = Tl(v, o);
     try {
-      return await ((y = (g = navigator.clipboard) == null ? void 0 : g.writeText) == null ? void 0 : y.call(g, p)), !0;
-    } catch (P) {
-      return console.error("[reader-notes] copy failed", P), !1;
+      return await ((y = (b = navigator.clipboard) == null ? void 0 : b.writeText) == null ? void 0 : y.call(b, p)), !0;
+    } catch (S) {
+      return console.error("[reader-notes] copy failed", S), !1;
     }
   }, [o]), m = V(() => Rl(o), [o]);
   return {
@@ -6875,6 +6879,7 @@ function _l({
       storageKey: e.storageKey,
       ariaLabel: e.ariaLabel,
       width: e.width,
+      keepMounted: e.keepMounted,
       placement: "workspace",
       showHeader: !1,
       className: "is-pane-right",
@@ -7029,7 +7034,7 @@ function jl(e) {
     };
   }, [e]), t;
 }
-const Ul = gn(() => import("./ReaderFavoritesPanel-Ca4j9ctF.js").then((e) => ({ default: e.ReaderFavoritesPanel }))), Bl = gn(() => import("./ReaderMarkdownPanel-BheXZsVh.js").then((e) => ({ default: e.ReaderMarkdownPanel }))), Hl = gn(() => import("./ReaderAiPanel-6giGUvK0.js").then((e) => ({ default: e.ReaderAiPanel }))), Wl = [];
+const Ul = gn(() => import("./ReaderFavoritesPanel-Dy5V1aAv.js").then((e) => ({ default: e.ReaderFavoritesPanel }))), Bl = gn(() => import("./ReaderMarkdownPanel-Bh6uOk3n.js").then((e) => ({ default: e.ReaderMarkdownPanel }))), Hl = gn(() => import("./ReaderAiPanel-CSVuHUaz.js").then((e) => ({ default: e.ReaderAiPanel }))), Wl = [];
 function Jl(e) {
   return "workspace";
 }
@@ -7054,27 +7059,27 @@ function kr(e, t) {
   return e === "compare" ? null : Ur(t == null ? void 0 : t.assistantPanel) ? t.assistantPanel : ((n = t == null ? void 0 : t.splitLayout) == null ? void 0 : n.left) === "ai" || ((r = t == null ? void 0 : t.splitLayout) == null ? void 0 : r.right) === "ai" ? "ai" : ((a = t == null ? void 0 : t.splitLayout) == null ? void 0 : a.left) === "markdown" || ((o = t == null ? void 0 : t.splitLayout) == null ? void 0 : o.right) === "markdown" ? "markdown" : null;
 }
 function Vl() {
-  const e = ai(), { boot: t, panes: n, sessionFiles: r, tools: a, session: o } = e, [s, l] = L(() => kr(e.mode, Me(e.viewStateKey))), [c, i] = L(null), [d, u] = L(null), [f, m] = L(!1), v = x(e.viewStateKey), p = x(null), g = s !== null, y = e.liveTranslationAvailable || e.liveTranslation.pagesByPage.size > 0, P = Kl({
+  const e = ai(), { boot: t, panes: n, sessionFiles: r, tools: a, session: o } = e, [s, l] = L(() => kr(e.mode, Me(e.viewStateKey))), [c, i] = L(null), [d, u] = L(null), [f, m] = L(!1), v = x(e.viewStateKey), p = x(null), b = s !== null, y = e.liveTranslationAvailable || e.liveTranslation.pagesByPage.size > 0, S = Kl({
     mode: e.mode,
     sourceOnly: e.sourceOnly,
     translatedUrl: r.translatedUrl,
     overlayContentAvailable: y,
     liveTranslationVisible: f,
-    assistantOpen: g,
+    assistantOpen: b,
     assistantPdfPane: c
-  }), w = P.sourceViewOnly, b = P.visibleMode, [S, N] = L(!1), E = A(() => N(!0), []), _ = A(() => N((F) => !F), []), T = Nl(
+  }), w = S.sourceViewOnly, g = S.visibleMode, [P, k] = L(!1), E = A(() => k(!0), []), _ = A(() => k((F) => !F), []), N = Nl(
     { jobId: o.jobId, documentId: o.documentId },
     { onAfterAdd: E }
   ), M = A((F) => {
-    T.addFromQuote(F), e.clearSelection();
-  }, [T.addFromQuote, e.clearSelection]), R = A((F) => {
+    N.addFromQuote(F), e.clearSelection();
+  }, [N.addFromQuote, e.clearSelection]), R = A((F) => {
     e.goToPage(F.page, F.pane === "translated" ? "translated" : "source");
   }, [e.goToPage]), I = A(
-    () => T.exportMarkdown(o.title || ""),
-    [T.exportMarkdown, o.title]
+    () => N.exportMarkdown(o.title || ""),
+    [N.exportMarkdown, o.title]
   );
   O(() => {
-    u(null), m(!0), N(!1);
+    u(null), m(!0), k(!1);
   }, [e.viewStateKey]), O(() => {
     e.session.jobTerminal && m(!1);
   }, [e.session.jobTerminal]), O(() => {
@@ -7098,9 +7103,9 @@ function Vl() {
       Ct(e.viewStateKey, { mode: e.mode });
     }
   }, [t.failed, t.loading, e.mode, e.setModeKeepingPage, e.viewStateKey, w]);
-  const k = s || (e.mode === "compare" ? "compare" : "reading"), D = Nt(a.isOpen("favorites")), $ = Nt(s === "markdown"), B = Nt(s === "ai");
+  const T = s || (e.mode === "compare" ? "compare" : "reading"), D = Nt(a.isOpen("favorites")), $ = Nt(s === "markdown"), B = Nt(s === "ai");
   di({
-    mode: b,
+    mode: g,
     sourceOnly: e.sourceOnly,
     setMode: e.setModeKeepingPage,
     userZoom: e.userZoom,
@@ -7115,15 +7120,15 @@ function Vl() {
   }, [a]), j = A(() => {
     l(null), i(null), u(null);
   }, []), W = A((F) => {
-    const fe = b === "translated" ? "translated" : "source";
+    const fe = g === "translated" ? "translated" : "source";
     e.jumpToAnchor(F, fe);
-  }, [e.jumpToAnchor, b]), K = A((F) => {
+  }, [e.jumpToAnchor, g]), K = A((F) => {
     o.refreshCommittedDocument(F);
   }, [o.refreshCommittedDocument]), X = A((F) => {
     a.close(), i(null);
     const fe = ql(F, e.liveTranslationAvailable);
     fe !== null && m(fe), e.setModeKeepingPage(F);
-  }, [e.liveTranslationAvailable, e.setModeKeepingPage, a]), ae = V(() => !y || !P.showSource ? null : /* @__PURE__ */ h(
+  }, [e.liveTranslationAvailable, e.setModeKeepingPage, a]), ae = V(() => !y || !S.showSource ? null : /* @__PURE__ */ h(
     "button",
     {
       type: "button",
@@ -7133,7 +7138,7 @@ function Vl() {
       title: f ? "隐藏实时译文" : "在原文 PDF 上叠加实时译文",
       children: "译文"
     }
-  ), [y, P.showSource, f]), U = A((F) => {
+  ), [y, S.showSource, f]), U = A((F) => {
     l(F), F !== "ai" && u(null);
   }, []), q = A((F) => {
     if (F === "notes") {
@@ -7145,7 +7150,7 @@ function Vl() {
       return;
     }
     a.toggle(F);
-  }, [s, _, a]), te = ps(s) ? null : s, ne = S ? "notes" : te ?? a.active, de = jl(o.jobId), [ue, pe] = L(null), ye = A((F, fe) => {
+  }, [s, _, a]), te = ps(s) ? null : s, ne = P ? "notes" : te ?? a.active, de = jl(o.jobId), [ue, pe] = L(null), ye = A((F, fe) => {
     pe((Ae) => (Ae == null ? void 0 : Ae.note.id) === F.id ? null : { note: F, rect: fe });
   }, []), _e = A(() => pe(null), []);
   O(() => {
@@ -7208,17 +7213,17 @@ function Vl() {
     numPages: n.hudNumPages
   }), [e.currentPage, n.hudNumPages]), le = [
     ts,
-    `is-workspace-${k}`,
-    g ? "is-assistant-open" : "",
-    P.overlayOnSource ? "is-live-translation-overlay" : ""
+    `is-workspace-${T}`,
+    b ? "is-assistant-open" : "",
+    S.overlayOnSource ? "is-live-translation-overlay" : ""
   ].filter(Boolean).join(" ");
-  return /* @__PURE__ */ h(Wi, { value: se, hud: be, children: /* @__PURE__ */ C("div", { className: le, "data-reader-engine": "react-pdf", "data-reader-workspace": k, children: [
+  return /* @__PURE__ */ h(Wi, { value: se, hud: be, children: /* @__PURE__ */ C("div", { className: le, "data-reader-engine": "react-pdf", "data-reader-workspace": T, children: [
     /* @__PURE__ */ h(Yc, { loading: t.loading, failed: t.failed, text: t.text, percent: t.percent, regionsError: !!o.readerErrors.regions, metadataError: !!o.readerErrors.metadata }),
     /* @__PURE__ */ h(gi, { onBeforeClose: o.prepareClose }),
     /* @__PURE__ */ h(
       Qi,
       {
-        mode: b,
+        mode: g,
         documentReady: !!o.jobId,
         sourceViewOnly: w,
         onModeChange: X,
@@ -7230,13 +7235,13 @@ function Vl() {
       }
     ),
     /* @__PURE__ */ h(rc, { active: s }),
-    g ? /* @__PURE__ */ h(Hc, {}) : null,
-    e.showHud ? /* @__PURE__ */ h(vl, { activeTool: ne, noteCount: T.count, onToggleTool: q }) : null,
-    /* @__PURE__ */ h(Gi, { paneComposition: P, markdownSplit: s === "markdown", assistantSplit: g, liveTranslation: e.liveTranslation, sourcePaneAction: ae }),
+    b ? /* @__PURE__ */ h(Hc, {}) : null,
+    e.showHud ? /* @__PURE__ */ h(vl, { activeTool: ne, noteCount: N.count, onToggleTool: q }) : null,
+    /* @__PURE__ */ h(Gi, { paneComposition: S, markdownSplit: s === "markdown", assistantSplit: b, liveTranslation: e.liveTranslation, sourcePaneAction: ae }),
     e.showHud ? /* @__PURE__ */ h(
       wl,
       {
-        mode: b,
+        mode: g,
         modeControls: null
       }
     ) : null,
@@ -7266,13 +7271,13 @@ function Vl() {
     /* @__PURE__ */ h(
       Vc,
       {
-        open: S,
-        groups: T.groups,
-        count: T.count,
-        onClose: () => N(!1),
+        open: P,
+        groups: N.groups,
+        count: N.count,
+        onClose: () => k(!1),
         onJump: R,
-        onUpdateNote: T.updateNote,
-        onRemove: T.remove,
+        onUpdateNote: N.updateNote,
+        onRemove: N.remove,
         onExport: I
       }
     ),
@@ -7298,4 +7303,4 @@ export {
   gd as j,
   pd as r
 };
-//# sourceMappingURL=ReaderApp-3ZWL-tcJ.js.map
+//# sourceMappingURL=ReaderApp-DoNlIm7-.js.map
