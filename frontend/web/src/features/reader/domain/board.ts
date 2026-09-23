@@ -22,7 +22,7 @@ import type { TLAsset, TLAssetId, TLGeoShape, TLImageShape, TLShapePartial, TLTe
 
 import { toRichTextDoc } from "./tldraw-primitives.js";
 
-export type BoardItemKind = "image" | "markdown" | "json" | "text";
+export type BoardItemKind = "image" | "pdf" | "markdown" | "json" | "text";
 
 /** 后端列目录给的。 */
 export type BoardListing = {
@@ -33,12 +33,16 @@ export type BoardListing = {
   modifiedMs: number;
 };
 
-/** 宿主取回来之后补上内容：图片是 data URL（尺寸解码出来），文本是原文。 */
+/** 宿主取回来之后补上内容：图片是 data URL（尺寸解码出来），文本是原文。
+ *
+ * PDF 也走 `dataUrl` —— 宿主用 pdf.js 把第 1 页画成 PNG 再塞进来，所以从这里
+ * 往下它和一张图片没有区别。`pageCount` 只用来在标签上说清楚「还有别的页」。 */
 export type BoardItem = BoardListing & {
   dataUrl?: string;
   imageW?: number;
   imageH?: number;
   text?: string;
+  pageCount?: number;
 };
 
 const ITEM_W = 460;
@@ -52,7 +56,7 @@ const TEXT_PAD = 28;
 const IMAGE_MIN_H = 120;
 const IMAGE_MAX_H = 520;
 
-const KINDS: readonly BoardItemKind[] = ["image", "markdown", "json", "text"];
+const KINDS: readonly BoardItemKind[] = ["image", "pdf", "markdown", "json", "text"];
 
 export function parseBoardListing(payload: unknown): BoardListing[] | null {
   const raw = (payload as { items?: unknown } | null)?.items;
@@ -85,13 +89,28 @@ export function textPreviewOf(item: BoardItem): string {
   return [...lines.slice(0, limit - 1), `… 还有 ${lines.length - limit + 1} 行`].join("\n");
 }
 
+/** 画成图的那些：图片，以及第 1 页已经栅格化好的 PDF。 */
+function isRasterCard(item: BoardItem): boolean {
+  return (item.kind === "image" || item.kind === "pdf") && !!item.dataUrl && !!item.imageW && !!item.imageH;
+}
+
+/** 退回文本框时框里写什么。
+ *
+ * PDF 渲不出来（坏文件、pdf.js 没加载上）时**不能留个空框** —— 空框看起来像
+ * 「agent 写了个空文件」，而实际是我们这边没画出来，两件事该让人分得清。
+ */
+export function boardCardText(item: BoardItem): string {
+  if (item.kind === "pdf") return `${item.name}\n（PDF 的第 1 页没能画出来）`;
+  return textPreviewOf(item);
+}
+
 export function boardItemHeight(item: BoardItem): number {
-  if (item.kind === "image") {
+  if (item.kind === "image" || item.kind === "pdf") {
     if (!item.imageW || !item.imageH) return IMAGE_MIN_H;
     const scaled = (ITEM_W * item.imageH) / item.imageW;
     return Math.max(IMAGE_MIN_H, Math.min(IMAGE_MAX_H, Math.round(scaled)));
   }
-  const lines = textPreviewOf(item).split("\n").length;
+  const lines = boardCardText(item).split("\n").length;
   return Math.max(80, Math.min(TEXT_MAX_H, lines * TEXT_LINE_H + TEXT_PAD));
 }
 
@@ -132,6 +151,15 @@ function boardAssetId(index: number): TLAssetId {
   return `asset:board-${index}` as TLAssetId;
 }
 
+/** 标签文字。多页 PDF 必须说出来 ——「画布上只有第 1 页」这件事不写出来的话，
+ * 用户会以为 agent 只写了一页，而它可能写了十页。 */
+export function boardLabelOf(item: BoardItem): string {
+  if (item.kind === "pdf" && (item.pageCount ?? 0) > 1) {
+    return `${item.name} · 共 ${item.pageCount} 页，画布上是第 1 页`;
+  }
+  return item.name;
+}
+
 export function buildBoardShapes(
   items: readonly BoardItem[],
   originX = 0,
@@ -141,7 +169,7 @@ export function buildBoardShapes(
   const assets: TLAsset[] = [];
 
   placed.forEach(({ item, x, y, w, h }, index) => {
-    if (item.kind === "image" && item.dataUrl && item.imageW && item.imageH) {
+    if (isRasterCard(item)) {
       const assetId = boardAssetId(index);
       const asset: TLAsset = {
         id: assetId,
@@ -150,10 +178,12 @@ export function buildBoardShapes(
         meta: {},
         props: {
           name: item.name,
-          src: item.dataUrl,
-          w: item.imageW,
-          h: item.imageH,
-          mimeType: item.contentType || "image/png",
+          src: item.dataUrl!,
+          w: item.imageW!,
+          h: item.imageH!,
+          // PDF 进到这里已经是一张 PNG 了。照抄 contentType 会写成
+          // application/pdf，而这是个 image 资产 —— 类型对不上。
+          mimeType: item.kind === "pdf" ? "image/png" : item.contentType || "image/png",
           isAnimated: false,
         },
       };
@@ -177,7 +207,7 @@ export function buildBoardShapes(
           geo: "rectangle",
           w,
           h,
-          richText: toRichTextDoc(textPreviewOf(item)),
+          richText: toRichTextDoc(boardCardText(item)),
           color: item.kind === "json" ? "violet" : "black",
           dash: "solid",
           size: "s",
@@ -195,7 +225,7 @@ export function buildBoardShapes(
       x,
       y: y + h + 6,
       props: {
-        richText: toRichTextDoc(item.name),
+        richText: toRichTextDoc(boardLabelOf(item)),
         w,
         autoSize: false,
         size: "s",

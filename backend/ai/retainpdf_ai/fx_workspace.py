@@ -137,15 +137,15 @@ def build_job_workspace_instructions(job_dir: Path) -> str:
 
 ## 想给用户看什么，丢进 `./board/`
 
-**这是最省事的一条：你手里已经有 shell 了。** 画个图、截个页、导个表，产物放进
-`./board/`，几秒后就出现在用户的画布上。不需要学任何格式。
+**这是最省事的一条：你手里已经有 shell 了。** 画个图、截个页、导个表、排一份
+文档，产物放进 `./board/`，几秒后就出现在用户的画布上。不需要学任何格式。
 
     python3 -c "import matplotlib;..." 存成 ./board/issues.png
     pdftoppm -f 4 -l 4 -r 150 -png ../source/*.pdf ./board/page4
     jq '...' ../artifacts/translation_review.json > ./board/issues.json
     写一段说明到 ./board/summary.md
 
-    认这些后缀   png jpg jpeg webp gif · md · json · txt csv
+    认这些后缀   png jpg jpeg webp gif · pdf · md · json · txt csv
     不认         svg（能带脚本，暂不收）、html、其它一律不显示
     文件名       只能是字母数字和 . _ -，不能有空格、中文、斜杠、开头的点
     大小         单个 16 MB 以内
@@ -154,6 +154,17 @@ def build_job_workspace_instructions(job_dir: Path) -> str:
 比 `out.png` 有用得多。按修改时间从上往下排，新的接在后面。
 
 长文本会被截断显示（画布是用来扫一眼的），图片按比例缩放并收在合理高度内。
+
+### 要排版就用 `typst` —— 它就在 PATH 上，中文直接出得来
+
+这是这里唯一能把「一份像样的文档」交出去的工具：有标题、表格、公式、分页，
+而且**不用配中文字体**（系统里的中文字体会被自动挑中）。先写 `report.typ`，
+再编译一次就完事：
+
+    typst compile report.typ ./board/report.pdf
+
+画布上显示的是**第 1 页**（页数会写在标签上），所以结论放第一页，别让人去翻。
+排不出来时不要硬凑 —— 退回 `./board/*.md`，一段清楚的文字胜过一份排版失败的 PDF。
 
 ## 另外三个有固定格式的产物
 

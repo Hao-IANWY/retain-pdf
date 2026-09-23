@@ -68,6 +68,21 @@ pub struct AiBoardListing {
 ///
 /// **故意不收 SVG**：SVG 能带脚本，而这些文件是 agent 写的。等有明确需求时
 /// 再加，并且要走消毒，不是直接放行。
+///
+/// # PDF 收，但和 SVG 的区别要说清楚
+///
+/// PDF 一样能内嵌 JavaScript（`/OpenAction` + `/JavaScript`），它照样是 agent
+/// 写的文件 —— 那为什么这个收、SVG 不收？因为**谁来解释这份字节**不一样：
+///
+/// - SVG 一旦被 `<img>` 之外的方式放进页面，脚本就在我们自己的 DOM 里跑
+/// - PDF 在前端只经过 pdf.js 的 `page.render()`。那条路只画图，不开脚本
+///   （`enableScripting` 是 viewer 的开关，我们压根没用 viewer）
+///
+/// 剩下的口子只有一个：有人**直接在地址栏打开**这个端点。那时解释字节的是
+/// 浏览器自带的 PDF 阅读器，它是会跑 PDF 里的 JS 的。所以下载那边给 PDF 加了
+/// `Content-Disposition: attachment`，见 `ai_board_file_download` —— 它不影响
+/// 我们自己（`fetch()` 根本不看这个头），只把「在我们的 API 源上内联渲染一份
+/// agent 写的 PDF」这条路堵死。
 fn board_kind(name: &str) -> Option<(&'static str, &'static str)> {
     let ext = name.rsplit_once('.').map(|(_, ext)| ext)?.to_ascii_lowercase();
     match ext.as_str() {
@@ -75,11 +90,20 @@ fn board_kind(name: &str) -> Option<(&'static str, &'static str)> {
         "jpg" | "jpeg" => Some(("image", "image/jpeg")),
         "webp" => Some(("image", "image/webp")),
         "gif" => Some(("image", "image/gif")),
+        "pdf" => Some(("pdf", "application/pdf")),
         "md" => Some(("markdown", "text/markdown; charset=utf-8")),
         "json" => Some(("json", "application/json")),
         "txt" | "csv" => Some(("text", "text/plain; charset=utf-8")),
         _ => None,
     }
+}
+
+/// 哪些 kind 必须以附件下发。
+///
+/// 只有 PDF：别的类型要么浏览器不会当文档执行（图片），要么内联打开也只是
+/// 一段纯文本。理由写在 `board_kind` 上面那段里。
+fn forces_attachment(kind: &str) -> bool {
+    kind == "pdf"
 }
 
 /// 只认单层、字符受限的文件名。
@@ -199,7 +223,7 @@ pub(super) fn ai_board_file_download(
     let dir = resolve_ai_board_dir(&job, deps.data_root)
         .ok_or_else(|| AppError::not_found(format!("board not found: {job_id}")))?;
     let name = safe_board_name(name)?;
-    let (_, content_type) =
+    let (kind, content_type) =
         board_kind(name).ok_or_else(|| AppError::bad_request("unsupported board file type"))?;
 
     let path = dir.join(name);
@@ -226,7 +250,11 @@ pub(super) fn ai_board_file_download(
         return Err(AppError::bad_request("board file escapes the board dir"));
     }
 
-    Ok(FileDownload::new(resolved, content_type, None))
+    // PDF 走附件。`safe_board_name` 已经把名字限死在 `[A-Za-z0-9._-]` 里，
+    // 拼进 Content-Disposition 不会带出引号或换行 —— 这道头注入在别处要单独
+    // 防，这里是白名单顺手挡掉的。
+    let download_name = forces_attachment(kind).then(|| name.to_owned());
+    Ok(FileDownload::new(resolved, content_type, download_name))
 }
 
 #[cfg(test)]
@@ -293,5 +321,144 @@ mod tests {
         assert_eq!(board_kind("x.md").map(|(k, _)| k), Some("markdown"));
         assert_eq!(board_kind("x.json").map(|(k, _)| k), Some("json"));
         assert!(board_kind("noext").is_none());
+    }
+
+    /// agent 现在能用 typst 写 `.typ` 渲出中文 PDF（PATH 上就有），所以 PDF 得认。
+    #[test]
+    fn pdf_is_a_board_kind() {
+        assert_eq!(
+            board_kind("report.pdf"),
+            Some(("pdf", "application/pdf")),
+            "PDF 没被认出来，agent 渲出来的东西在画布上就是不存在"
+        );
+        assert_eq!(board_kind("REPORT.PDF").map(|(k, _)| k), Some("pdf"));
+    }
+
+    /// 只有 PDF 强制附件。加错了会把图片也变成下载 —— 画布上的图就没了。
+    #[test]
+    fn only_pdf_forces_an_attachment() {
+        assert!(forces_attachment("pdf"));
+        for inline in ["image", "markdown", "json", "text"] {
+            assert!(!forces_attachment(inline), "{inline} 被改成附件了");
+        }
+    }
+}
+
+/// 端到端地过一遍下载那条路。
+///
+/// 单测 `forces_attachment` 只证明了策略，证明不了它**接上了**。这里建一个真的
+/// job 目录、真的写文件，看 `FileDownload` 上的 `download_name` 到底是什么 ——
+/// 那个字段就是 `Content-Disposition: attachment` 的开关（见 routes/job_helpers.rs）。
+#[cfg(test)]
+mod download_tests {
+    use std::path::PathBuf;
+    use std::sync::Arc;
+
+    use super::*;
+    use crate::db::Db;
+    use crate::models::domain::{JobArtifacts, JobSnapshot};
+    use crate::models::request::CreateJobInput;
+    use crate::services::download_generation::DownloadGeneration;
+
+    struct BoardFixture {
+        root: PathBuf,
+        db: Db,
+        generation: Arc<DownloadGeneration>,
+    }
+
+    impl BoardFixture {
+        const JOB_ID: &'static str = "job-board-pdf";
+
+        fn new() -> Self {
+            let root = std::env::temp_dir().join(format!("retain-board-pdf-{}", fastrand::u64(..)));
+            let data_root = root.join("data");
+            let job_root = data_root.join("jobs").join(Self::JOB_ID);
+            std::fs::create_dir_all(job_root.join("ai/board")).expect("board dir");
+            let db = Db::new(root.join("jobs.db"), data_root.clone());
+            db.init().expect("db init");
+            let mut job = JobSnapshot::new(Self::JOB_ID.into(), CreateJobInput::default(), vec![]);
+            job.artifacts = Some(JobArtifacts {
+                job_root: Some(format!("jobs/{}", Self::JOB_ID)),
+                ..Default::default()
+            });
+            db.save_job(&job).expect("save job");
+            Self {
+                root,
+                db,
+                generation: Arc::new(DownloadGeneration::default()),
+            }
+        }
+
+        fn data_root(&self) -> PathBuf {
+            self.root.join("data")
+        }
+
+        fn board_dir(&self) -> PathBuf {
+            self.data_root()
+                .join("jobs")
+                .join(Self::JOB_ID)
+                .join("ai/board")
+        }
+
+        fn write(&self, name: &str, bytes: &[u8]) {
+            std::fs::write(self.board_dir().join(name), bytes).expect("write board file");
+        }
+
+        fn download(&self, name: &str) -> Result<FileDownload, AppError> {
+            let data_root = self.data_root();
+            let downloads_dir = self.root.join("downloads");
+            let deps = DownloadJobsDeps {
+                db: &self.db,
+                data_root: &data_root,
+                downloads_dir: &downloads_dir,
+                download_generation: &self.generation,
+                python_bin: "python3",
+                pipeline_command: "",
+            };
+            ai_board_file_download(&deps, Self::JOB_ID, name)
+        }
+    }
+
+    impl Drop for BoardFixture {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.root);
+        }
+    }
+
+    /// PDF 能内嵌 JavaScript。我们自己的画布只让 pdf.js 画第一页（不开脚本），
+    /// 但地址栏里直接打开这个端点的话，解释字节的是浏览器自带的阅读器 —— 它会跑。
+    /// 附件头就是为了掐掉那条路。
+    #[test]
+    fn a_board_pdf_is_served_as_an_attachment() {
+        let fixture = BoardFixture::new();
+        fixture.write("report.pdf", b"%PDF-1.7\n");
+        let download = fixture.download("report.pdf").expect("pdf download");
+        assert_eq!(download.content_type, "application/pdf");
+        assert_eq!(
+            download.download_name.as_deref(),
+            Some("report.pdf"),
+            "PDF 没带附件头 —— 直接打开这个 URL 就是在我们的源上内联渲染 agent 写的 PDF"
+        );
+    }
+
+    /// 图片必须保持内联：画布是靠 `fetch` 拿字节再转 data URL 的，一旦这里
+    /// 顺手把所有类型都改成附件，别的地方（比如直接 `<img src>`）就会开始下载。
+    #[test]
+    fn other_board_kinds_stay_inline() {
+        let fixture = BoardFixture::new();
+        fixture.write("chart.png", b"\x89PNG\r\n");
+        fixture.write("summary.md", b"# hi");
+        for name in ["chart.png", "summary.md"] {
+            let download = fixture.download(name).expect("download");
+            assert_eq!(download.download_name, None, "{name} 变成附件了");
+        }
+    }
+
+    /// 后缀白名单是这条路上第一道闸：认不出来的根本不该走到读文件那一步。
+    #[test]
+    fn unknown_extensions_are_still_refused() {
+        let fixture = BoardFixture::new();
+        fixture.write("evil.svg", b"<svg onload=alert(1)>");
+        assert!(fixture.download("evil.svg").is_err(), "SVG 被放行了");
     }
 }

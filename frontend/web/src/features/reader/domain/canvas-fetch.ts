@@ -11,6 +11,7 @@
 import { apiBase, frontendApiKey } from "@/platform/config/runtime.js";
 
 import { type BoardItem, type BoardListing, parseBoardListing } from "./board.js";
+import { rasterizeBoardPdf } from "./board-pdf.js";
 import type { CanvasImage } from "./reading-canvas-render.js";
 
 /** 404 = 文件不存在，是正常状态，返回 null。其余非 2xx 才是真失败。 */
@@ -36,7 +37,8 @@ export async function fetchBoardListing(jobId: string): Promise<BoardListing[] |
   return parseBoardListing(payload?.data ?? payload);
 }
 
-/** 取画板里的一个文件。图片转 data URL 并解码尺寸，文本直接拿原文。
+/** 取画板里的一个文件。图片转 data URL 并解码尺寸，PDF 先渲第 1 页再当图片用，
+ * 文本直接拿原文。
  *
  * 一个文件取不到就跳过它，不让整块画板消失 —— 和论文配图同样的处理。 */
 export async function loadBoardItem(jobId: string, listing: BoardListing): Promise<BoardItem | null> {
@@ -49,6 +51,19 @@ export async function loadBoardItem(jobId: string, listing: BoardListing): Promi
       { headers: { "X-API-Key": frontendApiKey() } },
     );
     if (!response.ok) return null;
+    if (listing.kind === "pdf") {
+      // 渲不出来也要把这一项留着：返回 null 的话画板上就少一个东西，而 agent
+      // 明明写了 —— 让它退回成一张写着原因的卡片（见 boardCardText）。
+      const raster = await rasterizeBoardPdf(await response.arrayBuffer());
+      if (!raster) return { ...listing };
+      return {
+        ...listing,
+        dataUrl: raster.dataUrl,
+        imageW: raster.w,
+        imageH: raster.h,
+        pageCount: raster.pageCount,
+      };
+    }
     if (listing.kind !== "image") {
       return { ...listing, text: await response.text() };
     }

@@ -6,7 +6,7 @@
  *     ai/canvas.v1.json        概念图（节点 + 箭头），画在画板左边
  *     ai/reading-path.v1.json  两者都没有时退回步骤卡片
  *
- * 画板是重点：agent 手里已经有 shell 了，`python3` 画张图、`pdftoppm` 截个页、
+ * 画板是重点：agent 手里已经有 shell 了，`python3` 画张图、`typst` 排一份 PDF、
  * `jq` 导个表，丢进 `board/` 就能看见 —— 不需要我们为每种可视化新增一套 schema
  * 和渲染器。前三个产物就是那么加的，加到第三次 AGENTS.md 一半篇幅都在教格式。
  *
@@ -124,9 +124,10 @@ function ReadingCanvasPanel({ open, jobId, onJump }: ReaderReadingPathSlotProps)
     return (
       <p className="reader-reading-path-note">
         画布是空的。阅读路径在旁边那个 tab —— 这里放的是概念图和 agent 画的东西。
-        在终端里让 fx 往里放：它有 python3、jq、pdftoppm，产物丢进
+        在终端里让 fx 往里放：它有 python3、jq、typst，产物丢进
         <code>./board/</code> 就会出现在这里：
         <code>把每页的翻译问题数画成柱状图，存到 ./board/issues.png</code>
+        图和 PDF 都收（PDF 画第 1 页）。
       </p>
     );
   }

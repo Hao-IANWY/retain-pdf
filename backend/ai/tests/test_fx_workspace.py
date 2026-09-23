@@ -495,6 +495,19 @@ def _board_section(tmp_path: Path) -> str:
     return text[start:end]
 
 
+def _board_accepted_line(tmp_path: Path) -> str:
+    """「认这些后缀」那一行。
+
+    **必须单独取这一行**：整段里到处都是 `.pdf`、`.png`（例子命令里就有），
+    拿整段去查「pdf 在不在」的话，把白名单里的 pdf 删掉测试照样绿 —— 反证当场
+    抓到过这个，两条门禁都中招。
+    """
+    for line in _board_section(tmp_path).splitlines():
+        if "认这些后缀" in line:
+            return line
+    raise AssertionError("画板那节没有「认这些后缀」这一行了，门禁要跟着改")
+
+
 def test_the_board_is_pitched_as_use_the_shell_you_already_have(
     tmp_path: Path,
 ) -> None:
@@ -542,9 +555,9 @@ def test_the_board_accepted_kinds_match_the_backend(tmp_path: Path) -> None:
     flat = {ext for pair in accepted for ext in pair if ext}
     assert flat >= {"png", "md", "json"}, flat
 
-    section = _board_section(tmp_path)
+    accepted = _board_accepted_line(tmp_path)
     for ext in flat:
-        assert ext in section, f"后端收 .{ext}，但说明里没写"
+        assert ext in accepted, f"后端收 .{ext}，但白名单那一行里没写"
     assert "svg" not in flat, "后端开始收 svg 了 —— 要先做消毒，并更新这条断言"
 
 
@@ -555,3 +568,40 @@ def test_the_board_docs_explain_that_the_file_name_is_the_label(
     section = _board_section(tmp_path)
     assert "标签" in section
     assert "修改时间" in section, "没说排序规则，模型不知道怎么控制顺序"
+
+
+def test_the_board_docs_say_pdf_shows_only_its_first_page(tmp_path: Path) -> None:
+    """PDF 在画布上只画第 1 页。
+
+    不说的话模型会把结论放在第 3 页，然后用户看到的是一页封面 —— 而这件事从
+    界面上看不出来是被截了。
+    """
+    assert "pdf" in _board_accepted_line(tmp_path), "白名单那一行里没写 pdf"
+    assert "第 1 页" in _board_section(tmp_path), "没说画布上只有第 1 页"
+
+
+def test_the_board_docs_point_at_typst_with_a_runnable_command(
+    tmp_path: Path,
+) -> None:
+    """typst 就在 PATH 上（实测：`shutil.which('typst', path=<fx 的 PATH>)` 命中），
+    它是这里唯一能把「一份像样的中文文档」交出去的工具，而且零新依赖。
+
+    不写进说明，模型不会去试一个它不知道存在的命令 —— 这份文档的全部作用就是
+    补上「你的环境里有什么」。命令还必须是**单条**，复合命令在这个终端里拿不到
+    输出（见文档开头那条）。
+    """
+    section = _board_section(tmp_path)
+    assert "typst" in section, "没提 typst"
+    commands = [
+        line.strip()
+        for line in section.splitlines()
+        if line.strip().startswith("typst ")
+    ]
+    assert commands, "只提了名字，没给能抄的命令"
+    for command in commands:
+        assert "&&" not in command and ";" not in command and "|" not in command, (
+            f"typst 的例子是复合命令，在这个终端里拿不到输出: {command}"
+        )
+    assert any("./board/" in command for command in commands), (
+        "例子没直接渲进 ./board/，模型会渲到别处再忘了搬"
+    )

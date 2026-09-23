@@ -14,8 +14,10 @@ import { readFileSync } from "node:fs";
 
 import {
   BOARD_LAYOUT,
+  boardCardText,
   boardItemForShapeId,
   boardItemHeight,
+  boardLabelOf,
   boardShapeId,
   buildBoardShapes,
   layoutBoard,
@@ -65,6 +67,11 @@ const IMAGE = {
 const TEXT = {
   name: "a.md", kind: "markdown", contentType: "text/markdown", size: 50, modifiedMs: 100,
   text: "# 标题\n正文一行\n正文两行",
+};
+/** agent 用 typst 渲出来的 PDF，宿主已经把第 1 页画成 PNG 塞进 dataUrl 了。 */
+const PDF = {
+  name: "report.pdf", kind: "pdf", contentType: "application/pdf", size: 9000, modifiedMs: 300,
+  dataUrl: "data:image/png;base64,iVBORw0KGgo=", imageW: 1100, imageH: 1556, pageCount: 3,
 };
 
 test("列表按修改时间排，不按后端给的顺序", () => {
@@ -187,4 +194,87 @@ test("domain 层只许类型导入 tldraw", () => {
   for (const line of source.match(/^import[^;]*from "tldraw";/gm) || []) {
     assert.match(line, /^import type /, `值导入了 tldraw:\n${line}`);
   }
+});
+
+// ------------------------------------------------------------------ PDF
+
+test("PDF 是一种能显示的东西 —— 解析不掉它", () => {
+  // agent 现在能写 .typ 用 typst 渲出中文 PDF（PATH 上就有），这条不通的话
+  // 它辛苦渲出来的东西在画布上等于不存在。
+  const items = parseBoardListing({
+    items: [{ name: "report.pdf", kind: "pdf", content_type: "application/pdf", modified_ms: 1 }],
+  });
+  assert.deepEqual(items.map((i) => i.name), ["report.pdf"]);
+});
+
+test("渲好的 PDF 当图片画，资产类型是 PNG 不是 application/pdf", () => {
+  // 照抄 contentType 会往 image 资产上写 application/pdf —— 类型对不上。
+  const built = buildBoardShapes([PDF]);
+  assert.equal(built.assets.length, 1);
+  assert.equal(built.assets[0].props.mimeType, "image/png");
+  assert.equal(built.shapes.filter((s) => s.type === "image").length, 1);
+  validate(built);
+});
+
+test("PDF 按比例缩放，和图片同一套上下限", () => {
+  const { ITEM_W, IMAGE_MAX_H } = BOARD_LAYOUT;
+  assert.equal(boardItemHeight({ ...PDF, imageW: 800, imageH: 400 }), ITEM_W / 2);
+  assert.equal(boardItemHeight({ ...PDF, imageW: 100, imageH: 9000 }), IMAGE_MAX_H);
+});
+
+test("渲不出来的 PDF 退成一张说明卡片，不是空框", () => {
+  // 空框看起来像「agent 写了个空文件」，而实际是我们这边没画出来 —— 两件事
+  // 让人分得清才知道该不该让 agent 重写。
+  const broken = { name: "report.pdf", kind: "pdf", contentType: "application/pdf", size: 9000, modifiedMs: 300 };
+  assert.ok(boardCardText(broken).includes("report.pdf"));
+  assert.ok(boardCardText(broken).trim().split("\n").length >= 2, `卡片里只有一行: ${boardCardText(broken)}`);
+  const built = buildBoardShapes([broken]);
+  assert.equal(built.assets.length, 0);
+  const box = built.shapes.find((s) => s.type === "geo");
+  assert.ok(JSON.stringify(box.props.richText).includes("report.pdf"), "框里是空的");
+  assert.ok(boardItemHeight(broken) > 0);
+  validate(built);
+});
+
+test("多页 PDF 的标签说清画布上只有第 1 页", () => {
+  // 不说的话用户会以为 agent 只写了一页，而它可能写了十页。
+  assert.match(boardLabelOf(PDF), /共 3 页/);
+  assert.match(boardLabelOf(PDF), /第 1 页/);
+  // 单页的不加废话。
+  assert.equal(boardLabelOf({ ...PDF, pageCount: 1 }), "report.pdf");
+  assert.equal(boardLabelOf(IMAGE), "b.png");
+  const labels = buildBoardShapes([PDF]).shapes.filter((s) => s.type === "text");
+  assert.match(JSON.stringify(labels[0].props.richText), /共 3 页/);
+});
+
+test("PDF 渲染器不许静态 import pdfjs —— 它是运行时从 vendor 取的", () => {
+  // 改成 `import ... from "pdfjs-dist"` 会把整个 pdf.js 拽进 reader 入口包，
+  // 而且不会有任何报错，只是每次打开阅读页都慢一点。和 tldraw 那条是同一类回退。
+  const source = readFileSync(
+    new URL("../../src/features/reader/domain/board-pdf.ts", import.meta.url),
+    "utf8",
+  );
+  for (const line of source.match(/^import[^;]*from\s+"[^"]+";/gm) || []) {
+    assert.doesNotMatch(line, /"(pdfjs-dist|react-pdf)/, `静态 import 了 pdfjs:\n${line}`);
+  }
+  // 反过来也要守：确实走了 vendor 的动态 import。
+  assert.match(source, /import\(pdfjsUrl\("build\/pdf\.mjs"\)\)/);
+});
+
+test("PDF 渲染这条路不开脚本", () => {
+  // 这些 PDF 是 agent 写的，能内嵌 /OpenAction JavaScript。挡住它靠两件事：
+  // 我们只用 `getDocument` + `page.render`（脚本是 pdf.js **viewer** 的功能，
+  // 这里没有 viewer），以及关掉 pdf.js 自己为字体和图案做的 eval 优化。
+  //
+  // 只有后者能被这样守住。**必须在 getDocument 的选项块里查** —— 第一版查的是
+  // 整个文件，而模块头的注释里就写着 `isEvalSupported: false`，于是把真选项删掉
+  // 测试照样绿。这条反证当场抓出来了。
+  const source = readFileSync(
+    new URL("../../src/features/reader/domain/board-pdf.ts", import.meta.url),
+    "utf8",
+  );
+  const start = source.indexOf("getDocument({");
+  assert.ok(start > 0, "找不到 getDocument 的调用，这条门禁要跟着改");
+  const options = source.slice(start, source.indexOf("}).promise", start));
+  assert.match(options, /isEvalSupported:\s*false/, "getDocument 的选项里没关掉 eval");
 });

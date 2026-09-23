@@ -23,10 +23,13 @@ import {
 
 const read = (relative) => readFileSync(new URL(relative, import.meta.url), "utf8");
 
-test("四条提示覆盖 agent 的四类产出，各不重复", () => {
-  assert.equal(TERMINAL_SUGGESTIONS.length, 4);
+test("提示覆盖 agent 的四类产出，落点各不重复", () => {
+  // 五条不是四条：画板那类给了两条。「画张图」和「排一份文档」在用户那边是两个
+  // 不同的请求，而后者是猜不到的 —— 一个终端旁边的 AI 能交出一份带标题和表格的
+  // 中文 PDF，不写出来没人会去要。
+  assert.equal(TERMINAL_SUGGESTIONS.length, 5);
   const paths = TERMINAL_SUGGESTIONS.map((s) => s.path);
-  assert.equal(new Set(paths).size, 4, `路径重复: ${paths}`);
+  assert.equal(new Set(paths).size, 5, `路径重复: ${paths}`);
   for (const suggestion of TERMINAL_SUGGESTIONS) {
     assert.ok(suggestion.label.length > 0 && suggestion.label.length <= 8,
       `标签要短才放得下: ${suggestion.label}`);
