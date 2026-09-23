@@ -9,6 +9,11 @@ export type FxTerminalProps = {
   themeId?: string;
   className?: string;
   ariaLabel?: string;
+  /** 终端可用时回调一次，交出一个只能聚焦的把手。
+   *
+   * 给的是 `{ focus }` 而不是整个 xterm 实例：调用方（提示 chip）只需要"把键盘
+   * 还给终端"，给全了就等于把 xterm 的 API 漏进宿主，以后换实现要连着改。 */
+  onReady?: (handle: { focus(): void }) => void;
 };
 
 /** xterm 宿主。
@@ -31,9 +36,14 @@ export function FxTerminal({
   themeId = "",
   className = "",
   ariaLabel = "fx 终端",
+  onReady,
 }: FxTerminalProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<TerminalHandle | null>(null);
+  // 用 ref 转发而不是进依赖数组：onReady 每次渲染可能是新函数，放进 [session]
+  // 旁边会让 WebSocket 和 PTY 跟着反复拆建。
+  const onReadyRef = useRef(onReady);
+  onReadyRef.current = onReady;
   const [failure, setFailure] = useState("");
 
   useEffect(() => {
@@ -65,6 +75,9 @@ export function FxTerminal({
       terminal.open(host);
       applyTheme(terminal, host);
       termRef.current = terminal;
+      // 把手交出去：提示 chip 打完字要把键盘还给终端，否则焦点留在按钮上，
+      // 用户得再点一下才能回车。
+      onReadyRef.current?.({ focus: () => termRef.current?.focus() });
 
       const detach = session.open({
         write: (chunk) => terminal.write(chunk),
@@ -121,6 +134,7 @@ type TerminalHandle = {
   options: { theme?: unknown };
   loadAddon(addon: unknown): void;
   open(host: HTMLElement): void;
+  focus(): void;
   write(chunk: string): void;
   writeln(chunk: string): void;
   onData(handler: (data: string) => void): { dispose(): void };

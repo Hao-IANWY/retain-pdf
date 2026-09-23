@@ -44,6 +44,60 @@
     display: none;
   }
 
+  /* 终端上方的「你可以让它做什么」。
+   *
+   * 和终端同在 data-theme="night" 作用域里，所以这里的 --ink / --line 是深色
+   * 那一套 —— 别改成写死的颜色，换肤时 night.css 那组值是设计过的。
+   *
+   * flex-wrap 是必须的：dock 可以拖到 30vw，四个 chip 一行放不下时要换行，
+   * 不能横向溢出把终端挤窄。 */
+  .reader-terminal-suggestions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    padding: 0 2px 8px;
+    flex: 0 0 auto;
+  }
+
+  .reader-terminal-suggestions-lead {
+    font-size: 11.5px;
+    opacity: 0.55;
+    margin-right: 2px;
+  }
+
+  .reader-terminal-suggestion {
+    font-size: 11.5px;
+    line-height: 1.5;
+    padding: 3px 9px;
+    border-radius: 999px;
+    cursor: pointer;
+    color: var(--ink);
+    background: color-mix(in srgb, var(--ink) 9%, transparent);
+    border: 1px solid color-mix(in srgb, var(--ink) 14%, transparent);
+  }
+
+  .reader-terminal-suggestion:hover {
+    background: color-mix(in srgb, var(--accent) 24%, transparent);
+    border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+
+  .reader-terminal-suggestions-close {
+    margin-left: auto;
+    border: 0;
+    background: transparent;
+    color: var(--ink);
+    opacity: 0.4;
+    cursor: pointer;
+    font-size: 15px;
+    line-height: 1;
+    padding: 0 4px;
+  }
+
+  .reader-terminal-suggestions-close:hover {
+    opacity: 0.85;
+  }
+
   /* xterm 自己算尺寸，容器必须给出确定的高度，否则 fit() 会算成 1 行。 */
   .reader-terminal-surface {
     flex: 1 1 auto;

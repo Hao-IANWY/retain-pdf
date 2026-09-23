@@ -11,5 +11,12 @@ export type {
   TerminalSink,
   TerminalSize,
 } from "./domain/terminal-session.js";
+export {
+  TERMINAL_SUGGESTIONS,
+  TERMINAL_SUGGESTIONS_DISMISSED_KEY,
+  readSuggestionsDismissed,
+  writeSuggestionsDismissed,
+} from "./domain/terminal-suggestions.js";
+export type { TerminalSuggestion } from "./domain/terminal-suggestions.js";
 export { readTerminalTheme, cssVariableReader } from "./domain/terminal-theme.js";
 export type { TerminalTheme, ReadCssVariable } from "./domain/terminal-theme.js";
