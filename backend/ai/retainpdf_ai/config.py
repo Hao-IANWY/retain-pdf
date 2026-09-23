@@ -103,6 +103,18 @@ def _env_denied_commands(name: str) -> tuple[str, ...] | None:
     return tuple(item.strip() for item in raw.split(",") if item.strip())
 
 
+def _env_flag_default_on(name: str) -> bool:
+    """默认开的布尔环境变量。
+
+    和 `_env_flag` 相反：那个控制的是「模型能不能跑任意命令」，误读成开代价很大；
+    这个控制的是「要不要接上上次对话」，误读成关只是丢一次上下文。
+    """
+    raw = os.environ.get(name, "").strip().lower()
+    if not raw:
+        return True
+    return raw not in {"0", "false", "no", "off"}
+
+
 def _env_flag(name: str) -> bool:
     """布尔环境变量。只有明确写了真值才算开 —— 空值、拼错、"off" 一律是关。
 
@@ -225,6 +237,14 @@ class Settings:
     # 这是防手滑的减速带，不是安全边界 —— 见 fx_workspace.DEFAULT_DENIED_COMMANDS
     # 里写的原因。
     fx_denied_commands: tuple[str, ...] | None = None
+    # 打开终端时接上这本书上一次的对话。
+    #
+    # 默认**开**：在这之前每次 WebSocket 断开都会杀掉 fx（fx_terminal_routes 的
+    # `finally: pty_session.close()`），刷一下页面整段对话就没了。而 fx 自己一直
+    # 在存会话，只是从来没人 resume。
+    #
+    # 关掉它（`RETAIN_AI_FX_RESUME_SESSION=0`）就是每次干净启动。
+    fx_resume_session: bool = True
     # 任务产物根目录(data/jobs/<job_id>/...)
     data_root: Path = field(default_factory=lambda: _repo_root() / "data")
 
@@ -407,6 +427,7 @@ def load_settings() -> Settings:
         fx_upstream_extra=_env_json_object("RETAIN_AI_FX_UPSTREAM_EXTRA"),
         fx_reasoning_efforts=_env_csv("RETAIN_AI_FX_REASONING_EFFORTS"),
         fx_denied_commands=_env_denied_commands("RETAIN_AI_FX_DENIED_COMMANDS"),
+        fx_resume_session=_env_flag_default_on("RETAIN_AI_FX_RESUME_SESSION"),
         data_root=Path(data_root) if data_root else _repo_root() / "data",
     )
     stored = load_runtime_credentials(settings.data_root)

@@ -45,6 +45,16 @@ def test_processes_are_detached(source: str) -> None:
     assert "disown" in source
 
 
+def test_background_jobs_get_their_own_process_group(source: str) -> None:
+    """`nohup` 只挡 SIGHUP，挡不住给整个进程组发的 SIGTERM。
+
+    实测：只有 nohup + disown 时，调用方收尾会把后台栈一起带走 ——
+    日志里是 "received signal 15"，而表面现象是「刚说起来了，下一秒就没了」。
+    `set -m` 让后台任务进自己的进程组。
+    """
+    assert "set -m" in source, "没开 job control，后台进程会跟着调用方一起死"
+
+
 def test_up_stops_first(source: str) -> None:
     """端口被占着起不来，而「起不来」的报错常常指向别处。
 

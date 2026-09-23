@@ -38,8 +38,11 @@ def _client(
     monkeypatch.setattr(
         fx_terminal_routes,
         "build_terminal_launch",
-        lambda settings, *, session_key: TerminalLaunch(
-            argv=("/bin/cat",),
+        # 签名要和真的一样（含 busy_session_ids）—— 替身漂了的表现是路由抛
+        # TypeError，被 except 吞成 1011，测试报 WebSocketDisconnect，
+        # 完全看不出真正原因。
+        lambda settings, *, session_key, argv=None, busy_session_ids=(): TerminalLaunch(
+            argv=argv or ("/bin/cat",),
             cwd=Path("/tmp"),
             env={"PATH": "/usr/bin:/bin", "TERM": "xterm-256color"},
         ),

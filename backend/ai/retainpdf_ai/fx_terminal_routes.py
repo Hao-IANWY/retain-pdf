@@ -28,7 +28,16 @@ from typing import Any
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
 from .config import Settings
-from .fx_terminal import PtySession, build_terminal_launch
+from .fx_terminal import PtySession, build_terminal_launch, resumed_session_id
+
+#: 正被活着的 PTY 占用的 fx 会话 id。
+#:
+#: 进程级的集合，因为它描述的就是**本进程**有哪些活着的子进程 —— 换个更"干净"的
+#: 注入式设计只会让这个事实绕一圈，而它本来就不是可配置的东西。
+#:
+#: 只用来挡「两个活进程抢同一个会话」。刷新页面不受影响：旧 PTY close 时会从这里
+#: 移掉。
+_live_sessions: set[str] = set()
 
 # WS 关闭码。1008 = policy violation，用于鉴权失败；1011 = internal error。
 _CLOSE_UNAUTHORIZED = 1008
@@ -84,7 +93,9 @@ def register_fx_terminal_routes(
         cols, rows = _requested_size(websocket.query_params)
         launch = None
         try:
-            launch = build_terminal_launch(settings, session_key=session_key)
+            launch = build_terminal_launch(
+                settings, session_key=session_key, busy_session_ids=_live_sessions
+            )
             pty_session = PtySession(launch)
             pty_session.open(cols=cols, rows=rows)
         except Exception as exc:  # noqa: BLE001 - 起不来要告诉前端原因
@@ -98,6 +109,17 @@ def register_fx_terminal_routes(
             await websocket.close(code=_CLOSE_INTERNAL)
             return
 
+        # 登记「这个 fx 会话正被一个活着的进程占着」。
+        #
+        # 只挡真有两个活进程的情况（比如两个标签页开同一本书）—— 那时第二个
+        # fx 会直接报 `another fx process may be using this session` 然后退出，
+        # 终端只剩一行错误（实测过）。
+        #
+        # 刷新页面**不**走这里：旧 PTY 已经 close，从集合里移掉了；fx 的锁文件
+        # 虽然残留，但它按 PID 判活会放行（也实测过）。
+        resumed = resumed_session_id(launch)
+        if resumed:
+            _live_sessions.add(resumed)
         await websocket.send_json({"type": "ready", "pid": pty_session.pid})
         pump = asyncio.create_task(_pump_output(websocket, pty_session))
         try:
@@ -105,6 +127,8 @@ def register_fx_terminal_routes(
         except WebSocketDisconnect:
             pass
         finally:
+            if resumed:
+                _live_sessions.discard(resumed)
             pty_session.close()
             pump.cancel()
             with contextlib.suppress(asyncio.CancelledError):

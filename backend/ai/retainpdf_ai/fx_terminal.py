@@ -19,14 +19,16 @@ from __future__ import annotations
 import codecs
 import errno
 import fcntl
+import json
 import os
 import pty
 import select
 import signal
 import struct
+import subprocess
 import termios
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Container, Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -134,8 +136,89 @@ def _terminal_inference_endpoint(settings: Settings) -> tuple[str, str]:
     return "", ""
 
 
+#: 问 fx 要会话清单的超时。这一步只决定「要不要恢复上次对话」，
+#: 卡住的话宁可不恢复也不能让终端打不开。
+_SESSIONS_TIMEOUT_S = 5.0
+
+
+def pick_resumable_session(
+    sessions: Iterable[Mapping[str, object]],
+    *,
+    workspace: Path,
+    busy_ids: Container[str] = (),
+) -> str | None:
+    """挑一个值得恢复的 fx 会话。纯函数，副作用在调用方。
+
+    三条筛选，每条都是实测出来的：
+
+    1. **`history_len > 0`** —— fx 每次启动都会建一个会话并保存，哪怕你一个字
+       没打。实测本机 10 个会话里 6 个是空的，而最新的那个恰好是空的。所以
+       `fx session resume last` 会恢复一个空会话，等于没恢复。
+    2. **工作区匹配** —— fx 自己按 cwd 隔离，但多一道确认不亏：串到别的书的
+       会话上是最难查的那种错（内容对不上，而两边看起来都正常）。
+    3. **不在 `busy_ids` 里** —— 同一个会话被两个活着的 fx 打开时，第二个会
+       直接报 `another fx process may be using this session` 然后退出，终端只剩
+       一行错误。这是实测过的（两个标签页开同一本书）。
+
+    刷新页面那个场景**不需要**第 3 条：旧 PTY 被 close 掉之后锁虽然残留，
+    fx 会按 PID 判活并放行（也实测过）。busy_ids 挡的是真有两个活进程的情况。
+    """
+    best: tuple[int, str] | None = None
+    for item in sessions:
+        session_id = str(item.get("id") or "").strip()
+        if not session_id or session_id in busy_ids:
+            continue
+        try:
+            if int(item.get("history_len") or 0) <= 0:
+                continue
+            updated = int(item.get("updated_at_ms") or 0)
+        except (TypeError, ValueError):
+            continue
+        root = str(item.get("workspace_root") or "")
+        if root and root != str(workspace):
+            continue
+        if best is None or updated > best[0]:
+            best = (updated, session_id)
+    return None if best is None else best[1]
+
+
+def list_fx_sessions(executable: str, cwd: Path, env: Mapping[str, str]) -> list[dict]:
+    """问 fx 要这个工作区的会话清单。
+
+    **任何失败都返回空列表**，不抛。这条路径只决定「要不要恢复上次对话」——
+    fx 没装、换了输出格式、超时，都不该让终端打不开。
+    """
+    try:
+        result = subprocess.run(
+            [executable, "sessions", "--json"],
+            cwd=str(cwd),
+            env=dict(env),
+            capture_output=True,
+            text=True,
+            # 必须掐断 stdin：不关的话子进程继承本进程的 stdin，任何会等输入的
+            # 程序都会把它挂到超时为止 —— 而这一步挡在终端启动前面。
+            # （测试里拿 /bin/cat 当假 fx 时当场炸出来的。）
+            stdin=subprocess.DEVNULL,
+            timeout=_SESSIONS_TIMEOUT_S,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return []
+    if result.returncode != 0:
+        return []
+    try:
+        payload = json.loads(result.stdout)
+    except ValueError:
+        return []
+    sessions = payload.get("sessions") if isinstance(payload, dict) else None
+    return [item for item in sessions if isinstance(item, dict)] if isinstance(sessions, list) else []
+
+
 def build_terminal_launch(
-    settings: Settings, *, session_key: str, argv: tuple[str, ...] | None = None
+    settings: Settings,
+    *,
+    session_key: str,
+    argv: tuple[str, ...] | None = None,
+    busy_session_ids: Container[str] = (),
 ) -> TerminalLaunch:
     """组装启动参数。
 
@@ -208,12 +291,51 @@ def build_terminal_launch(
         # 否则模型请求走公网 Gateway 而目录请求走自定义地址。
         env["FX_GATEWAY_BASE_URL"] = base_url
         env["FX_GATEWAY_CHAT_URL"] = fx_gateway_chat_url(base_url)
+    resolved_argv = argv or _terminal_argv(
+        settings,
+        executable=str(executable),
+        workspace=workspace,
+        env=env,
+        busy_session_ids=busy_session_ids,
+    )
     return TerminalLaunch(
-        argv=argv or (str(executable),),
+        argv=resolved_argv,
         cwd=workspace,
         env=env,
         cleanup=cleanup,
     )
+
+
+def _terminal_argv(
+    settings: Settings,
+    *,
+    executable: str,
+    workspace: Path,
+    env: Mapping[str, str],
+    busy_session_ids: Container[str],
+) -> tuple[str, ...]:
+    """裸起 fx，还是接上上一次的对话。
+
+    接不上就裸起 —— 这条路径上**没有一种失败值得让终端打不开**。
+    """
+    if not settings.fx_resume_session:
+        return (executable,)
+    session_id = pick_resumable_session(
+        list_fx_sessions(executable, workspace, env),
+        workspace=workspace,
+        busy_ids=busy_session_ids,
+    )
+    if not session_id:
+        return (executable,)
+    return (executable, "session", "resume", session_id)
+
+
+def resumed_session_id(launch: TerminalLaunch) -> str | None:
+    """这次启动接的是哪个会话（没接返回 None）。路由据此登记「正在用」。"""
+    argv = launch.argv
+    if len(argv) == 4 and argv[1:3] == ("session", "resume"):
+        return argv[3]
+    return None
 
 
 class PtySession:

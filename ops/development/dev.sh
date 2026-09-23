@@ -17,6 +17,10 @@
 #
 # API key **不写进这个脚本**，运行时从 runtime-config.local.js（gitignored）读。
 set -uo pipefail
+# 开 job control：后台任务会进**自己的进程组**。
+# nohup 只挡 SIGHUP，挡不住给整个进程组发的 SIGTERM —— 实测被调用方收尾时
+# 一起带走了（日志里是 "received signal 15"）。
+set -m
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 RUN_DIR="${TMPDIR:-/tmp}/retainpdf-dev"
