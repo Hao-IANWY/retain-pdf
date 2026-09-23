@@ -42,6 +42,7 @@ import {
   READER_CANVAS_STYLESHEET,
   ensureLazyStylesheet,
 } from "../domain/lazy-stylesheet.js";
+import { AGENT_ARTIFACT_POLL_MS } from "../domain/agent-artifacts.js";
 import { type BoardItem, type BoardListing, buildBoardShapes } from "../domain/board.js";
 import {
   fetchArtifact,
@@ -50,9 +51,7 @@ import {
   loadImage,
 } from "../domain/canvas-fetch.js";
 
-/** agent 写完到画面更新之间的延迟上限。再短意义不大（模型写一次要几十秒），
- * 再长会让人以为没生效。 */
-const POLL_MS = 4000;
+
 
 /** 概念图那一列占多宽。画板从这里往右开始，两边不重叠。 */
 const LEFT_COLUMN_W = 760;
@@ -101,7 +100,7 @@ function ReadingCanvasPanel({ open, jobId, onJump }: ReaderReadingPathSlotProps)
       }
     };
     void tick();
-    const timer = setInterval(() => void tick(), POLL_MS);
+    const timer = setInterval(() => void tick(), AGENT_ARTIFACT_POLL_MS);
     return () => {
       cancelled = true;
       clearInterval(timer);

@@ -19,13 +19,19 @@ test("没生成过是正常状态，不能当失败渲染", () => {
   // 这个文件是 agent 写的，绝大多数书根本没有。404 渲染成「读取失败」会让
   // 用户以为坏了 —— 实际上只是还没让 fx 生成。
   assert.match(HOST, /response\.status === 404/);
-  assert.match(HOST, /kind: "empty"/);
+  // 空数组和 null 是两种状态:确认过「没有」才给提示,还没拿到结果时显示加载中。
+  assert.match(HOST, /setSteps\(\[\]\)/);
   assert.match(HOST, /还没有阅读路径/);
 });
 
 test("畸形的步骤丢掉，不让整个面板白屏", () => {
   // 文件是 agent 生成的，形状不保证。一步坏掉就整页崩，比少显示一步糟得多。
-  assert.match(HOST, /typeof step\.block_id === "string"/);
+  //
+  // 解析搬到 domain/reading-path-doc.ts 了(面板要轮询,解析不该跟 hook 混在
+  // 一起),这里只守「面板仍然走那个解析器」—— 行为本身由那边的单测钉住。
+  assert.match(HOST, /parseReadingPathSteps/);
+  const DOC = read("../../src/features/reader/domain/reading-path-doc.ts");
+  assert.match(DOC, /typeof \(step as ReadingPathStep\)\.block_id === "string"/);
 });
 
 test("跳转交给包，宿主不自己实现", () => {
