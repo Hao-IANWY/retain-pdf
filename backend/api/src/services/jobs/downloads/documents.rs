@@ -53,8 +53,16 @@ impl DocumentDownloadKind {
     ///
     /// 只有这几个需要在重译后做工作区接力 —— 流水线产物每个 job 各跑各的，
     /// 天然就该是新的。
+    ///
+    /// **故意穷举而不用 `matches!`。** 用 `matches!` 的话，新加的产物会默默
+    /// 落到「不是 agent 产物」那一边，于是它不做接力：重译一本书就丢，而且
+    /// 和这个 bug 修好之前一样，界面上毫无迹象。穷举让新变体在这里编译不过，
+    /// 逼着做一次决定。
     fn is_agent_artifact(self) -> bool {
-        matches!(self, Self::AiReadingPath | Self::AiCanvas | Self::AiNotes)
+        match self {
+            Self::AiReadingPath | Self::AiCanvas | Self::AiNotes => true,
+            Self::OutputPdf | Self::NormalizedDocument | Self::NormalizationReport => false,
+        }
     }
 
     fn resolve_path(
@@ -93,4 +101,48 @@ pub(super) fn document_download(
         path
     };
     Ok(FileDownload::new(path, content_type, None))
+}
+
+#[cfg(test)]
+mod schema_backed_artifact_gate {
+    /// 加第四种带 schema 的 agent 产物之前，先读这段。
+    ///
+    /// 这条门禁不检查行为，它**拦一个决定**：仓库里跨 ≥3 层的提交只占 3.1%，
+    /// 而那一小撮里几乎全是「给 agent 加一种产物」。每加一种要走完 Python 写
+    /// AGENTS.md → Rust 加 resolver、端点、接力 → TS 加渲染器 → CSS 加样式，
+    /// 实测约 20 个文件、4 种语言。
+    ///
+    /// `board/` 就是为了掐断这条链：后缀白名单覆盖图片 / markdown / json /
+    /// 文本，agent 用 shell 画好丢进去就显示，**新增一种可视化零行代码**。
+    #[test]
+    fn schema_backed_agent_artifacts_stay_at_three() {
+        let source = include_str!("documents.rs");
+        let body = source
+            .split_once("pub(crate) enum DocumentDownloadKind {")
+            .expect("没找到枚举定义 —— 这条门禁靠读源码工作，改了枚举名要同步改这里")
+            .1
+            .split_once("\n}")
+            .expect("没找到枚举结尾")
+            .0;
+        let variants: Vec<&str> = body
+            .lines()
+            .map(str::trim)
+            .filter(|line| line.starts_with("Ai") && line.ends_with(','))
+            .map(|line| line.trim_end_matches(','))
+            .collect();
+
+        assert_eq!(
+            variants,
+            ["AiReadingPath", "AiCanvas", "AiNotes"],
+            "\n\n\
+             要加第四种带 schema 的 agent 产物了 —— 先确认 board/ 真的不够。\n\n\
+             现有这三种留着，是因为它们各有 board/ 做不到的锚定语义：\n\
+             notes 挂 block_id 定位到页面、reading-path 点一步跳到论文的真实\n\
+             位置、canvas 的节点带连线。**如果你要加的东西只是「把一组数据画\n\
+             出来给人看」，它属于 board/** —— agent 写个 python3 画成 PNG 丢\n\
+             进去就显示，这边一行代码都不用改。\n\n\
+             确实需要锚定语义，就改这里的期望值，并在提交信息里写清楚 board/\n\
+             为什么不够。这条门禁拦的是「没想过就照着抄一遍」。\n"
+        );
+    }
 }
