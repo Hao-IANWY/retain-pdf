@@ -135,67 +135,36 @@ def build_job_workspace_instructions(job_dir: Path) -> str:
 
 **只有当前目录。** 笔记、脚本、中间产物都放这里。
 
-## 界面会读这两个文件（写了就能在阅读页里看到）
+## 想给用户看什么，丢进 `./board/`
 
-### `./canvas.v1.json` — 概念图，显示在「画布」标签页
+**这是最省事的一条：你手里已经有 shell 了。** 画个图、截个页、导个表，产物放进
+`./board/`，几秒后就出现在用户的画布上。不需要学任何格式。
 
-**只写语义，不要写坐标、颜色、图形。** 位置由边的关系算出来（没有入边的排最左，
-其余在所有上游的右边一列），画出来是什么样不用你操心。
+    python3 -c "import matplotlib;..." 存成 ./board/issues.png
+    pdftoppm -f 4 -l 4 -r 150 -png ../source/*.pdf ./board/page4
+    jq '...' ../artifacts/translation_review.json > ./board/issues.json
+    写一段说明到 ./board/summary.md
 
-### 三条硬要求，比字段更重要
+    认这些后缀   png jpg jpeg webp gif · md · json · txt csv
+    不认         svg（能带脚本，暂不收）、html、其它一律不显示
+    文件名       只能是字母数字和 . _ -，不能有空格、中文、斜杠、开头的点
+    大小         单个 16 MB 以内
 
-**1. 少。整张图最多 8 个节点。** 这是画布，不是文档 —— 它的全部价值是一眼看完。
-超过十来个框人就不看了，还不如去读原文。讲不完就先讲主干，别铺开。
+**文件名就是画布上的标签**，所以起个说得清的名字：`fig-3-residual-by-page.png`
+比 `out.png` 有用得多。按修改时间从上往下排，新的接在后面。
 
-**2. 短。每个节点一句话，≤ 20 字。** 超过 60 字会被截断成省略号。展开解释放在你
-的回话里，不要塞进节点。
+长文本会被截断显示（画布是用来扫一眼的），图片按比例缩放并收在合理高度内。
 
-**3. 能放图就放图。** 一张图顶一段话，这是唯一真正减少阅读量的办法。论文的图本来
-就在 `../md/images/` 下，直接引用，不要用文字去描述一张图长什么样。
+## 另外三个有固定格式的产物
 
-    {{"schema": "retainpdf_reading_canvas_v1",
-     "nodes": [
-       {{"id": "n1", "kind": "concept", "text": "一句话说清这个点",
-        "anchor": {{"page_idx": 1, "block_id": "取自 document.v1.json"}}}},
-       {{"id": "n2", "kind": "result", "text": "图 1：整体流程",
-        "image": "e7b7b384....jpg",
-        "anchor": {{"page_idx": 2, "block_id": "p003-b0003"}}}}
-     ],
-     "edges": [{{"from": "n1", "to": "n2", "label": "因此"}}]}}
-
-    id      任意字符串，边靠它引用；重复的会被丢掉
-    text    必填，≤ 20 字。有 image 时它变成图下面那行说明
-    image   `../md/images/` 下的**文件名**（不带路径，带了会被丢掉）。
-            有它就画成真图片；图取不到就退回文字框
-    kind    concept / note / question / warning / result，决定颜色；别的值算灰色
-    anchor  可选。**有 anchor 的节点点一下会跳到 PDF 那个位置**，没有的画成虚线
-    edges   from/to 指向不存在的节点会被丢掉；自环也会。label 也要短
-
-`block_id` 必须是 `../ocr/normalized/document.v1.json` 里真实存在的：
-
-    jq -r '.pages[1].blocks[] | "\\(.block_id) \\(.type)"' ../ocr/normalized/document.v1.json
-
-图和它的 `block_id` 一条命令列全（`asset_key` 就是填进 `image` 的文件名）：
-
-    jq -r '.pages[].blocks[] | select(.type=="image") | "\\(.block_id) \\(.metadata.asset_key)"' ../ocr/normalized/document.v1.json
-
-图配的说明文字在同页 `sub_type` 为 `image_caption` / `chart_caption` 的块里。
+这三个不是"显示一张图"，而是要和 PDF 联动（点了能跳到对应内容），所以有 schema。
 
 ### `./notes.v1.json` — 页面批注，直接标在 PDF 上
 
-页面上只画一个小记号，正文点开才看 —— 所以标多了不会糊住页面，但**你标的每一条
-都得值得点开**。
-
-**最重要的一条：不要写总结。** 原文就在旁边三厘米处，「这段讲了 X」对读者零价值。
-有价值的只有原文**没说**的东西，就三类：
-
-    跨页连接    「这个符号第 12 页才定义」「这个假设第 4 节被推翻」
-    隐含前提    「这里默认了数据 i.i.d.，但实验部分不满足」
-    术语首现    「React-OT 在这里第一次出现」
-
-注意这三类有个共同点：**它们都指向别的地方**。所以每条批注都应该带 `refs`——
-你凭什么这么说。给不出 refs 的批注，多半就是你在复述原文，那就别写。
-refs 会显示成可点的跳转按钮，读者点一下就去看依据。
+页面上只画一个小记号，正文点开才看。**不要写总结** —— 原文就在旁边三厘米处。
+有价值的只有原文没说的东西，就三类：跨页连接、隐含前提、术语首现。注意这三类
+都**指向别的地方**，所以每条都该带 `refs`（你凭什么这么说）。给不出 refs 的，
+多半是你在复述原文，那就别写。refs 会显示成可点的跳转按钮。
 
     {{"schema": "retainpdf_ai_notes_v1",
      "notes": [
@@ -205,25 +174,47 @@ refs 会显示成可点的跳转按钮，读者点一下就去看依据。
         "refs": [{{"page_idx": 7, "block_id": "p008-b0003", "label": "第 4 节实验设置"}}]}}
      ]}}
 
-    anchor  **必填**，标在哪个块上。block_id 必须真实存在，锚不到的批注直接不画
+    anchor  **必填**。block_id 必须真实存在，锚不到的批注直接不画
             （不会按页码兜底 —— 贴错地方比不贴更糟）
-    text    必填，一句话。这是点开才看的，可以比画布长，但别写成段落
+    text    必填，一句话。超过 60 字会被截断
     kind    question / warning / link / term / note，决定颜色
-    level   1 必看 / 2 有用 / 3 细节。**漏写按 3 算**，别指望默认值帮你占位
-    refs    你的依据，指向别的 block。没有的话记号会画成空心
+    level   1 必看 / 2 有用 / 3 细节。**漏写按 3 算**
+    refs    你的依据。没有的话记号画成空心
 
-**整篇 level=1 最多 5 条。** 配额卡在最高级上 —— 什么都标成必看，等于没有分级。
+**整篇 level=1 最多 5 条。** 配额卡在最高级 —— 什么都标成必看等于没有分级。
 
-`block_id` 从 `../ocr/normalized/document.v1.json` 取，和画布同一套：
+### `./canvas.v1.json` — 概念图，画在画布左边
+
+**只写语义，不写坐标颜色。** 位置由边的关系算出来。**最多 8 个节点，每个 ≤ 20 字**
+（超过 60 字会被截断成省略号）—— 这是画布不是文档，超过十来个框人就不看了。
+能放图就放图（`image` 填 `../md/images/` 下的文件名）。
+
+    {{"schema": "retainpdf_reading_canvas_v1",
+     "nodes": [{{"id": "n1", "kind": "concept", "text": "一句话",
+                "anchor": {{"page_idx": 1, "block_id": "p002-b0007"}},
+                "image": "e7b7b384....jpg"}}],
+     "edges": [{{"from": "n1", "to": "n2", "label": "因此"}}]}}
+
+    kind    concept / note / question / warning / result，决定颜色
+    anchor  可选。有 anchor 的节点点一下跳到 PDF，没有的画虚线
+    image   `../md/images/` 下的**文件名**（带路径会被丢掉）
+
+### `./reading-path.v1.json` — 阅读顺序
+
+    {{"steps": [{{"order": 1, "page_idx": 0, "block_id": "p001-b0004",
+                "why": "为什么先读这里"}}]}}
+
+### 这三个都要真实的 `block_id`
+
+从 `../ocr/normalized/document.v1.json` 取，锚不到的一律不显示：
 
     jq -r '.pages[3].blocks[] | "\\(.block_id) \\(.type) \\(.text[0:40])"' ../ocr/normalized/document.v1.json
 
-### `./reading-path.v1.json` — 阅读顺序，显示在「阅读路径」标签页
+图和它的 `block_id`（`asset_key` 就是填进 `image` 的文件名）：
 
-    {{"steps": [{{"order": 1, "page_idx": 0, "block_id": "b-abstract",
-                "why": "为什么先读这里"}}]}}
+    jq -r '.pages[].blocks[] | select(.type=="image") | "\\(.block_id) \\(.metadata.asset_key)"' ../ocr/normalized/document.v1.json
 
-两个都有时界面显示画布。写坏了界面会直接说「读不懂」，不会悄悄显示旧的。
+写坏了界面会直接说读不懂，不会悄悄显示旧的。
 
 ## `../` 只读 —— 不要修改或删除
 

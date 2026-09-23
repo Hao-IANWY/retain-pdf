@@ -115,6 +115,14 @@ pub(super) fn routes() -> Router<AppState> {
             get(jobs::download_ai_notes),
         )
         .route(
+            "/api/v1/jobs/:job_id/board",
+            get(jobs::list_ai_board),
+        )
+        .route(
+            "/api/v1/jobs/:job_id/board/:name",
+            get(jobs::download_ai_board_file),
+        )
+        .route(
             "/api/v1/jobs/:job_id/normalization-report",
             get(jobs::download_normalization_report),
         )

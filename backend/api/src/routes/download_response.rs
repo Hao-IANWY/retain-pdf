@@ -3,6 +3,7 @@ mod markdown;
 mod previews;
 
 pub use files::{
+    ai_board_file_response,
     bundle_response, cover_response, download_document_response, markdown_image_response,
     layout_docx_response, registered_artifact_response, side_by_side_pdf_response,
     thumbnail_response,

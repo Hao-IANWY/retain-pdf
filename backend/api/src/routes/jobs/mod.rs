@@ -9,7 +9,7 @@ pub use control::{cancel_job, cancel_ocr_job};
 pub use create::{create_job, create_ocr_job, translate_bundle};
 pub use download::{
     download_artifact_by_key, download_bundle, download_cover, download_markdown,
-    download_ai_canvas, download_ai_notes, download_ai_reading_path, download_markdown_image, download_normalization_report, download_normalized_document,
+    download_ai_board_file, download_ai_canvas, download_ai_notes, download_ai_reading_path, download_markdown_image, list_ai_board, download_normalization_report, download_normalized_document,
     download_ocr_artifact_by_key, download_ocr_normalization_report,
     download_ocr_normalized_document, download_page_preview, download_pdf,
     download_layout_docx, download_side_by_side_pdf, download_thumbnail, get_markdown_document,

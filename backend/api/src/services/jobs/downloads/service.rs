@@ -8,6 +8,7 @@ use crate::services::jobs::downloads::{
 };
 use crate::services::derived_artifacts::word::LayoutDocxOptions;
 
+use super::ai_board::{ai_board_file_download, ai_board_listing, AiBoardListing};
 use super::previews::PagePreviewSpec;
 use super::JobDownloads;
 
@@ -72,6 +73,18 @@ impl<'a> JobDownloads<'a> {
         path: &str,
     ) -> Result<FileDownload, AppError> {
         markdown_image_download(&self.deps, job_id, path)
+    }
+
+    pub fn ai_board_listing(&self, job_id: &str) -> Result<AiBoardListing, AppError> {
+        ai_board_listing(&self.deps, job_id)
+    }
+
+    pub fn ai_board_file_download(
+        &self,
+        job_id: &str,
+        name: &str,
+    ) -> Result<FileDownload, AppError> {
+        ai_board_file_download(&self.deps, job_id, name)
     }
 
     pub async fn cover_download(&self, job_id: &str) -> Result<FileDownload, AppError> {

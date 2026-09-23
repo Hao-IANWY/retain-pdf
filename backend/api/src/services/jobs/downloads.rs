@@ -12,6 +12,7 @@ use self::deps::DownloadJobsDeps;
 mod artifact_deps;
 mod artifacts;
 mod deps;
+mod ai_board;
 mod documents;
 mod markdown;
 mod paths;
@@ -26,6 +27,7 @@ mod tests;
 
 use artifacts::{bundle_download, registered_artifact_download};
 use documents::document_download;
+pub(crate) use ai_board::AiBoardListing;
 pub(crate) use documents::DocumentDownloadKind;
 use markdown::{
     markdown_document_view, markdown_download, markdown_image_download, markdown_raw_download,

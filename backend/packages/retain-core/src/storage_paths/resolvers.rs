@@ -3,7 +3,8 @@ use std::path::{Path, PathBuf};
 use crate::models::domain::{JobArtifactRecord, JobSnapshot};
 
 use super::constants::{
-    AI_CANVAS_FILE_NAME, AI_NOTES_FILE_NAME, AI_READING_PATH_FILE_NAME, OUTPUT_AI_DIR_NAME,
+    AI_BOARD_DIR_NAME, AI_CANVAS_FILE_NAME, AI_NOTES_FILE_NAME, AI_READING_PATH_FILE_NAME,
+    OUTPUT_AI_DIR_NAME,
     OUTPUT_ARTIFACTS_DIR_NAME, OUTPUT_LOGS_DIR_NAME, OUTPUT_MARKDOWN_DIR_NAME,
     OUTPUT_RENDERED_DIR_NAME, OUTPUT_TRANSLATED_DIR_NAME, OUTPUT_TYPST_BOOK_OVERLAYS_DIR_NAME,
     OUTPUT_TYPST_DIR_NAME, TRANSLATION_MANIFEST_FILE_NAME, TRANSLATION_REQUEST_JOURNAL_FILE_NAME,
@@ -91,6 +92,21 @@ pub fn resolve_ai_canvas(job: &JobSnapshot, data_root: &Path) -> Option<PathBuf>
 /// `<job>/ai/notes.v1.json` —— agent 标在 PDF 页面上的批注。
 pub fn resolve_ai_notes(job: &JobSnapshot, data_root: &Path) -> Option<PathBuf> {
     resolve_ai_artifact(job, data_root, AI_NOTES_FILE_NAME)
+}
+
+/// `<job>/ai/board/` —— agent 的画板目录。
+///
+/// 返回的是**目录**，不是文件。里面具体读哪个文件由调用方决定，所以文件名的
+/// 校验必须在调用方做 —— 见 api 侧 `services/jobs/downloads/ai_board.rs`，
+/// 那里挡了路径穿越、符号链接和类型。
+pub fn resolve_ai_board_dir(job: &JobSnapshot, data_root: &Path) -> Option<PathBuf> {
+    let job_root = job.artifacts.as_ref()?.job_root.as_ref()?;
+    Some(
+        resolve_data_path(data_root, job_root)
+            .ok()?
+            .join(OUTPUT_AI_DIR_NAME)
+            .join(AI_BOARD_DIR_NAME),
+    )
 }
 
 pub fn resolve_typst_source(job: &JobSnapshot, data_root: &Path) -> Option<PathBuf> {

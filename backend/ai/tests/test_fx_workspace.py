@@ -483,3 +483,75 @@ def test_the_notes_docs_say_unanchored_notes_are_dropped(tmp_path: Path) -> None
     notes_section = text[text.index("notes.v1.json") :]
     assert "锚不到" in notes_section
     assert "必须真实存在" in notes_section
+
+
+# ---------------------------------------------------------------- 画板目录
+
+
+def _board_section(tmp_path: Path) -> str:
+    text = build_job_workspace_instructions(_job(tmp_path, "job-1"))
+    start = text.index("丢进 `./board/`")
+    end = text.index("## 另外三个有固定格式的产物")
+    return text[start:end]
+
+
+def test_the_board_is_pitched_as_use_the_shell_you_already_have(
+    tmp_path: Path,
+) -> None:
+    """画板的全部价值是「不用学新格式」。
+
+    不把这点说透，模型会继续去找 schema —— 它被前三个产物训练成那样了。
+    """
+    section = _board_section(tmp_path)
+    assert "已经有 shell" in section, "没说清楚用现有工具就行"
+    # 给可抄的例子，而不是只描述。模型照着抄比照着想靠谱。
+    for tool in ("python3", "jq", "pdftoppm"):
+        assert tool in section, f"没举 {tool} 的例子"
+
+
+def test_the_board_docs_state_the_accepted_shapes(tmp_path: Path) -> None:
+    """后缀、文件名字符集、大小 —— 不写清楚的表现是「我放进去了却没显示」，
+    而那时候模型没有任何线索能自己查出来。"""
+    section = _board_section(tmp_path)
+    for token in ("png", "md", "json", "16 MB"):
+        assert token in section, f"没写 {token}"
+    assert "svg" in section.lower(), "没说 svg 不收"
+
+
+def test_the_board_accepted_kinds_match_the_backend(tmp_path: Path) -> None:
+    """文档说收哪些后缀，必须和后端真正收的一致。
+
+    两边分处 Python 文档和 Rust 代码，没有共享定义。漂了的表现是「照文档放进去
+    却不显示」—— 和 canvas / notes 字段名同一类问题。
+    """
+    import re
+    from pathlib import Path as _Path
+
+    here = _Path(__file__).resolve()
+    board_rs = None
+    for parent in here.parents:
+        candidate = parent / "backend/api/src/services/jobs/downloads/ai_board.rs"
+        if candidate.is_file():
+            board_rs = candidate.read_text(encoding="utf-8")
+            break
+    assert board_rs, "找不到后端的 ai_board.rs"
+
+    # board_kind 的 match 臂里那些后缀就是真源。
+    block = board_rs[board_rs.index("fn board_kind") : board_rs.index("/// 只认单层")]
+    accepted = set(re.findall(r'^\s*"([a-z]+)"(?:\s*\|\s*"([a-z]+)")?\s*=>', block, re.M))
+    flat = {ext for pair in accepted for ext in pair if ext}
+    assert flat >= {"png", "md", "json"}, flat
+
+    section = _board_section(tmp_path)
+    for ext in flat:
+        assert ext in section, f"后端收 .{ext}，但说明里没写"
+    assert "svg" not in flat, "后端开始收 svg 了 —— 要先做消毒，并更新这条断言"
+
+
+def test_the_board_docs_explain_that_the_file_name_is_the_label(
+    tmp_path: Path,
+) -> None:
+    """画板上一堆图，文件名是唯一的区分。不说的话模型会起 out.png 这种名字。"""
+    section = _board_section(tmp_path)
+    assert "标签" in section
+    assert "修改时间" in section, "没说排序规则，模型不知道怎么控制顺序"

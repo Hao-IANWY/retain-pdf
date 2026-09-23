@@ -1,12 +1,16 @@
 /** 画布面板 —— agent 在这里给你讲这篇论文。
  *
- * 两个数据源，优先级固定（规则和取舍见 domain/reading-canvas-doc.ts 的
- * `chooseCanvasSource`）：
+ * 三个数据源，同时显示：
  *
- *     ai/canvas.v1.json        agent 画的概念图（节点 + 箭头）
- *     ai/reading-path.v1.json  没有概念图时退回步骤卡片
+ *     ai/board/                **画板目录** —— 丢进去什么就显示什么
+ *     ai/canvas.v1.json        概念图（节点 + 箭头），画在画板左边
+ *     ai/reading-path.v1.json  两者都没有时退回步骤卡片
  *
- * 两份都由 agent 在终端里写，我们只读。点击图形跳到 PDF 对应位置。
+ * 画板是重点：agent 手里已经有 shell 了，`python3` 画张图、`pdftoppm` 截个页、
+ * `jq` 导个表，丢进 `board/` 就能看见 —— 不需要我们为每种可视化新增一套 schema
+ * 和渲染器。前三个产物就是那么加的，加到第三次 AGENTS.md 一半篇幅都在教格式。
+ *
+ * 三份都由 agent 在终端里写，我们只读。概念图的节点点击跳到 PDF 对应位置。
  *
  * ## 为什么要轮询
  *
@@ -35,65 +39,29 @@ import {
   nodeForShapeId,
 } from "../domain/reading-canvas-render.js";
 import { buildShapes, stepForShapeId } from "../domain/reading-path-cards.js";
+import { type BoardItem, type BoardListing, buildBoardShapes } from "../domain/board.js";
+import {
+  fetchArtifact,
+  fetchBoardListing,
+  loadBoardItem,
+  loadImage,
+} from "../domain/canvas-fetch.js";
 
 /** agent 写完到画面更新之间的延迟上限。再短意义不大（模型写一次要几十秒），
  * 再长会让人以为没生效。 */
 const POLL_MS = 4000;
+
+/** 概念图那一列占多宽。画板从这里往右开始，两边不重叠。 */
+const LEFT_COLUMN_W = 760;
 
 export function renderReaderReadingCanvas(props: ReaderReadingPathSlotProps) {
   if (!props.jobId) return null;
   return <ReadingCanvasPanel key={props.jobId} {...props} />;
 }
 
-/** 404 = 文件不存在，是正常状态，返回 null。其余非 2xx 才是真失败。 */
-async function fetchArtifact(jobId: string, name: string): Promise<string | null> {
-  const response = await fetch(
-    new URL(`/api/v1/jobs/${encodeURIComponent(jobId)}/${name}`, apiBase()),
-    { headers: { "X-API-Key": frontendApiKey() } },
-  );
-  if (response.status === 404) return null;
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  return await response.text();
-}
-
-/** 论文里的图。走 `data:` URL 而不是 blob：tldraw 的资产校验器拒绝 `blob:`
- * （实测报 invalid protocol），而图片端点要 `X-API-Key`，`<img src>` 带不了
- * header —— 所以在这里带着 key 取回来再转。
- *
- * 尺寸必须解码出来：图形的 w/h 决定画多大，按错的比例画会把图拉变形。
- */
-async function loadImage(jobId: string, name: string): Promise<CanvasImage | null> {
-  try {
-    const response = await fetch(
-      new URL(
-        `/api/v1/jobs/${encodeURIComponent(jobId)}/markdown/images/${encodeURIComponent(name)}`,
-        apiBase(),
-      ),
-      { headers: { "X-API-Key": frontendApiKey() } },
-    );
-    if (!response.ok) return null;
-    const blob = await response.blob();
-    const dataUrl = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result));
-      reader.onerror = () => reject(reader.error);
-      reader.readAsDataURL(blob);
-    });
-    const size = await new Promise<{ w: number; h: number }>((resolve, reject) => {
-      const probe = new Image();
-      probe.onload = () => resolve({ w: probe.naturalWidth, h: probe.naturalHeight });
-      probe.onerror = () => reject(new Error("decode failed"));
-      probe.src = dataUrl;
-    });
-    return { name, dataUrl, w: size.w, h: size.h };
-  } catch {
-    // 一张图取不到不该让整张画布消失 —— 那个节点退回成文字框。
-    return null;
-  }
-}
-
 function ReadingCanvasPanel({ open, jobId, onJump }: ReaderReadingPathSlotProps) {
   const [source, setSource] = useState<CanvasSource | null>(null);
+  const [board, setBoard] = useState<BoardListing[]>([]);
   const [failure, setFailure] = useState("");
   // onJump 每次渲染可能是新函数；画布的 onMount 只跑一次，用 ref 拿最新的，
   // 否则点击会调到挂载那一刻的旧闭包。
@@ -108,15 +76,22 @@ function ReadingCanvasPanel({ open, jobId, onJump }: ReaderReadingPathSlotProps)
     let cancelled = false;
     const tick = async () => {
       try {
-        const [canvasText, pathText] = await Promise.all([
+        const [canvasText, pathText, listing] = await Promise.all([
           fetchArtifact(jobId, "canvas"),
           fetchArtifact(jobId, "reading-path"),
+          fetchBoardListing(jobId),
         ]);
         if (cancelled) return;
-        const raw = `${canvasText ?? ""}\u0000${pathText ?? ""}`;
+        // 画板的指纹用「名字 + 修改时间」，不用文件内容 —— 内容要再发 N 个请求，
+        // 而 agent 重写一个文件必然改 mtime。
+        const boardRaw = (listing ?? [])
+          .map((item) => `${item.name}@${item.modifiedMs}`)
+          .join(",");
+        const raw = `${canvasText ?? ""}\u0000${pathText ?? ""}\u0000${boardRaw}`;
         setFailure("");
         if (raw === lastRawRef.current) return;
         lastRawRef.current = raw;
+        setBoard(listing ?? []);
         setSource(chooseCanvasSource({ canvasText, pathText }));
       } catch (error) {
         if (!cancelled) setFailure(String(error).slice(0, 120));
@@ -145,15 +120,16 @@ function ReadingCanvasPanel({ open, jobId, onJump }: ReaderReadingPathSlotProps)
       </p>
     );
   }
-  if (source.kind === "empty") {
+  if (source.kind === "empty" && board.length === 0) {
     return (
       <p className="reader-reading-path-note">
-        还没有画布。在终端里让 fx 画一张：
-        <code>把这篇论文的脉络画成 ./canvas.v1.json</code>
+        画布是空的。在终端里让 fx 往里放东西 —— 它有 python3、jq、pdftoppm，
+        产物丢进 <code>./board/</code> 就会出现在这里：
+        <code>把每页的翻译问题数画成柱状图，存到 ./board/issues.png</code>
       </p>
     );
   }
-  return <Canvas source={source} jobId={jobId} jumpRef={jumpRef} />;
+  return <Canvas source={source} board={board} jobId={jobId} jumpRef={jumpRef} />;
 }
 
 type LoadedTldraw = typeof import("tldraw");
@@ -161,19 +137,41 @@ type TldrawEditor = Parameters<
   NonNullable<Parameters<LoadedTldraw["Tldraw"]>[0]["onMount"]>
 >[0];
 type PlacedNodes = ReturnType<typeof buildCanvasShapes>["placed"];
+type TldrawShapes = Parameters<TldrawEditor["createShapes"]>[0];
+type TldrawAssets = Parameters<TldrawEditor["createAssets"]>[0];
 
 function Canvas({
   source,
+  board,
   jobId,
   jumpRef,
 }: {
-  source: Extract<CanvasSource, { kind: "canvas" | "path" }>;
+  source: CanvasSource;
+  board: readonly BoardListing[];
   jobId: string;
   jumpRef: { current: ReaderReadingPathSlotProps["onJump"] };
 }) {
   const [mod, setMod] = useState<LoadedTldraw | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [images, setImages] = useState<ReadonlyMap<string, CanvasImage>>(new Map());
+  const [boardItems, setBoardItems] = useState<BoardItem[]>([]);
+
+  // 画板内容。依赖用「名字@时间」拼的字符串，不用数组 —— 数组每次渲染都是新的，
+  // 直接放进依赖会无限取文件。
+  const boardKey = board.map((item) => `${item.name}@${item.modifiedMs}`).join(",");
+  useEffect(() => {
+    if (!board.length) return setBoardItems([]);
+    let cancelled = false;
+    void (async () => {
+      const loaded = await Promise.all(board.map((item) => loadBoardItem(jobId, item)));
+      if (cancelled) return;
+      setBoardItems(loaded.filter((item): item is BoardItem => !!item));
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobId, boardKey]);
 
   const refs = source.kind === "canvas" ? imageRefsOf(source.doc) : [];
   // 文件名列表拼成字符串当依赖：数组每次渲染都是新的，直接放进依赖数组会无限取图。
@@ -218,16 +216,30 @@ function Canvas({
   const draw = useCallback(() => {
     const editor = editorRef.current;
     if (!editor) return;
-    const built = source.kind === "canvas"
-      ? buildCanvasShapes(source.doc, images)
-      : { placed: null, shapes: buildShapes(source.steps), assets: [] };
+    // 概念图（或退回的步骤卡片）占左边，画板从它右边开始往下铺。
+    //
+    // 显式分支而不是嵌套三元：三元链在这里收窄不到 `source.steps`。
+    let leftShapes: TldrawShapes = [];
+    let leftAssets: TldrawAssets = [];
+    let leftPlaced: PlacedNodes | null = null;
+    if (source.kind === "canvas") {
+      const built = buildCanvasShapes(source.doc, images);
+      leftShapes = built.shapes;
+      leftAssets = built.assets;
+      leftPlaced = built.placed;
+    } else if (source.kind === "path") {
+      leftShapes = buildShapes(source.steps);
+    }
+    const right = buildBoardShapes(boardItems, leftShapes.length ? LEFT_COLUMN_W : 0);
+
     editor.deleteShapes([...editor.getCurrentPageShapeIds()]);
     // 资产要先于引用它的图形存在，否则图片图形拿不到 src，画出来是空框。
-    if (built.assets.length) editor.createAssets(built.assets);
-    editor.createShapes(built.shapes);
+    const assets = [...leftAssets, ...right.assets];
+    if (assets.length) editor.createAssets(assets);
+    editor.createShapes([...leftShapes, ...right.shapes]);
     editor.zoomToFit();
-    placedRef.current = built.placed;
-  }, [images, source]);
+    placedRef.current = leftPlaced;
+  }, [boardItems, images, source]);
 
   useEffect(() => {
     draw();
@@ -266,10 +278,13 @@ function Canvas({
 
 /** 两种源的锚点取法不同，但给 onJump 的形状一样。 */
 function anchorForShape(
-  source: Extract<CanvasSource, { kind: "canvas" | "path" }>,
+  source: CanvasSource,
   placed: PlacedNodes | null,
   shapeId: string,
 ): { page_idx?: number; block_id?: string } | null {
+  // 画板上的东西没有锚点（它们是 agent 用 shell 产出的文件，不一定对应某个块），
+  // 点了不跳 —— 跳到第 1 页比不动更让人困惑。
+  if (source.kind === "empty" || source.kind === "broken") return null;
   if (source.kind === "canvas") {
     const node = placed ? nodeForShapeId(placed, shapeId) : undefined;
     // 没锚点的节点（画成虚线的那些）点了不该跳 —— 跳到第 1 页比不动更让人困惑。

@@ -22,7 +22,9 @@ pub use control::wait_for_terminal_job;
 pub(crate) use deps::{
     CommandJobsDeps, ControlDeps, JobSubmitDeps, QueryJobsDeps, ReplayDeps, SnapshotBuildDeps,
 };
-pub(crate) use downloads::{DocumentDownloadKind, FileDownload, JobDownloads, MarkdownDownload};
+pub(crate) use downloads::{
+    AiBoardListing, DocumentDownloadKind, FileDownload, JobDownloads, MarkdownDownload,
+};
 pub(crate) use facade::build_jobs_facade;
 pub use facade::JobsFacade;
 pub use query::JobQueries;
