@@ -57,6 +57,144 @@ def resolve_job_workspace(data_root: Path, session_key: str) -> Path | None:
     return job_dir / AI_WORKSPACE_DIR_NAME
 
 
+# 文件夹工作区的会话键：`collection:col-20260917055937-8f4844`。
+_COLLECTION_PREFIX = "collection:"
+_SAFE_COLLECTION_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
+
+COLLECTION_MANIFEST_FILE_NAME = "collection.v1.json"
+
+
+def resolve_collection_workspace(data_root: Path, session_key: str) -> Path | None:
+    """`data/collections/<id>/ai`，解析不出来返回 None。
+
+    和 job 工作区同构，但多一道检查：**清单文件必须已经存在**。
+
+    那份清单（哪几本书、各自用哪次翻译）只有数据库知道，是 Rust 侧物化出来的。
+    这里不去建目录 —— 建了的话 agent 会落进一个空工作区，`ls books/` 什么都
+    没有，而它无从判断这是"文件夹是空的"还是"有人忘了物化"。宁可退回私有目录。
+    """
+    if not session_key.startswith(_COLLECTION_PREFIX):
+        return None
+    collection_id = session_key[len(_COLLECTION_PREFIX) :].strip()
+    if not _SAFE_COLLECTION_ID.match(collection_id):
+        return None
+    root = (data_root / "collections").resolve()
+    workspace = (root / collection_id / AI_WORKSPACE_DIR_NAME).resolve()
+    # 解析后仍要在 collections 下 —— 挡住目录本身是符号链接指向别处。
+    if root not in workspace.parents:
+        return None
+    if not (workspace / COLLECTION_MANIFEST_FILE_NAME).is_file():
+        return None
+    return workspace
+
+
+def _collection_books(workspace: Path) -> tuple[list[dict], list[dict]]:
+    """读清单。读不动就当空的 —— 说明书少几行，比终端起不来好。"""
+    try:
+        payload = json.loads(
+            (workspace / COLLECTION_MANIFEST_FILE_NAME).read_text(encoding="utf-8")
+        )
+    except (OSError, ValueError):
+        return [], []
+    books = payload.get("books")
+    skipped = payload.get("skipped")
+    return (
+        books if isinstance(books, list) else [],
+        skipped if isinstance(skipped, list) else [],
+    )
+
+
+def build_collection_workspace_instructions(workspace: Path) -> str:
+    """写给 agent 的文件夹工作区说明。
+
+    和单本书那份的区别只有两处，但都要紧：
+
+    1. **数据地图的前缀从 `../` 变成 `books/<书名>/`**。照抄单本书那份的话，
+       agent 会去读 `../ocr/...`，那里什么都没有 —— 而它会把这当成"这本书没做
+       OCR"，不会想到是路径前缀不对。
+    2. **要把被跳过的书列出来**。沉默地少几本最糟：agent 以为自己看全了这个
+       文件夹，然后给出"这几篇都没提到 X"的结论,而提到 X 的那篇还没翻译完。
+    """
+    books, skipped = _collection_books(workspace)
+    if books:
+        listing = "\n".join(
+            f"    books/{book.get('dir') or book.get('job_id')}/"
+            f"{' ' * max(1, 34 - len(str(book.get('dir') or '')))}"
+            f"{book.get('title', '')}（{book.get('page_count', '?')} 页）"
+            for book in books
+        )
+    else:
+        listing = "    （这个文件夹里还没有翻译好的书）"
+    missing = ""
+    if skipped:
+        rows = "\n".join(
+            f"    {item.get('title', '')} —— {item.get('reason', '')}" for item in skipped
+        )
+        missing = f"""
+## ⚠️ 这个文件夹里还有 {len(skipped)} 本你**看不到**
+
+    {rows.strip()}
+
+下结论时要把这几本算进去。「这些论文都没提到 X」这种话,在有书看不到的时候
+是错的。
+"""
+    return f"""# RetainPDF 文件夹工作区
+
+当前目录属于一个**书籍文件夹**,里面有 {len(books)} 本已翻译的书:
+
+{listing}
+
+`books/` 下每一项都是一本书的完整产物目录,结构和单本书工作区的 `../` 一样。
+`{COLLECTION_MANIFEST_FILE_NAME}` 里有每本书的 document_id、标题、页数。
+{missing}
+## ⚠️ 先读这条：这个终端只能跑单条命令
+
+复合命令和管道**拿不到输出**,而且失败的样子是「没有任何输出」,不是报错 ——
+很容易误判成命令执行失败而反复重试。
+
+    ✗ ls -la && echo done          ✗ cat a.json | jq .x
+    ✗ pwd; ls                      ✗ wc -l f | head
+    ✓ ls -la                       ✓ jq .x a.json
+
+`jq`、`grep`、`rg`、`python3`、`typst` 都在,**直接用它们自己的参数**。
+
+## 数据地图（每本书内部的结构都一样）
+
+把下面的 `<书>` 换成 `books/` 里的某一项：
+
+    books/<书>/ocr/normalized/document.v1.json   统一文档契约（常有几十 MB,别整个读）
+    books/<书>/translated/page-XXX-<模型>.json   逐页译文,是**数组**
+    books/<书>/artifacts/translation_review.json 翻译问题诊断
+    books/<书>/md/full.md                        全文 Markdown（看正文先看这个）
+    books/<书>/source/                           原始 PDF
+
+    jq '.page_count' books/<书>/ocr/normalized/document.v1.json
+    jq '.pages[2].blocks[] | {{block_id, type, text}}' books/<书>/ocr/normalized/document.v1.json
+    jq '.issue_summary' books/<书>/artifacts/translation_review.json
+
+**跨书比较时先看 `md/full.md`**，它比 JSON 省事得多；要精确锚点（页码、block_id）
+再去 `document.v1.json`。
+
+## 可以自由读写的地方
+
+**只有当前目录。** `books/` 下面是别的任务的产物,只读。
+
+## 想给用户看什么,丢进 `./board/`
+
+和单本书工作区同一套规则：
+
+    认这些后缀   png jpg jpeg webp gif · pdf · md · json · txt csv
+    不认         svg、html、其它一律不显示
+    文件名       只能是字母数字和 . _ -，不能有空格、中文、斜杠、开头的点
+    大小         单个 16 MB 以内
+
+要排版就用 `typst`（中文直接出得来）：写 `.typ` 然后
+`typst compile report.typ ./board/report.pdf`,单条命令。
+
+**文件名就是标签**,`method-conflicts-across-5-papers.png` 比 `out.png` 有用得多。
+"""
+
+
 def build_job_workspace_instructions(job_dir: Path) -> str:
     """写给 agent 的工作区说明。
 
@@ -342,6 +480,8 @@ __all__ = [
     "DEFAULT_DENIED_COMMANDS",
     "apply_terminal_permissions",
     "build_terminal_permissions",
+    "build_collection_workspace_instructions",
     "build_job_workspace_instructions",
+    "resolve_collection_workspace",
     "resolve_job_workspace",
 ]

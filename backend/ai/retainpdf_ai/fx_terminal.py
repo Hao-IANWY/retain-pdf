@@ -37,7 +37,9 @@ from .fx_openai_bridge import FxOpenAIChatBridge
 from .fx_workspace import (
     DEFAULT_DENIED_COMMANDS,
     apply_terminal_permissions,
+    build_collection_workspace_instructions,
     build_job_workspace_instructions,
+    resolve_collection_workspace,
     resolve_job_workspace,
 )
 from .runtimes.fx_process import (
@@ -237,14 +239,26 @@ def build_terminal_launch(
         else settings.fx_denied_commands
     )
     apply_terminal_permissions(home, denied)
-    job_workspace = resolve_job_workspace(settings.data_root, session_key)
-    if job_workspace is not None:
-        job_workspace.mkdir(parents=True, exist_ok=True, mode=0o700)
+    # 两种工作区：一本书（jobs/<id>/ai）和一个文件夹（collections/<id>/ai）。
+    #
+    # 文件夹那条**不建目录**：清单是 Rust 侧物化的，这里建了只会让 agent 落进
+    # 一个空工作区，而它无从判断是「文件夹是空的」还是「有人忘了物化」。
+    collection_workspace = resolve_collection_workspace(settings.data_root, session_key)
+    if collection_workspace is not None:
         _write_workspace_instructions(
-            job_workspace,
-            build_job_workspace_instructions(job_workspace.parent),
+            collection_workspace,
+            build_collection_workspace_instructions(collection_workspace),
         )
-        workspace = job_workspace
+        workspace = collection_workspace
+    else:
+        job_workspace = resolve_job_workspace(settings.data_root, session_key)
+        if job_workspace is not None:
+            job_workspace.mkdir(parents=True, exist_ok=True, mode=0o700)
+            _write_workspace_instructions(
+                job_workspace,
+                build_job_workspace_instructions(job_workspace.parent),
+            )
+            workspace = job_workspace
     command_path = resolve_fx_command_path(settings, executable, None)
     env = {
         "HOME": str(home),

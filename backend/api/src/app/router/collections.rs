@@ -16,6 +16,10 @@ pub(super) fn routes() -> Router<AppState> {
                 .delete(collections::delete_collection_route),
         )
         .route(
+            "/api/v1/collections/:collection_id/agent-workspace",
+            axum::routing::get(collections::collection_agent_workspace_route),
+        )
+        .route(
             "/api/v1/collections/:collection_id/documents",
             post(collections::add_collection_documents_route),
         )

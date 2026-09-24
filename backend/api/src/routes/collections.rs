@@ -16,6 +16,9 @@ use crate::services::library::api::{
     add_collection_documents_view, create_collection_view, delete_collection_view,
     list_collections_view, patch_collection_view, remove_collection_document_view,
 };
+use crate::services::collection_workspace::{
+    ensure_collection_workspace, CollectionWorkspace,
+};
 use crate::AppState;
 
 pub async fn create_collection_route(
@@ -79,5 +82,20 @@ pub async fn remove_collection_document_route(
         &deps.library,
         &collection_id,
         &document_id,
+    )?))
+}
+
+/// 物化这个文件夹的 agent 工作区，返回清单。
+///
+/// 每次调用都重建 `books/` —— 成员和 active_job 都会变，而那个目录是纯派生物。
+/// 所以前端在开终端**之前**打一次就行，不需要额外的失效逻辑。
+pub async fn collection_agent_workspace_route(
+    State(state): State<AppState>,
+    ApiPath(collection_id): ApiPath<String>,
+) -> Result<Json<ApiResponse<CollectionWorkspace>>, AppError> {
+    Ok(ok_json(ensure_collection_workspace(
+        &state.db,
+        &state.config.data_root,
+        &collection_id,
     )?))
 }
