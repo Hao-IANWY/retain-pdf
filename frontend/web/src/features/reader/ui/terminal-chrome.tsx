@@ -9,9 +9,11 @@
 import { useCallback, useEffect, useState } from "react";
 
 import {
-  TERMINAL_SUGGESTIONS,
-  readSuggestionsDismissed,
-  writeSuggestionsDismissed,
+  dismissAllSuggestions,
+  dismissSuggestion,
+  readDismissedSuggestions,
+  visibleSuggestions,
+  writeDismissedSuggestions,
 } from "@/features/fx-terminal/index.js";
 
 import {
@@ -193,6 +195,8 @@ export function TerminalScopeBar({
  * 点了**不执行**，只把提示打进输入行（`send` 不带 `\r`）。这些是自然语言，改一改
  * 往往更贴合当下想问的；直接执行会让它退化成四个功能按钮，而这个产品的方向恰恰
  * 是用自然语言代替按钮。
+ *
+ * 点一条只收一条，不是整排收掉 —— 理由见 terminal-suggestions.ts 里那段。
  */
 export function TerminalSuggestions({
   session,
@@ -201,26 +205,28 @@ export function TerminalSuggestions({
   session: { send(data: string): void };
   focusTerminal: () => void;
 }) {
-  const [dismissed, setDismissed] = useState(readSuggestionsDismissed);
-  const dismiss = useCallback(() => {
-    writeSuggestionsDismissed();
-    setDismissed(true);
+  const [dismissed, setDismissed] = useState(readDismissedSuggestions);
+  const hide = useCallback((next: ReadonlySet<string>) => {
+    writeDismissedSuggestions(next);
+    setDismissed(next);
   }, []);
-  if (dismissed) return null;
+  const visible = visibleSuggestions(dismissed);
+  if (visible.length === 0) return null;
   return (
     <div className="reader-terminal-suggestions" aria-label="可以让 fx 做的事">
       <span className="reader-terminal-suggestions-lead">试试</span>
-      {TERMINAL_SUGGESTIONS.map((suggestion) => (
+      {visible.map((suggestion) => (
         <button
-          key={suggestion.path}
+          key={suggestion.id}
           type="button"
           className="reader-terminal-suggestion"
           title={suggestion.prompt}
           onClick={() => {
             session.send(suggestion.prompt);
             focusTerminal();
-            // 用过一次就不用再教了。
-            dismiss();
+            // 只收这一条。以前这里收全部 —— 点了「画概念图」，另外四条能力
+            // 用户就再也看不到了，而这排 chip 是它们唯一的说明书。
+            hide(dismissSuggestion(dismissed, suggestion.id));
           }}
         >
           {suggestion.label}
@@ -231,7 +237,7 @@ export function TerminalSuggestions({
         className="reader-terminal-suggestions-close"
         aria-label="不再显示这些提示"
         title="不再显示"
-        onClick={dismiss}
+        onClick={() => hide(dismissAllSuggestions())}
       >
         ×
       </button>

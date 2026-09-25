@@ -175,8 +175,10 @@
   border-bottom: 1px solid color-mix(in srgb, var(--ink) 6%, transparent);
   background: var(--paper);
   position: relative;
+  /* 局部层序：会话条要压住下面的线程列表。只在 .reader-float-ai 这个栈里有意义，
+   * 所以不走 tokens.css 的全局契约 —— 原来那两个 --z-float-ai-* token 从来就
+   * 没被定义过，写成 var() 只是让人以为它进了契约。 */
   z-index: 5;
-  z-index: var(--z-float-ai-bar, 5);
 }
 .reader-float-ai .aui-session-row {
   display: flex;
@@ -225,8 +227,8 @@
 }
 .reader-float-ai .aui-session-list {
   position: relative;
+  /* 同上：会话下拉压住会话条，局部层序。 */
   z-index: 6;
-  z-index: var(--z-float-ai-dropdown, 6);
   margin: 0;
   padding: 4px;
   list-style: none;

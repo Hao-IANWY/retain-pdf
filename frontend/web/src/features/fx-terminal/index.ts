@@ -14,8 +14,11 @@ export type {
 export {
   TERMINAL_SUGGESTIONS,
   TERMINAL_SUGGESTIONS_DISMISSED_KEY,
-  readSuggestionsDismissed,
-  writeSuggestionsDismissed,
+  dismissAllSuggestions,
+  dismissSuggestion,
+  readDismissedSuggestions,
+  visibleSuggestions,
+  writeDismissedSuggestions,
 } from "./domain/terminal-suggestions.js";
 export type { TerminalSuggestion } from "./domain/terminal-suggestions.js";
 export { readTerminalTheme, cssVariableReader } from "./domain/terminal-theme.js";

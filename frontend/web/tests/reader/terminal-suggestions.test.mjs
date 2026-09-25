@@ -17,8 +17,11 @@ import { readFileSync } from "node:fs";
 import {
   TERMINAL_SUGGESTIONS,
   TERMINAL_SUGGESTIONS_DISMISSED_KEY,
-  readSuggestionsDismissed,
-  writeSuggestionsDismissed,
+  dismissAllSuggestions,
+  dismissSuggestion,
+  readDismissedSuggestions,
+  visibleSuggestions,
+  writeDismissedSuggestions,
 } from "../../src/features/fx-terminal/domain/terminal-suggestions.ts";
 
 const read = (relative) => readFileSync(new URL(relative, import.meta.url), "utf8");
@@ -85,21 +88,104 @@ test("onReady 用 ref 转发，不进 effect 依赖", () => {
   assert.match(term, /\}, \[session\]\);/, "终端的 effect 依赖被改了");
 });
 
-test("用过一次就收起来，且读写 localStorage 不会抛", () => {
-  const map = new Map();
-  const ok = { getItem: (k) => map.get(k) ?? null, setItem: (k, v) => map.set(k, v) };
-  assert.equal(readSuggestionsDismissed(ok), false);
-  writeSuggestionsDismissed(ok);
-  assert.equal(readSuggestionsDismissed(ok), true);
-  assert.equal(map.get(TERMINAL_SUGGESTIONS_DISMISSED_KEY), "1");
+// ------------------------------------------------------------ 收起是按条的
 
-  // 隐私模式下 localStorage 会抛 —— 多显示一次比整个面板崩了好。
+const fakeStore = () => {
+  const map = new Map();
+  return {
+    map,
+    getItem: (key) => map.get(key) ?? null,
+    setItem: (key, value) => map.set(key, value),
+  };
+};
+
+test("点一条只收一条 —— 其余几条还能被发现", () => {
+  // 原来是一个全局布尔：点**任意一条** chip 就把五条一起永久关掉，换本书也不再
+  // 出现。而这排 chip 是那四类产出唯一面向用户的说明书，等于一次点击烧掉四条
+  // 用户从没见过的能力。
+  const store = fakeStore();
+  assert.equal(visibleSuggestions(readDismissedSuggestions(store)).length, TERMINAL_SUGGESTIONS.length);
+
+  const clicked = TERMINAL_SUGGESTIONS[2].id;
+  writeDismissedSuggestions(dismissSuggestion(readDismissedSuggestions(store), clicked), store);
+
+  const after = visibleSuggestions(readDismissedSuggestions(store));
+  assert.ok(!after.some((s) => s.id === clicked), "点过的那条还挂着");
+  for (const suggestion of TERMINAL_SUGGESTIONS) {
+    if (suggestion.id === clicked) continue;
+    assert.ok(
+      after.some((s) => s.id === suggestion.id),
+      `${suggestion.id} 被顺手收掉了 —— 用户再也不会知道有这条能力`,
+    );
+  }
+  assert.equal(after.length, TERMINAL_SUGGESTIONS.length - 1);
+});
+
+test("点完全部这排就自己没了；× 一次全收", () => {
+  // 「用完即隐」那个出发点是对的，不能变成每次打开都糊一脸。
+  const store = fakeStore();
+  let dismissed = readDismissedSuggestions(store);
+  for (const suggestion of TERMINAL_SUGGESTIONS) {
+    dismissed = dismissSuggestion(dismissed, suggestion.id);
+  }
+  writeDismissedSuggestions(dismissed, store);
+  assert.equal(visibleSuggestions(readDismissedSuggestions(store)).length, 0);
+
+  const other = fakeStore();
+  writeDismissedSuggestions(dismissAllSuggestions(), other);
+  assert.equal(visibleSuggestions(readDismissedSuggestions(other)).length, 0);
+});
+
+test("dismissSuggestion 不改入参 —— setState 拿到的得是新引用", () => {
+  const before = new Set(["canvas"]);
+  const after = dismissSuggestion(before, "report");
+  assert.notEqual(after, before, "原地改了，React 不会重渲染");
+  assert.deepEqual([...before], ["canvas"]);
+  assert.ok(after.has("canvas") && after.has("report"));
+});
+
+test("v1 的全局布尔不被当成「全收了」", () => {
+  // v1 存的 "1" 区分不了「点了一条」和「主动关掉」。照旧读它 = 把这个缺陷继续
+  // 兑现给老用户：他们点过一次，五条能力就永远看不到了。
+  const store = fakeStore();
+  store.map.set("retainpdf.reader.terminal-suggestions-dismissed.v1", "1");
+  assert.equal(
+    visibleSuggestions(readDismissedSuggestions(store)).length,
+    TERMINAL_SUGGESTIONS.length,
+  );
+  assert.match(TERMINAL_SUGGESTIONS_DISMISSED_KEY, /\.v2$/, "换了语义没换键名");
+});
+
+test("脏值和抛异常的 localStorage 都不能让面板崩", () => {
+  // 隐私模式下读写会抛；键里还可能留着别的版本写的东西。
+  // 多显示一次比整个面板崩了好。
+  const dirty = fakeStore();
+  for (const raw of ["1", "not json", '{"a":1}', '["canvas", 7, "unknown-id"]']) {
+    dirty.map.set(TERMINAL_SUGGESTIONS_DISMISSED_KEY, raw);
+    assert.doesNotThrow(() => readDismissedSuggestions(dirty));
+  }
+  // 认识的 id 仍然生效，不认识的被过掉。
+  dirty.map.set(TERMINAL_SUGGESTIONS_DISMISSED_KEY, '["canvas", 7, "unknown-id"]');
+  const visible = visibleSuggestions(readDismissedSuggestions(dirty));
+  assert.equal(visible.length, TERMINAL_SUGGESTIONS.length - 1);
+  assert.ok(!visible.some((s) => s.id === "canvas"));
+
   const boom = {
     getItem() { throw new Error("blocked"); },
     setItem() { throw new Error("blocked"); },
   };
-  assert.equal(readSuggestionsDismissed(boom), false);
-  assert.doesNotThrow(() => writeSuggestionsDismissed(boom));
+  assert.equal(readDismissedSuggestions(boom).size, 0);
+  assert.doesNotThrow(() => writeDismissedSuggestions(new Set(["canvas"]), boom));
+});
+
+test("id 稳定，不拿 label/path 当键", () => {
+  // 拿文案当键的话，改一次措辞就把用户「已经知道这条」的记录冲掉，chip 毫无
+  // 理由地重新冒出来。
+  const ids = TERMINAL_SUGGESTIONS.map((s) => s.id);
+  assert.equal(new Set(ids).size, ids.length, `id 重复: ${ids}`);
+  for (const id of ids) {
+    assert.match(id, /^[a-z][a-z0-9-]*$/, `id 里混进了文案: ${id}`);
+  }
 });
 
 test("提示行会换行，不会把终端挤窄", () => {

@@ -7,6 +7,41 @@ import {
   readerRegionContent,
   type ReaderSelection,
 } from "../../shared/data/reader-regions.js";
+import { READER_SCROLL_SHELL_CLASS } from "../../pdf/reader-dom-contract.js";
+
+/** 紧凑工具条约 320px 宽（复制 / 批注 / 问 AI / 取消），避免覆盖大段正文。 */
+const TOOLBAR_HALF = 170;
+const GUTTER = 16;
+
+/** PDF 栏的宽度，不是视口宽度。
+ *
+ * dock 打开时视口右半边是 AI 面板，滚动壳被 `right: var(--reader-ai-split-width)`
+ * 收窄（assistant-dock.css）。`--reader-ai-split-width` 的值是 `50vw` 这样的
+ * 相对量，getComputedStyle 读自定义属性拿到的是原样字符串而不是像素，所以这里
+ * 量元素而不是读 token。壳左边贴 0，量出来的宽度直接就是可用的 left 上界。
+ */
+export function readerColumnWidth(): number {
+  const fallback = typeof window === "undefined" ? 800 : window.innerWidth;
+  if (typeof document === "undefined") return fallback;
+  const shell = document.querySelector(`.${READER_SCROLL_SHELL_CLASS}`);
+  const width = shell?.getBoundingClientRect().width ?? 0;
+  // jsdom 里 getBoundingClientRect 全是 0；量不到就退回视口宽度。
+  return width > 0 ? width : fallback;
+}
+
+/** 把工具条夹进 PDF 栏。
+ *
+ * 原来夹的是 `window.innerWidth` —— dock 打开、选区又靠右时，工具条被允许画到
+ * 分栏线右边，也就是糊在 AI 面板上。
+ */
+export function clampSelectionToolbarLeft(midX: number, columnWidth: number): number {
+  const min = GUTTER + TOOLBAR_HALF;
+  const max = columnWidth - GUTTER - TOOLBAR_HALF;
+  // 栏比工具条还窄时夹不住（min > max）。取栏中心：宁可两头对称溢出，也别
+  // 因为 Math.min/Math.max 的先后顺序把它甩到栏外去。
+  if (max < min) return columnWidth / 2;
+  return Math.min(Math.max(min, midX), max);
+}
 
 export type ReaderSelectionNoteInput = {
   page: number;
@@ -62,12 +97,9 @@ export function ReaderSelectionToolbar({
     return null;
   }
 
-  const vw = typeof window !== "undefined" ? window.innerWidth : 800;
   const vh = typeof window !== "undefined" ? window.innerHeight : 600;
   const midX = selection.rect.left + selection.rect.width / 2;
-  // 紧凑工具条约 320px 宽（复制 / 批注 / 问 AI / 取消），避免覆盖大段正文。
-  const TOOLBAR_HALF = 170;
-  const left = Math.min(Math.max(16 + TOOLBAR_HALF, midX), vw - 16 - TOOLBAR_HALF);
+  const left = clampSelectionToolbarLeft(midX, readerColumnWidth());
 
   // 优先选区上方；空间不够则翻到下方
   const preferAbove = selection.rect.top > 72;

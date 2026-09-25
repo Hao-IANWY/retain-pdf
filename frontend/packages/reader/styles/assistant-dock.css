@@ -121,8 +121,25 @@
   transition: none;
 }
 
-.reader-react-root.is-assistant-open .reader-react-hud {
+/* dock 打开时，视口右半边是面板，所以「居中」得按 PDF 栏算，不是按视口。
+ *
+ * 只有 HUD 一直是这么做的；两条错误提示原来留在 left: 50%，中心正好落在分栏线
+ * 上 —— 一半画在 PDF 上、一半画在面板上，而它们偏偏是最需要读清楚的两条文案。
+ * 选区浮条走 TSX 里的夹取（ReaderSelectionToolbar），同一个道理。 */
+.reader-react-root.is-assistant-open .reader-react-hud,
+.reader-react-root.is-assistant-open .reader-react-error,
+.reader-react-root.is-assistant-open .reader-error-notice {
   left: calc((100dvw - var(--reader-ai-split-width)) / 2);
+}
+
+/* 宽度也得按栏算：PDF 栏最窄到 35vw（见 reader-ai-split-constraints.ts），
+ * 1280 宽的屏上只剩 448px，居中了照样两头溢到面板上。 */
+.reader-react-root.is-assistant-open .reader-react-error {
+  max-width: min(480px, calc(100dvw - var(--reader-ai-split-width) - 32px));
+}
+
+.reader-react-root.is-assistant-open .reader-error-notice {
+  max-width: min(520px, calc(100dvw - var(--reader-ai-split-width) - 32px));
 }
 
 .reader-react-root.is-assistant-open .reader-fab {
