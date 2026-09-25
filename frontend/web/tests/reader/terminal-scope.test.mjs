@@ -26,6 +26,8 @@ const read = (relative) =>
   readFileSync(fileURLToPath(new URL(relative, import.meta.url)), "utf8");
 
 const PANEL = read("../../src/features/reader/ui/terminal.tsx");
+// 标签条 / 作用域条 / 提示 chip 拆到了外壳文件（terminal.tsx 撞上体量棘轮）。
+const CHROME = read("../../src/features/reader/ui/terminal-chrome.tsx");
 
 // ---------------------------------------------------------------- 跨语言对账
 
@@ -112,7 +114,7 @@ test("collectionId 进 URL 要转义", async () => {
 test("切之前必须先物化", () => {
   // 不物化就切的表现：终端开起来了,books/ 是空的或指着上一次的 active_job,
   // 没有任何报错。
-  const block = PANEL.slice(PANEL.indexOf("const select ="), PANEL.indexOf("if (options.length === 0)"));
+  const block = CHROME.slice(CHROME.indexOf("const select ="), CHROME.indexOf("if (options.length === 0)"));
   const ensureAt = block.indexOf("ensureCollectionWorkspace");
   const changeAt = block.indexOf('onChange({ kind: "collection"');
   assert.ok(ensureAt > 0 && changeAt > ensureAt, "onChange 跑在物化之前了");
@@ -122,19 +124,20 @@ test("切之前必须先物化", () => {
 
 test("没有文件夹的人看到的终端和以前一样", () => {
   // 给一个点了只会说「没有文件夹」的控件,比没有更糟。
-  assert.match(PANEL, /if \(options\.length === 0\) return null;/);
+  assert.match(CHROME, /if \(options\.length === 0\) return null;/);
 });
 
 test("换作用域要换 fx 会话", () => {
   // 两个作用域的对话不该串 —— 单本书那边的上下文里没有 books/。
-  assert.match(PANEL, /const effectiveKey = sessionKeyForScope\(scope\)/);
-  assert.match(PANEL, /\[baseUrl, apiKey, effectiveKey\]/, "session 没跟着作用域变");
+  // 每条终端各自算自己的会话键 —— 作用域现在是每条标签各自的。
+  assert.match(PANEL, /const sessionKey = sessionKeyForScope\(tab\.scope\)/);
+  assert.match(PANEL, /\[baseUrl, apiKey, sessionKey\]/, "session 没跟着作用域变");
 });
 
 test("当前作用域要看得出来", () => {
   // 切错了范围而不自知,得到的结论是错的。
-  assert.match(PANEL, /aria-pressed=\{scope\.kind === "job"\}/);
-  assert.match(PANEL, /aria-pressed=\{active\}/);
+  assert.match(CHROME, /aria-pressed=\{scope\.kind === "job"\}/);
+  assert.match(CHROME, /aria-pressed=\{active\}/);
   const css = read("../../src/styles/entries/reader.css");
   assert.match(css, /\.reader-terminal-scope-option\[aria-pressed="true"\]/);
 });

@@ -60,7 +60,7 @@ test("提示里只有自然语言，不掺格式说明", () => {
 
 test("点了不执行 —— 只打字，不回车", () => {
   // 带 \r 就变成四个功能按钮了，而这个产品的方向是用自然语言代替按钮。
-  const panel = read("../../src/features/reader/ui/terminal.tsx");
+  const panel = read("../../src/features/reader/ui/terminal-chrome.tsx");
   const block = panel.slice(panel.indexOf("function TerminalSuggestions"));
   assert.match(block, /session\.send\(suggestion\.prompt\)/);
   assert.doesNotMatch(block, /send\([^)]*\\r/, "提示被直接执行了");
@@ -68,7 +68,7 @@ test("点了不执行 —— 只打字，不回车", () => {
 });
 
 test("点完把键盘还给终端", () => {
-  const panel = read("../../src/features/reader/ui/terminal.tsx");
+  const panel = read("../../src/features/reader/ui/terminal-chrome.tsx");
   const block = panel.slice(panel.indexOf("function TerminalSuggestions"));
   assert.match(block, /focusTerminal\(\)/, "焦点留在按钮上，用户还得再点一下终端");
   // FxTerminal 那边要真的把 focus 把手交出来。

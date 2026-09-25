@@ -146,6 +146,89 @@
     opacity: 0.7;
   }
 
+  /* 标签条：同时开几条终端。 */
+  .reader-terminal-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    padding: 0 2px 6px;
+    flex: 0 0 auto;
+  }
+
+  .reader-terminal-tab-slot {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .reader-terminal-tab {
+    font-size: 11.5px;
+    line-height: 1.5;
+    padding: 3px 8px;
+    border-radius: 6px 0 0 6px;
+    cursor: pointer;
+    color: var(--ink);
+    background: transparent;
+    border: 1px solid color-mix(in srgb, var(--ink) 14%, transparent);
+  }
+
+  .reader-terminal-tab[aria-pressed="true"] {
+    background: color-mix(in srgb, var(--accent) 24%, transparent);
+    border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  }
+
+  .reader-terminal-tab-close {
+    font-size: 12px;
+    line-height: 1.5;
+    padding: 3px 6px;
+    border-radius: 0 6px 6px 0;
+    border: 1px solid color-mix(in srgb, var(--ink) 14%, transparent);
+    border-left: 0;
+    background: transparent;
+    color: var(--ink);
+    opacity: 0.5;
+    cursor: pointer;
+  }
+
+  .reader-terminal-tab-close:hover {
+    opacity: 1;
+  }
+
+  .reader-terminal-tab-add {
+    font-size: 13px;
+    line-height: 1.5;
+    padding: 2px 9px;
+    border-radius: 6px;
+    border: 1px dashed color-mix(in srgb, var(--ink) 22%, transparent);
+    background: transparent;
+    color: var(--ink);
+    cursor: pointer;
+  }
+
+  .reader-terminal-tab-add:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+
+  /* 一条终端的外壳。非当前的**不卸载**（卸载 = 关 WebSocket = 杀 PTY），
+     挪到屏幕外。不能用 display:none —— xterm 量到 0 高度会把终端算成 1 行，
+     切回来是一团乱码。 */
+  .reader-terminal-instance {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .reader-terminal-instance[data-hidden] {
+    position: absolute;
+    left: -200vw;
+    top: 0;
+    width: 60vw;
+    height: 50vh;
+    pointer-events: none;
+  }
+
   /* xterm 自己算尺寸，容器必须给出确定的高度，否则 fit() 会算成 1 行。 */
   .reader-terminal-surface {
     flex: 1 1 auto;
