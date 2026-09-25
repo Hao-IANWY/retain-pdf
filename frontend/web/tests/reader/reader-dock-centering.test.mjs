@@ -16,6 +16,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   clampSelectionToolbarLeft,
+  TOOLBAR_HALF,
 } from "../../../../frontend/packages/reader/src/components/react-pdf/ReaderSelectionToolbar.tsx";
 
 const READER_STYLES = fileURLToPath(
@@ -144,15 +145,17 @@ test("两条错误提示的宽度也收进 PDF 栏 —— 栏最窄 35vw，居�
 
 test("选区浮条夹在 PDF 栏里，不是 window.innerWidth 里", () => {
   // 选区在 PDF 栏最右边：按视口夹的话，工具条会被允许画到分栏线右边（面板上）。
+  // 半宽从实现里取：这条守的是「按栏夹还是按视口夹」，不是浮条到底多宽。
+  // 抄一份数字在这里，只会让「加了一个动作」变成改门禁。
   const atRightEdge = clampSelectionToolbarLeft(COLUMN - 5, COLUMN);
   assert.ok(
-    atRightEdge + 170 <= COLUMN,
-    `工具条右边缘 ${atRightEdge + 170} 越过了 PDF 栏 ${COLUMN}`,
+    atRightEdge + TOOLBAR_HALF <= COLUMN,
+    `工具条右边缘 ${atRightEdge + TOOLBAR_HALF} 越过了 PDF 栏 ${COLUMN}`,
   );
-  assert.equal(atRightEdge, COLUMN - 16 - 170);
+  assert.equal(atRightEdge, COLUMN - 16 - TOOLBAR_HALF);
 
   // 左边照旧留出 gutter。
-  assert.equal(clampSelectionToolbarLeft(0, COLUMN), 16 + 170);
+  assert.equal(clampSelectionToolbarLeft(0, COLUMN), 16 + TOOLBAR_HALF);
   // 中间的选区不动。
   assert.equal(clampSelectionToolbarLeft(300, COLUMN), 300);
 });
@@ -208,8 +211,9 @@ test("浮条真的按量出来的 PDF 栏定位，不是按 window.innerWidth", 
     const pop = host.querySelector(".reader-sel-pop");
     assert.ok(pop, "浮条没渲染出来");
     const left = Number.parseFloat(pop.style.left);
-    // 按视口夹的话这里会是 814（分栏线右边 214px，糊在 AI 面板上）。
-    assert.equal(left, COLUMN - 16 - 170);
+    // 按视口夹的话这里会落在分栏线右边，糊在 AI 面板上。
+    assert.equal(left, COLUMN - 16 - TOOLBAR_HALF);
+    assert.ok(left + TOOLBAR_HALF < VIEWPORT - SPLIT + 1, "浮条右缘越过了分栏线");
     await act(async () => { root.unmount(); });
   } finally {
     for (const [key, value] of Object.entries(previous)) {

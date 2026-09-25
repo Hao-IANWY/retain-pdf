@@ -21,7 +21,7 @@
  * 个块上也有。
  */
 import { type ReaderRegionHighlight } from "../shared/data/reader-regions.js";
-import type { AiNote } from "../shared/data/ai-notes.js";
+import { type AiNote } from "../shared/data/ai-notes.js";
 export type ReaderAiNoteTarget = {
     note: AiNote;
     highlight: ReaderRegionHighlight;

@@ -1,4 +1,9 @@
-import { type ReaderSelection } from "../../shared/data/reader-regions.js";
+import type { ReaderSelection } from "../../shared/data/reader-regions.js";
+/** 紧凑工具条约 360px 宽（复制 / 批注 / 问 AI / 取消 + 原文·译文 切换），
+ * 避免覆盖大段正文。原文／译文那一对按钮是**顶掉**了原来那个只能看不能点的
+ * 栏别文字，不是加在它旁边，所以只贵了 40px 左右；切过去要看的那段文本走下面
+ * 的气泡（纵向），宽度不再涨。 */
+export declare const TOOLBAR_HALF = 190;
 /** PDF 栏的宽度，不是视口宽度。
  *
  * dock 打开时视口右半边是 AI 面板，滚动壳被 `right: var(--reader-ai-split-width)`

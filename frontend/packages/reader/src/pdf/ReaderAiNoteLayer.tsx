@@ -21,7 +21,7 @@
  * 个块上也有。
  */
 import { projectReaderRegion, type ReaderRegionHighlight } from "../shared/data/reader-regions.js";
-import type { AiNote } from "../shared/data/ai-notes.js";
+import { AI_NOTE_KIND_LABEL, type AiNote } from "../shared/data/ai-notes.js";
 
 export type ReaderAiNoteTarget = {
   note: AiNote;
@@ -34,14 +34,6 @@ type ReaderAiNoteLayerProps = {
   targets: readonly ReaderAiNoteTarget[];
   activeNoteId: string | null;
   onSelect: (note: AiNote, rect: { left: number; top: number; width: number; height: number }) => void;
-};
-
-const KIND_LABEL: Record<AiNote["kind"], string> = {
-  question: "疑问",
-  warning: "注意",
-  link: "关联",
-  term: "术语",
-  note: "批注",
 };
 
 /** 记号贴在块左边缘外侧的宽度。够点得到，又不盖正文。 */
@@ -79,7 +71,7 @@ export function ReaderAiNoteLayer({
             width: MARK_W,
             height: Math.max(12, rect.height),
           }}
-          aria-label={`${KIND_LABEL[note.kind]}：${note.text}`}
+          aria-label={`${AI_NOTE_KIND_LABEL[note.kind]}：${note.text}`}
           title={note.text}
           onClick={(event) => {
             event.stopPropagation();

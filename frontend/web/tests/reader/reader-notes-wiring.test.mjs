@@ -222,5 +222,9 @@ test("ReaderAppReactPdf 把批注接到选择工具条与面板", () => {
     "utf8",
   );
   assert.match(toolbar, /onAddNote\?: \(input: ReaderSelectionNoteInput\) => void/);
-  assert.match(toolbar, /onAddNote\(\{ page: selection\.page, pane: selection\.pane, quote: copyValue \}\)/);
+  // 这里原来还钉着 `onAddNote({ page: selection.page, pane: selection.pane, … })`
+  // 的字面写法。它守不住任何东西：换个变量名就红，而「存下来的页码/栏别对不对」
+  // 它一个字都没验。真正守这件事的是本文件上面那条 —— 点「添加批注」后从
+  // localStorage 里对 page/pane —— 以及 reader-selection-pane-switch 里
+  // 「切到原文后批注跟着切」那条。浮条改成能切栏之后，这个字面量也已经是错的。
 });

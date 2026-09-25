@@ -51,6 +51,13 @@ export type AiNotesDoc = {
     /** 没有 refs 的条数。先量再决定要不要卡掉它们。 */
     weakCount: number;
 };
+/** 类别的中文名，页面标记层和索引面板共用。
+ *
+ * 原来两处各写了一份：页面上是「疑问 / 注意 / 关联 / 术语 / 批注」，面板里是
+ * 「存疑 / 当心 / 跨页 / 术语 / 笔记」—— 同一条批注在两个地方叫不同的名字，而
+ * 面板那份的注释还写着「和页面上那层同一套词，否则对不上号」。放数据层是因为
+ * kind 这个枚举本来就归这里管：加一个类别时，漏改的那一处会直接编译不过。 */
+export declare const AI_NOTE_KIND_LABEL: Record<AiNoteKind, string>;
 /** 从任意 JSON 里取出能用的部分。整份都不可用时返回 null（调用方当「还没有」）。 */
 export declare function parseAiNotes(payload: unknown): AiNotesDoc | null;
 /** 没写页码的批注归到这一档。

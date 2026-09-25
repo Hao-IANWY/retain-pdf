@@ -27,10 +27,10 @@
 import { useState, type ReactElement } from "react";
 
 import {
+  AI_NOTE_KIND_LABEL,
   AI_NOTE_NO_PAGE,
   groupAiNotesByPage,
   notesUpToLevel,
-  type AiNote,
   type AiNotesDoc,
 } from "../../shared/data/ai-notes.js";
 import { ReaderPanelShell } from "./ReaderPanelShell.js";
@@ -40,16 +40,6 @@ export type ReaderAiNotesPanelProps = {
   doc: AiNotesDoc | null;
   onClose: () => void;
   onJump: (anchor: { page_idx?: number; block_id?: string }) => void;
-};
-
-/** 记号的类别。和页面上那层同一套词，否则列表里写「提问」页面上画的是别的颜色，
- * 对不上号。 */
-const KIND_LABEL: Record<AiNote["kind"], string> = {
-  question: "存疑",
-  warning: "当心",
-  link: "跨页",
-  term: "术语",
-  note: "笔记",
 };
 
 /** 默认挡掉 level 3。见文件头：不让所有人先被细节淹一遍。 */
@@ -122,7 +112,7 @@ export function ReaderAiNotesPanel({
                   onJump({ page_idx: note.anchor.pageIdx ?? undefined, block_id: note.anchor.blockId })
                 }
               >
-                <span className="reader-ai-note-kind">{KIND_LABEL[note.kind]}</span>
+                <span className="reader-ai-note-kind">{AI_NOTE_KIND_LABEL[note.kind]}</span>
                 <span className="reader-ai-note-text">{note.text}</span>
                 {note.refs.length > 0 ? (
                   // refs 是这份数据里最有价值的部分（见 shared/data/ai-notes.ts：

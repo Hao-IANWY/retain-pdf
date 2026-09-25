@@ -1,6 +1,6 @@
 import { jsx as r, jsxs as n, Fragment as y } from "react/jsx-runtime";
 import { useState as m, useCallback as g, useEffect as k } from "react";
-import { c as x, f as b, A as F, b as P } from "./ReaderApp-BMCbtPv6.js";
+import { c as x, f as b, A as F, b as P } from "./ReaderApp-DRkNXhky.js";
 import { normalizeServerFavorite as S } from "./runtime/state.js";
 function A(t) {
   const a = `${t || ""}`.trim();
@@ -83,4 +83,4 @@ function q({
 export {
   q as ReaderFavoritesPanel
 };
-//# sourceMappingURL=ReaderFavoritesPanel-CSwONLDs.js.map
+//# sourceMappingURL=ReaderFavoritesPanel-T5QHTH2k.js.map

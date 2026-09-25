@@ -2,15 +2,19 @@
 
 import { useEffect, useState } from "react";
 import { Check, Copy, Image, Sigma, Sparkles, StickyNote, Table2, Type, X } from "lucide-react";
+import type { ReaderSelection } from "../../shared/data/reader-regions.js";
+import type { ReaderPaneId } from "../../shared/types/reader-dom.js";
 import {
-  extractReaderFormulaLatex,
-  readerRegionContent,
-  type ReaderSelection,
-} from "../../shared/data/reader-regions.js";
+  READER_PANE_LABEL,
+  resolveReaderSelectionView,
+} from "./reader-selection-view.js";
 import { READER_SCROLL_SHELL_CLASS } from "../../pdf/reader-dom-contract.js";
 
-/** 紧凑工具条约 320px 宽（复制 / 批注 / 问 AI / 取消），避免覆盖大段正文。 */
-const TOOLBAR_HALF = 170;
+/** 紧凑工具条约 360px 宽（复制 / 批注 / 问 AI / 取消 + 原文·译文 切换），
+ * 避免覆盖大段正文。原文／译文那一对按钮是**顶掉**了原来那个只能看不能点的
+ * 栏别文字，不是加在它旁边，所以只贵了 40px 左右；切过去要看的那段文本走下面
+ * 的气泡（纵向），宽度不再涨。 */
+export const TOOLBAR_HALF = 190;
 const GUTTER = 16;
 
 /** PDF 栏的宽度，不是视口宽度。
@@ -86,40 +90,42 @@ export function ReaderSelectionToolbar({
   onAddNote,
 }: ReaderSelectionToolbarProps) {
   const [copied, setCopied] = useState(false);
+  // null = 跟着选区所在那一栏。换一个选区就回到 null：上一段切到过原文，不该让
+  // 下一段也默认显示原文。
+  const [viewPane, setViewPane] = useState<ReaderPaneId | null>(null);
   const selectionKey = selection
     ? selection.selectionType === "text"
       ? `${selection.pane}:${selection.page}:${selection.quote}`
       : `${selection.region.itemId}:${selection.pane}`
     : "";
-  useEffect(() => setCopied(false), [selectionKey]);
+  useEffect(() => setViewPane(null), [selectionKey]);
+  // 切了栏文本就换了，「已复制」必须跟着消 —— 否则它在说另一段的话。
+  useEffect(() => setCopied(false), [selectionKey, viewPane]);
 
   if (!selection) {
     return null;
   }
 
+  const view = resolveReaderSelectionView(selection, viewPane);
+
   const vh = typeof window !== "undefined" ? window.innerHeight : 600;
   const midX = selection.rect.left + selection.rect.width / 2;
   const left = clampSelectionToolbarLeft(midX, readerColumnWidth());
 
-  // 优先选区上方；空间不够则翻到下方
-  const preferAbove = selection.rect.top > 72;
+  // 优先选区上方；空间不够则翻到下方。展开了对照气泡时卡片高得多，headroom
+  // 也得跟着涨 —— 按 72 判断会把整张卡片顶到视口上边之外。
+  const preferAbove = selection.rect.top > (view.showPeek ? 220 : 72);
   const top = preferAbove
     ? Math.max(12, selection.rect.top - 8)
     : Math.min(vh - 12, selection.rect.top + selection.rect.height + 8);
   const place = preferAbove ? "above" : "below";
 
-  const paneLabel = selection.pane === "translated" ? "译文" : "原文";
-  const kind = selection.selectionType === "text" ? "text" : selection.kind;
-  const regionContent = selection.selectionType === "text"
-    ? selection.quote
-    : readerRegionContent(selection.region, selection.pane);
+  const kind = view.kind;
   const kindLabel = kind === "formula" ? "公式"
     : kind === "table" ? "表格"
       : kind === "figure" ? "图片"
         : kind === "text" ? "文字" : "区域";
-  const copyValue = kind === "formula"
-    ? extractReaderFormulaLatex(regionContent)
-    : regionContent;
+  const copyValue = view.copyValue;
   const KindIcon = kind === "formula" ? Sigma
     : kind === "table" ? Table2
       : kind === "text" ? Type : Image;
@@ -137,66 +143,92 @@ export function ReaderSelectionToolbar({
       }}
     >
       <div className="reader-sel-pop-card reader-floating-surface">
-        <div className="reader-sel-pop-context">
-          <KindIcon size={15} strokeWidth={2.1} aria-hidden />
-          <span>{kindLabel}</span>
-          <span className="reader-sel-pop-context-divider" aria-hidden>·</span>
-          <span>{paneLabel}</span>
-          <span className="reader-sel-pop-context-divider" aria-hidden>·</span>
-          <span>{selection.page} 页</span>
-        </div>
+        <div className="reader-sel-pop-row">
+          <div className="reader-sel-pop-context">
+            <KindIcon size={15} strokeWidth={2.1} aria-hidden />
+            <span>{kindLabel}</span>
+            <span className="reader-sel-pop-context-divider" aria-hidden>·</span>
+            {view.canSwitch ? (
+              <span className="reader-sel-pop-panes" role="group" aria-label="看这段的原文或译文">
+                {(["source", "translated"] as const).map((pane) => (
+                  <button
+                    key={pane}
+                    type="button"
+                    className={`reader-sel-pop-pane${view.pane === pane ? " is-active" : ""}`}
+                    aria-pressed={view.pane === pane}
+                    onClick={() => setViewPane(pane)}
+                  >
+                    {READER_PANE_LABEL[pane]}
+                  </button>
+                ))}
+              </span>
+            ) : (
+              // 两侧拿不到各自的文本时不画开关 —— 画一个点了不动的按钮比没有更糟。
+              <span>{READER_PANE_LABEL[selection.pane]}</span>
+            )}
+            <span className="reader-sel-pop-context-divider" aria-hidden>·</span>
+            <span>{view.page} 页</span>
+          </div>
 
-        <div className="reader-sel-pop-actions">
-          {copyValue ? (
+          <div className="reader-sel-pop-actions">
+            {copyValue ? (
+              <button
+                type="button"
+                className="reader-sel-pop-btn reader-sel-pop-btn--primary"
+                onClick={async () => {
+                  try {
+                    await copyReaderSelectionText(copyValue);
+                    setCopied(true);
+                    window.setTimeout(() => setCopied(false), 1400);
+                  } catch (error) {
+                    console.warn("[reader-selection] copy failed", error);
+                  }
+                }}
+              >
+                {copied ? <Check size={15} strokeWidth={2.4} aria-hidden /> : <Copy size={15} strokeWidth={2.2} aria-hidden />}
+                <span>{copied ? "已复制" : kind === "formula" ? "复制 LaTeX" : "复制"}</span>
+              </button>
+            ) : (
+              <span className="reader-sel-pop-selection-hint">已选择图片</span>
+            )}
+            {onAddNote && copyValue ? (
+              <button
+                type="button"
+                className="reader-sel-pop-btn reader-sel-pop-btn--secondary"
+                onClick={() => onAddNote({ page: view.page, pane: view.pane, quote: copyValue })}
+              >
+                <StickyNote size={15} strokeWidth={2.2} aria-hidden />
+                <span>添加批注</span>
+              </button>
+            ) : null}
+            {onAskAi ? (
+              // 问 AI 交的是原选区，不跟着上面的切换走：askSelectedRegion 会把
+              // 文档切到选区所在那一栏，跟着切等于人只想瞄一眼原文，阅读位置却
+              // 被搬走了。
+              <button
+                type="button"
+                className="reader-sel-pop-btn reader-sel-pop-btn--secondary"
+                onClick={() => onAskAi(selection)}
+              >
+                <Sparkles size={15} strokeWidth={2.2} aria-hidden />
+                <span>问 AI</span>
+              </button>
+            ) : null}
             <button
               type="button"
-              className="reader-sel-pop-btn reader-sel-pop-btn--primary"
-              onClick={async () => {
-                try {
-                  await copyReaderSelectionText(copyValue);
-                  setCopied(true);
-                  window.setTimeout(() => setCopied(false), 1400);
-                } catch (error) {
-                  console.warn("[reader-selection] copy failed", error);
-                }
-              }}
+              className="reader-sel-pop-btn reader-sel-pop-btn--ghost"
+              onClick={onDismiss}
+              aria-label="取消选区"
+              title="取消"
             >
-              {copied ? <Check size={15} strokeWidth={2.4} aria-hidden /> : <Copy size={15} strokeWidth={2.2} aria-hidden />}
-              <span>{copied ? "已复制" : kind === "formula" ? "复制 LaTeX" : "复制"}</span>
+              <X size={15} strokeWidth={2.5} aria-hidden />
             </button>
-          ) : (
-            <span className="reader-sel-pop-selection-hint">已选择图片</span>
-          )}
-          {onAddNote && copyValue ? (
-            <button
-              type="button"
-              className="reader-sel-pop-btn reader-sel-pop-btn--secondary"
-              onClick={() => onAddNote({ page: selection.page, pane: selection.pane, quote: copyValue })}
-            >
-              <StickyNote size={15} strokeWidth={2.2} aria-hidden />
-              <span>添加批注</span>
-            </button>
-          ) : null}
-          {onAskAi ? (
-            <button
-              type="button"
-              className="reader-sel-pop-btn reader-sel-pop-btn--secondary"
-              onClick={() => onAskAi(selection)}
-            >
-              <Sparkles size={15} strokeWidth={2.2} aria-hidden />
-              <span>问 AI</span>
-            </button>
-          ) : null}
-          <button
-            type="button"
-            className="reader-sel-pop-btn reader-sel-pop-btn--ghost"
-            onClick={onDismiss}
-            aria-label="取消选区"
-            title="取消"
-          >
-            <X size={15} strokeWidth={2.5} aria-hidden />
-          </button>
+          </div>
         </div>
+        {view.showPeek ? (
+          // 只在看「另一栏」时展开：看的就是页面上那一栏时再抄一遍是噪声。
+          <p className="reader-sel-pop-peek" data-reader-peek-pane={view.pane}>{view.text}</p>
+        ) : null}
       </div>
       <span className="reader-sel-pop-caret" aria-hidden="true" />
     </div>
