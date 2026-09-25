@@ -16,7 +16,19 @@ export type ReaderWorkspaceTabsProps = {
         state: LiveTranslationState;
         onToggle: () => void;
     } | null;
+    /**
+     * 对照被辅助面板降级成了单栏（paneComposition.compareDegradedByAssistant）。
+     * 传了就在顶栏上说这件事，并给一个一键恢复。
+     */
+    compareDegraded?: boolean;
+    onRestoreCompare?: () => void;
 };
+/** 降级时顶栏那条提示说什么。
+ *
+ * 只写「对照不可用」没用 —— 用户要知道**是谁占了它**和**怎么拿回来**。
+ * 降级到哪一栏也得说：从选区问 AI 会锁到译文栏，这时留下的是译文不是原文。
+ */
+export declare function compareDegradedCopy(visiblePane: ReaderWorkspaceMode): string;
 export declare function liveTranslationStatusCopy(state: LiveTranslationState): string;
 export declare function isReaderWorkspaceDisabled(input: {
     id: ReaderWorkspaceMode;

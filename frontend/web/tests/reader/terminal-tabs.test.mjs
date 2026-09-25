@@ -20,8 +20,13 @@ import {
   addTab,
   closeTab,
   initialTabs,
+  loadTerminalTabs,
+  nextTabSeed,
+  normalizeTerminalTabs,
+  saveTerminalTabs,
   setTabScope,
   tabLabel,
+  terminalTabsStorageKey,
 } from "../../src/features/reader/domain/terminal-tabs.ts";
 
 const read = (relative) =>
@@ -146,4 +151,104 @@ test("作用域条和提示 chip 作用在当前这条上", () => {
   assert.match(PANEL, /scope=\{activeTab\.scope\}/);
   assert.match(PANEL, /setTabScope\(state, state\.activeId, scope\)/);
   assert.match(PANEL, /focusTerminal=\{focusActive\}/);
+});
+
+// ---------------------------------------------------------------- 存得住
+
+/** 一份可断言的假 storage。不用 jsdom 的 localStorage：这条测的是纯逻辑，
+ * 走不到浏览器的地方就别走 —— 挂住的测试在 CI 上表现成超时，而超时会被当成
+ * 基础设施抖动重跑。 */
+function fakeStorage(seed = {}) {
+  const data = new Map(Object.entries(seed));
+  return {
+    data,
+    getItem: (k) => (data.has(k) ? data.get(k) : null),
+    setItem: (k, v) => { data.set(k, v); },
+  };
+}
+
+const COLLECTION = { kind: "collection", collectionId: "c1", name: "化学", documentCount: 3 };
+
+test("摆好的工作台活过刷新 —— 开了几条、每条在哪个作用域", () => {
+  // 原来这份 state 只活在 useState 里：刷一次页面全没，回到一条默认的「这本书」。
+  // 而摆出「一条盯这本书、一条盯整个文件夹」要点好几下。
+  const storage = fakeStorage();
+  let state = initialTabs("job-1");
+  state = addTab(state, () => "t2");
+  state = setTabScope(state, "t2", COLLECTION);
+  saveTerminalTabs("job-1", state, storage);
+
+  const back = loadTerminalTabs("job-1", storage);
+  assert.equal(back.tabs.length, 2, "开了两条，回来只剩一条");
+  assert.equal(back.activeId, "t2");
+  assert.equal(back.tabs[0].scope.kind, "job");
+  assert.deepEqual(back.tabs[1].scope, COLLECTION, "第二条的作用域没存住");
+});
+
+test("没存过 / 读不出来 / 存的是垃圾，都退回一条默认的，不抛", () => {
+  assert.deepEqual(loadTerminalTabs("job-1", fakeStorage()), initialTabs("job-1"));
+  assert.deepEqual(
+    loadTerminalTabs("job-1", fakeStorage({ [terminalTabsStorageKey("job-1")]: "{不是 JSON" })),
+    initialTabs("job-1"),
+  );
+  // 隐私模式下碰 localStorage 会抛 —— 终端面板不该因此整个打不开。
+  const hostile = {
+    getItem() { throw new Error("SecurityError"); },
+    setItem() { throw new Error("SecurityError"); },
+  };
+  assert.deepEqual(loadTerminalTabs("job-1", hostile), initialTabs("job-1"));
+  assert.doesNotThrow(() => saveTerminalTabs("job-1", initialTabs("job-1"), hostile));
+  // 没有 sessionKey 就没有键可写，别写成一个全局的 `…:v1:`。
+  assert.equal(terminalTabsStorageKey(""), "");
+  assert.deepEqual(loadTerminalTabs("", fakeStorage()), initialTabs(""));
+});
+
+test("存下来的东西要过一遍校验 —— 上一个版本写的形状会变", () => {
+  // 先证「合法的认得出来」，否则下面几条「认不出来」在任何情况下都绿。
+  assert.deepEqual(
+    normalizeTerminalTabs({ tabs: [{ id: "t1", scope: { kind: "job", jobId: "j" } }], activeId: "t1" }),
+    { tabs: [{ id: "t1", scope: { kind: "job", jobId: "j" } }], activeId: "t1" },
+  );
+  assert.equal(normalizeTerminalTabs(null), null);
+  assert.equal(normalizeTerminalTabs({ tabs: "不是数组" }), null);
+  assert.equal(normalizeTerminalTabs({ tabs: [] }), null);
+  // 缺 collectionId 的文件夹作用域：放进去的表现是终端连到一个不存在的会话，
+  // 没有任何报错。
+  assert.equal(normalizeTerminalTabs({ tabs: [{ id: "t1", scope: { kind: "collection" } }] }), null);
+  // activeId 指向一条不存在的标签 → 回落到第一条，不是留一个指不到的值。
+  assert.equal(
+    normalizeTerminalTabs({ tabs: [{ id: "t1", scope: { kind: "job", jobId: "j" } }], activeId: "t9" }).activeId,
+    "t1",
+  );
+  // 上限照样管着存下来的东西 —— 否则手改一下 localStorage 就能把机器点满。
+  const many = {
+    tabs: Array.from({ length: MAX_TERMINALS + 3 }, (_, i) => ({
+      id: `t${i + 1}`, scope: { kind: "job", jobId: "j" },
+    })),
+    activeId: "t1",
+  };
+  assert.equal(normalizeTerminalTabs(many).tabs.length, MAX_TERMINALS);
+});
+
+test("恢复之后再点「+」，新 id 不能和已有的撞", () => {
+  // 撞了就是两条终端共用一个 React key / DOM 节点。
+  const storage = fakeStorage();
+  let state = initialTabs("job-1");
+  state = addTab(state, () => "t2");
+  state = addTab(state, () => "t3");
+  saveTerminalTabs("job-1", state, storage);
+
+  const back = loadTerminalTabs("job-1", storage);
+  let seed = nextTabSeed(back);
+  assert.equal(seed, 3, "计数器没跳过恢复出来的序号");
+  const grown = addTab(back, () => `t${(seed += 1)}`);
+  const ids = grown.tabs.map((tab) => tab.id);
+  assert.equal(new Set(ids).size, ids.length, `新 id 和已有的撞了: ${ids}`);
+});
+
+test("面板真的把这两件事接上了（读回来 + 写回去）", () => {
+  // 纯函数全绿而面板压根没调用它们，表现就是「刷新还是丢」。
+  assert.match(PANEL, /useState\(\(\) => loadTerminalTabs\(sessionKey\)\)/);
+  assert.match(PANEL, /saveTerminalTabs\(sessionKey, tabs\)/);
+  assert.match(PANEL, /useRef\(nextTabSeed\(tabs\)\)/);
 });

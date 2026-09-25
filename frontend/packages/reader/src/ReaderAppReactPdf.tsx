@@ -16,6 +16,7 @@ import {
 } from "./components/react-pdf/index.js";
 import type { ReaderAssistantPanel, ReaderWorkspaceMode } from "./components/react-pdf/index.js";
 import { useReaderAnnotations } from "./hooks/use-reader-annotations.js";
+import { useReaderAssistantPanel } from "./hooks/use-reader-assistant-panel.js";
 import type { ReaderNote } from "./annotations/types.js";
 import { DownloadToastHost } from "./shared/react/DownloadToastHost.jsx";
 import { READER_ROOT_CLASS } from "./pdf/reader-dom-contract.js";
@@ -45,16 +46,6 @@ import type { AiNote } from "./shared/data/ai-notes.js";
 /** 稳定的空数组：每次渲染新建一个会让每页的标记层白白重算。 */
 const EMPTY_AI_NOTES: readonly AiNote[] = [];
 import { READER_HOST_PANELS } from "./components/react-pdf/reader-host-panels.js";
-import { isReaderAssistantPanel } from "./shared/types/reader-assistant-panels.js";
-
-export function resolveVisiblePdfMode(
-  mode: "source" | "compare" | "translated",
-  assistantPanel: ReaderAssistantPanel | null,
-) {
-  return assistantPanel !== null && mode === "compare"
-    ? "source"
-    : mode;
-}
 
 /** 阅读视图可见台面的判别联合。 */
 export type ReaderPaneComposition = {
@@ -80,6 +71,14 @@ export type ReaderPaneComposition = {
   sourceOnly: boolean;
   /** 无可并排的最终译文 (sourceOnly || !translatedUrl)：页签禁用判定 */
   sourceViewOnly: boolean;
+  /**
+   * 对照被辅助面板降级成了单栏。**顶栏必须就此说话。**
+   *
+   * 实测（1440 宽、有译文的书、开终端）：右栏从 720px 塌成 0，顶栏选中项从
+   * 「对照」跳到「源文件」，全程没有一个字解释。用户看到的是「开个终端，译文
+   * 没了」，而终端和译文毫无关系。关掉面板它又自己回来 —— 更像坏了。
+   */
+  compareDegradedByAssistant: boolean;
 };
 
 /**
@@ -118,6 +117,9 @@ export function resolveReaderPaneComposition(input: {
   const compareMode = visibleMode === "compare";
   const showSource = overlayOnSource || visibleMode !== "translated";
   const showTranslated = visibleMode === "translated" || visibleMode === "compare";
+  // 降级发生在「会话想要对照，可见台面却不是对照」时。assistantPdfPane 锁栏
+  // （从选区问 AI）也算 —— 那条路同样会让右栏无声消失。
+  const compareDegradedByAssistant = input.mode === "compare" && visibleMode !== "compare";
   const kind: ReaderPaneComposition["kind"] = overlayOnSource
     ? "live-overlay"
     : visibleMode === "compare"
@@ -134,6 +136,7 @@ export function resolveReaderPaneComposition(input: {
     overlayOnSource,
     sourceOnly: input.sourceOnly,
     sourceViewOnly,
+    compareDegradedByAssistant,
   };
 }
 
@@ -152,25 +155,6 @@ export function resolveLiveTranslationVisibleOnWorkspaceChange(
     return liveTranslationAvailable ? true : null;
   }
   return false;
-}
-
-export function resolveInitialAssistantPanel(
-  mode: "source" | "compare" | "translated",
-  saved: ReturnType<typeof loadReaderViewState>,
-): ReaderAssistantPanel | null {
-  // A newly opened job always starts in its canonical PDF comparison view.
-  if (mode === "compare") return null;
-  // 认哪些 id 由 READER_ASSISTANT_PANEL_IDS 决定。原来在这儿抄了一份清单，
-  // 加面板忘了补的表现是「重开阅读页丢面板」—— 不报错，也没有测试会红。
-  if (isReaderAssistantPanel(saved?.assistantPanel)) {
-    return saved.assistantPanel;
-  }
-  // One-time migration from the former arbitrary two-pane layout.
-  if (saved?.splitLayout?.left === "ai" || saved?.splitLayout?.right === "ai") return "ai";
-  if (saved?.splitLayout?.left === "markdown" || saved?.splitLayout?.right === "markdown") {
-    return "markdown";
-  }
-  return null;
 }
 
 /** 加完一条批注之后该显示哪个面板。
@@ -193,13 +177,14 @@ export function resolveAssistantPanelAfterNote(
 export function ReaderAppReactPdf() {
   const c = useReaderReactController();
   const { boot, panes, sessionFiles, session } = c;
-  const [assistantPanel, setAssistantPanel] = useState<ReaderAssistantPanel | null>(() => (
-    resolveInitialAssistantPanel(c.mode, loadReaderViewState(c.viewStateKey))
-  ));
+  // 「开着哪个面板」的恢复 / 持久化整段在 use-reader-assistant-panel 里 ——
+  // 那是 effect 顺序的事，只有真渲染才测得到，所以单独成 hook 好被真渲染。
+  const assistant = useReaderAssistantPanel(c.viewStateKey);
+  const assistantPanel = assistant.panel;
+  const setAssistantPanel = assistant.setPanel;
   const [assistantPdfPane, setAssistantPdfPane] = useState<"source" | "translated" | null>(null);
   const [aiSelectionContext, setAiSelectionContext] = useState<ReaderSelection | null>(null);
   const [liveTranslationVisible, setLiveTranslationVisible] = useState(false);
-  const layoutScopeRef = useRef(c.viewStateKey);
   const modeScopeRef = useRef<string | null>(null);
 
   const assistantOpen = assistantPanel !== null;
@@ -236,9 +221,17 @@ export function ReaderAppReactPdf() {
     [annotations.exportMarkdown, session.title],
   );
 
+  // 换文档（或 viewStateKey 迁移）时丢掉上一本书的选区上下文。
+  //
+  // 这里原来还有一行 `setLiveTranslationVisible(true)`，它让上面那个
+  // `useState(false)` 成了死初值 —— 挂载时就跑，而且 viewStateKey 每迁一次就
+  // 再跑一次，连「任务到终态自动取消叠加」都能被它翻回来。和
+  // resolveReaderPaneComposition 头上写的「默认不叠加，避免旧『左右都是中文』
+  // 的自动叠加 bug」直接矛盾，删掉才是那段注释说的行为。
+  // 需要自动打开的那一处走 resolveLiveTranslationVisibleOnWorkspaceChange。
   useEffect(() => {
     setAiSelectionContext(null);
-    setLiveTranslationVisible(true);
+    setLiveTranslationVisible(false);
   }, [c.viewStateKey]);
 
   // 任务到终态后自动取消「实时译文」选中：终态应回到最终译文 PDF / 对照，
@@ -247,17 +240,10 @@ export function ReaderAppReactPdf() {
     if (c.session.jobTerminal) setLiveTranslationVisible(false);
   }, [c.session.jobTerminal]);
 
+  // 栏锁（从某栏的选区问 AI）也是按 scope 作废的：换了书那一栏就不是那一栏了。
   useEffect(() => {
-    if (boot.loading) return;
-    if (layoutScopeRef.current !== c.viewStateKey) {
-      layoutScopeRef.current = c.viewStateKey;
-      const saved = loadReaderViewState(c.viewStateKey);
-      setAssistantPanel(resolveInitialAssistantPanel(c.mode, saved));
-      setAssistantPdfPane(null);
-      return;
-    }
-    saveReaderViewState(c.viewStateKey, { assistantPanel, splitLayout: null });
-  }, [assistantPanel, boot.loading, c.mode, c.viewStateKey]);
+    setAssistantPdfPane(null);
+  }, [assistant.scope]);
 
   // 阅读模式恢复/持久化：与 anchor/zoom 对齐。sourceViewOnly 时只允许 source。
   useEffect(() => {
@@ -459,6 +445,8 @@ export function ReaderAppReactPdf() {
             state: c.liveTranslation,
             onToggle: () => setLiveTranslationVisible((visible) => !visible),
           } : null}
+          compareDegraded={paneComposition.compareDegradedByAssistant}
+          onRestoreCompare={closeAssistant}
         />
         <ReaderAssistantDock
           active={assistantPanel}

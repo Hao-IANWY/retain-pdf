@@ -12,6 +12,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 10px;
   height: 60px;
   padding: 0 72px;
   border-bottom: 1px solid color-mix(in srgb, var(--ink) 8%, transparent);
@@ -77,6 +78,76 @@
 
 .reader-live-translation-toggle:active {
   transform: scale(0.97);
+}
+
+/* 对照被辅助面板降级时顶栏那条提示。
+ *
+ * 为什么非有不可：实测 1440 宽下开一个终端，右栏从 720px 直接塌成 0，顶栏选中项
+ * 从「对照」跳到「源文件」，全程零解释 —— 而终端和译文毫无关系。做成按钮而不是
+ * 一行字：知道原因还不够，得能一步拿回来。
+ *
+ * 放在顶栏的正常流里（tab 组右边），不是绝对定位贴右边：贴右边会钻到右上角那组
+ * 下载 / 关闭底下，画出来了但点不动。跟着 tab 组一起居中，它出现时 tab 组左移 ——
+ * 那个位移本身也是一句话：台面变了。 */
+.reader-compare-degraded {
+  display: inline-flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  /* 宽度上限里那个 760px 是量出来的，不是拍的：顶栏的内容是**居中**的，而右上角
+     那组下载 / 关闭（.reader-chrome-tray，fixed、z-index 比这条栏高）从右边压过来。
+     压上了的表现不是「难看」，是**这条提示点不动** —— 实测过，鼠标点下去是
+     下载按钮接走的。窄到放不下整句就只留图标，见下面的 @media。 */
+  max-width: min(330px, calc(100vw - 760px));
+  min-height: 30px;
+  padding: 0 11px;
+  border: 1px solid color-mix(in srgb, var(--accent) 26%, transparent);
+  border-radius: 999px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--paper));
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background 140ms ease, transform 100ms ease;
+}
+
+.reader-compare-degraded:hover,
+.reader-compare-degraded:focus-visible {
+  background: color-mix(in srgb, var(--accent) 18%, var(--paper));
+  outline: none;
+}
+
+.reader-compare-degraded:active {
+  transform: scale(0.97);
+}
+
+/* 窄屏放不下整句就只留图标 —— 但**提示本身不会消失**，title 还在。
+ * 直接 display:none 就又回到了「右栏无声没了」，那正是这条要治的病。 */
+.reader-compare-degraded-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 899px) {
+  .reader-compare-degraded-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+  }
+
+  .reader-compare-degraded {
+    padding: 0 8px;
+    /* 只剩图标就不再受上面那条上限管 —— 那条是按整句话的宽度算的，
+       套在 30px 的图标上会把图标本身挤扁。 */
+    max-width: none;
+  }
 }
 
 @keyframes reader-live-translation-pulse {

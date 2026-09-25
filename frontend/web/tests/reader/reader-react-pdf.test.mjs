@@ -12,10 +12,7 @@ import {
   resolveReaderGridPresentation,
   resolveReaderPageWidthBasis,
 } from "../../../../frontend/packages/reader/src/components/react-pdf/ReaderCompareGrid.tsx";
-import {
-  resolveInitialAssistantPanel,
-  resolveVisiblePdfMode,
-} from "../../../../frontend/packages/reader/src/ReaderAppReactPdf.tsx";
+import { resolveInitialAssistantPanel } from "../../../../frontend/packages/reader/src/hooks/use-reader-assistant-panel.ts";
 import { ReaderAssistantDock } from "../../../../frontend/packages/reader/src/components/react-pdf/ReaderAssistantDock.tsx";
 import {
   isReaderWorkspaceDisabled,
@@ -142,13 +139,6 @@ test("failed live translation remains a readable paused workspace", () => {
   assert.equal(liveTranslationPendingCopy(failedWithPages), "翻译已暂停，已保留 2 页译文");
 });
 
-test("split workspaces show one PDF pane without losing the saved compare mode", () => {
-  assert.equal(resolveVisiblePdfMode("compare", "ai"), "source");
-  assert.equal(resolveVisiblePdfMode("compare", "markdown"), "source");
-  assert.equal(resolveVisiblePdfMode("compare", null), "compare");
-  assert.equal(resolveVisiblePdfMode("translated", "ai"), "translated");
-});
-
 test("reader workspace bar keeps only three icon-only reading modes", () => {
   const markup = renderToStaticMarkup(createElement(ReaderWorkspaceTabs, {
     mode: "compare",
@@ -207,27 +197,22 @@ test("assistant tools use a visible right rail and a unified dock header", () =>
 });
 
 test("assistant state restores directly and migrates the former split preference", () => {
-  assert.equal(resolveInitialAssistantPanel("source", {
+  assert.equal(resolveInitialAssistantPanel({
     schema: "retainpdf_reader_view_v1",
     assistantPanel: "markdown",
     updatedAt: 1,
   }), "markdown");
-  assert.equal(resolveInitialAssistantPanel("translated", {
+  assert.equal(resolveInitialAssistantPanel({
     schema: "retainpdf_reader_view_v1",
     splitLayout: { left: "source", right: "ai" },
     updatedAt: 1,
   }), "ai");
-  assert.equal(resolveInitialAssistantPanel("source", {
+  assert.equal(resolveInitialAssistantPanel({
     schema: "retainpdf_reader_view_v1",
     splitLayout: { left: "source", right: "translated" },
     updatedAt: 1,
   }), null);
-  assert.equal(resolveInitialAssistantPanel("source", null), null);
-  assert.equal(resolveInitialAssistantPanel("compare", {
-    schema: "retainpdf_reader_view_v1",
-    assistantPanel: "ai",
-    updatedAt: 1,
-  }), null);
+  assert.equal(resolveInitialAssistantPanel(null), null);
 });
 
 test("assistant dock does not expose arbitrary left and right pane composition", () => {

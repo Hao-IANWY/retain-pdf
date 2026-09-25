@@ -1,6 +1,4 @@
 import type { ReaderAssistantPanel, ReaderWorkspaceMode } from "./components/react-pdf/index.js";
-import { loadReaderViewState } from "./shared/state/reader-view-state.js";
-export declare function resolveVisiblePdfMode(mode: "source" | "compare" | "translated", assistantPanel: ReaderAssistantPanel | null): "compare" | "source" | "translated";
 /** 阅读视图可见台面的判别联合。 */
 export type ReaderPaneComposition = {
     /**
@@ -25,6 +23,14 @@ export type ReaderPaneComposition = {
     sourceOnly: boolean;
     /** 无可并排的最终译文 (sourceOnly || !translatedUrl)：页签禁用判定 */
     sourceViewOnly: boolean;
+    /**
+     * 对照被辅助面板降级成了单栏。**顶栏必须就此说话。**
+     *
+     * 实测（1440 宽、有译文的书、开终端）：右栏从 720px 塌成 0，顶栏选中项从
+     * 「对照」跳到「源文件」，全程没有一个字解释。用户看到的是「开个终端，译文
+     * 没了」，而终端和译文毫无关系。关掉面板它又自己回来 —— 更像坏了。
+     */
+    compareDegradedByAssistant: boolean;
 };
 /**
  * 单一纯函数，从 session.mode、实时译文可用/可见、助手开合与译文产物派生
@@ -53,7 +59,6 @@ export declare function resolveReaderPaneComposition(input: {
  * 返回 null 表示保持用户当前选择不动。
  */
 export declare function resolveLiveTranslationVisibleOnWorkspaceChange(next: ReaderWorkspaceMode, liveTranslationAvailable: boolean): boolean | null;
-export declare function resolveInitialAssistantPanel(mode: "source" | "compare" | "translated", saved: ReturnType<typeof loadReaderViewState>): ReaderAssistantPanel | null;
 /** 加完一条批注之后该显示哪个面板。
  *
  * 没有面板开着 → 把批注面板顶出来（否则刚加的那条在哪儿完全没反馈）；

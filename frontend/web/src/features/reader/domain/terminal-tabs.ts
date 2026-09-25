@@ -17,6 +17,9 @@
  */
 import { type TerminalScope } from "./terminal-scope.js";
 
+/** 每本书一条。刷新阅读页不该把「我开了三条、第二条盯着整个文件夹」这件事忘掉。 */
+const STORAGE_PREFIX = "retainpdf:reader:terminal-tabs:v1:";
+
 /** 同时最多几条。四条够用，再多也看不过来（面板就那么宽）。 */
 export const MAX_TERMINALS = 4;
 
@@ -93,4 +96,120 @@ export function setTabScope(
  */
 export function tabLabel(tab: TerminalTab, index: number): string {
   return tab.scope.kind === "job" ? `${index + 1} 书` : `${index + 1} ${tab.scope.name}`;
+}
+
+// ------------------------------------------------------------------ 持久化
+
+/** 标签布局的本地恢复。
+ *
+ * ## 为什么值得存
+ *
+ * 标签和每条的作用域是**用户摆出来的工作台**：一条盯着这本书、一条盯着整个
+ * 文件夹，摆一次要点好几下。而它原来只活在 `useState` 里 —— 刷新一次全没，
+ * 回到一条默认的「这本书」。恢复面板那件事修好之后，这条就成了最后一块：
+ * 面板回来了，里面是空的。
+ *
+ * ## 不存的是什么
+ *
+ * **不存 fx 会话 id**。哪条 fx 对话被续上由后端按 `busy_session_ids` 挑，前端
+ * 不该假装自己知道（TerminalTab.id 的注释是同一件事）。这里存的只是「开了几条、
+ * 各自在哪个作用域」。
+ *
+ * 读写都吞异常：隐私模式下碰 localStorage 会抛，而终端面板不该因此整个打不开。
+ */
+type StorageLike = Pick<Storage, "getItem" | "setItem">;
+
+function defaultStorage(): StorageLike | null {
+  try {
+    return typeof localStorage === "undefined" ? null : localStorage;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeScope(value: unknown): TerminalScope | null {
+  if (!value || typeof value !== "object") return null;
+  const raw = value as Record<string, unknown>;
+  if (raw.kind === "job") {
+    return typeof raw.jobId === "string" ? { kind: "job", jobId: raw.jobId } : null;
+  }
+  if (raw.kind !== "collection") return null;
+  if (typeof raw.collectionId !== "string" || !raw.collectionId) return null;
+  return {
+    kind: "collection",
+    collectionId: raw.collectionId,
+    name: typeof raw.name === "string" && raw.name ? raw.name : raw.collectionId,
+    documentCount: typeof raw.documentCount === "number" ? Math.max(0, raw.documentCount) : 0,
+  };
+}
+
+/** 把存下来的东西收敛回一份合法的 TerminalTabs，收敛不出来就返回 null。
+ *
+ * 校验不是形式主义：这份 JSON 是上一个版本的前端写的，而 MAX_TERMINALS、
+ * 作用域的形状都改过。放一条 `{kind:"collection"}` 但没有 collectionId 的标签
+ * 进去，表现是终端连到一个不存在的会话，没有任何报错。
+ */
+export function normalizeTerminalTabs(value: unknown): TerminalTabs | null {
+  if (!value || typeof value !== "object") return null;
+  const raw = value as { tabs?: unknown; activeId?: unknown };
+  if (!Array.isArray(raw.tabs)) return null;
+  const tabs: TerminalTab[] = [];
+  for (const item of raw.tabs.slice(0, MAX_TERMINALS)) {
+    const row = item as Record<string, unknown>;
+    const scope = normalizeScope(row?.scope);
+    const id = typeof row?.id === "string" ? row.id : "";
+    if (!id || !scope || tabs.some((tab) => tab.id === id)) continue;
+    tabs.push({ id, scope });
+  }
+  if (!tabs.length) return null;
+  const activeId = typeof raw.activeId === "string" && tabs.some((tab) => tab.id === raw.activeId)
+    ? raw.activeId
+    : tabs[0].id;
+  return { tabs, activeId };
+}
+
+export function terminalTabsStorageKey(sessionKey: string): string {
+  const scope = `${sessionKey || ""}`.trim();
+  return scope ? `${STORAGE_PREFIX}${scope}` : "";
+}
+
+/** 读上次的布局；没有 / 坏了就按 `initialTabs(sessionKey)` 从头开一条。 */
+export function loadTerminalTabs(
+  sessionKey: string,
+  storage: StorageLike | null = defaultStorage(),
+): TerminalTabs {
+  const key = terminalTabsStorageKey(sessionKey);
+  if (!key || !storage) return initialTabs(sessionKey);
+  try {
+    const raw = storage.getItem(key);
+    return (raw && normalizeTerminalTabs(JSON.parse(raw))) || initialTabs(sessionKey);
+  } catch {
+    return initialTabs(sessionKey);
+  }
+}
+
+export function saveTerminalTabs(
+  sessionKey: string,
+  state: TerminalTabs,
+  storage: StorageLike | null = defaultStorage(),
+): void {
+  const key = terminalTabsStorageKey(sessionKey);
+  if (!key || !storage) return;
+  try {
+    storage.setItem(key, JSON.stringify(state));
+  } catch {
+    // 隐私模式 / 配额满。少一次恢复，不该让终端面板坏掉。
+  }
+}
+
+/** 下一个还没被用掉的 `tN`。
+ *
+ * 恢复出来的标签带着上次的 id（`t1`、`t3`…），计数器要跳过它们 —— 否则点「+」
+ * 会生出一个和现有标签重号的 id，React key 撞车，两条终端共用一个 DOM 节点。
+ */
+export function nextTabSeed(state: TerminalTabs): number {
+  return state.tabs.reduce((seed, tab) => {
+    const n = Number(/^t(\d+)$/.exec(tab.id)?.[1] ?? 0);
+    return Number.isFinite(n) && n > seed ? n : seed;
+  }, 0);
 }

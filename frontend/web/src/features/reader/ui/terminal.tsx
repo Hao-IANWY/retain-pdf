@@ -17,7 +17,9 @@ import {
   activateTab,
   addTab,
   closeTab,
-  initialTabs,
+  loadTerminalTabs,
+  nextTabSeed,
+  saveTerminalTabs,
   setTabScope,
   type TerminalTab,
 } from "../domain/terminal-tabs.js";
@@ -52,8 +54,15 @@ type PanelProps = ReaderTerminalSlotProps & {
 function ReaderTerminalPanel({ open, sessionKey, baseUrl, apiKey }: PanelProps) {
   // 可以同时开几条。后端一直支持并行（busy_session_ids 会让第二条挑一个没被
   // 占用的 fx 会话），卡点一直在这里 —— 只有一个 <FxTerminal>。
-  const [tabs, setTabs] = useState(() => initialTabs(sessionKey));
-  const nextIdRef = useRef(1);
+  // 摆好的工作台要活过刷新：开了几条、每条盯着哪个作用域，都从上次读回来。
+  // 存的不是 fx 会话 id —— 哪条对话被续上由后端挑，见 loadTerminalTabs。
+  const [tabs, setTabs] = useState(() => loadTerminalTabs(sessionKey));
+  useEffect(() => {
+    saveTerminalTabs(sessionKey, tabs);
+  }, [sessionKey, tabs]);
+  // 计数器从恢复出来的最大序号往后走，不是从 1 —— 从 1 开会和 `t2` 撞 id，
+  // React key 撞车的表现是两条终端共用一个 DOM 节点。
+  const nextIdRef = useRef(nextTabSeed(tabs));
   const nextId = useCallback(() => `t${(nextIdRef.current += 1)}`, []);
   const activeTab = tabs.tabs.find((tab) => tab.id === tabs.activeId) ?? tabs.tabs[0];
   // 提示 chip 和作用域条作用在**当前这条**上。
