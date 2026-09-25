@@ -18,6 +18,15 @@ import {
 } from "@/features/fx-terminal/index.js";
 import { apiBase, frontendApiKey } from "@/platform/config/runtime.js";
 
+import {
+  ensureCollectionWorkspace,
+  loadCollectionOptions,
+  scopeLabel,
+  sessionKeyForScope,
+  type CollectionOption,
+  type TerminalScope,
+} from "../domain/terminal-scope.js";
+
 export function renderReaderTerminal(props: ReaderTerminalSlotProps) {
   // 浏览器只认 Rust API 这一个地址和一把凭据 —— AI 服务(41100)只监听回环，
   // 前端从不直连它，/ai/ask 也是经 Rust 转发的。终端走同样的路。
@@ -40,11 +49,15 @@ type PanelProps = ReaderTerminalSlotProps & {
 };
 
 function ReaderTerminalPanel({ open, sessionKey, baseUrl, apiKey }: PanelProps) {
+  // 作用域：默认这本书。切到文件夹之后 session 键变 → 整条 WebSocket 和 PTY
+  // 重建,也就是换一个 fx 会话 —— 这正是想要的,两个作用域的对话不该串。
+  const [scope, setScope] = useState<TerminalScope>({ kind: "job", jobId: sessionKey });
+  const effectiveKey = sessionKeyForScope(scope);
   // useMemo 而不是每次渲染新建：FxTerminal 的 effect 依赖 session，
   // 每次渲染换一个新对象会把 WebSocket 和 PTY 反复拆了重建。
   const session = useMemo(
-    () => websocketTerminalSession({ baseUrl, apiKey, session: sessionKey }),
-    [baseUrl, apiKey, sessionKey],
+    () => websocketTerminalSession({ baseUrl, apiKey, session: effectiveKey }),
+    [baseUrl, apiKey, effectiveKey],
   );
   const themeId = useThemeId();
   // 提示 chip 打完字要把键盘还给终端，否则焦点留在按钮上，用户得再点一下才能回车。
@@ -72,6 +85,13 @@ function ReaderTerminalPanel({ open, sessionKey, baseUrl, apiKey }: PanelProps) 
       hidden={!open}
       aria-label="fx 终端"
     >
+      <TerminalScopeBar
+        scope={scope}
+        jobId={sessionKey}
+        baseUrl={baseUrl}
+        apiKey={apiKey}
+        onChange={setScope}
+      />
       <TerminalSuggestions session={session} focusTerminal={focusTerminal} />
       <FxTerminal
         session={session}
@@ -155,6 +175,105 @@ function TerminalSuggestions({
       >
         ×
       </button>
+    </div>
+  );
+}
+
+/** 作用域切换条：这本书 / 某个文件夹。
+ *
+ * 只在**真的有可选文件夹**时出现。没有文件夹的人（多数）看到的终端和以前
+ * 一模一样 —— 给一个点了只会说"没有文件夹"的控件，比没有更糟。
+ */
+function TerminalScopeBar({
+  scope,
+  jobId,
+  baseUrl,
+  apiKey,
+  onChange,
+}: {
+  scope: TerminalScope;
+  jobId: string;
+  baseUrl: string;
+  apiKey: string;
+  onChange: (scope: TerminalScope) => void;
+}) {
+  const [options, setOptions] = useState<CollectionOption[]>([]);
+  const [failure, setFailure] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const fetchJson = useCallback(
+    async (path: string) => {
+      const response = await fetch(new URL(path, baseUrl), {
+        headers: { "X-API-Key": apiKey },
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return await response.json();
+    },
+    [baseUrl, apiKey],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    void loadCollectionOptions(fetchJson).then((list) => {
+      if (!cancelled) setOptions(list);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchJson]);
+
+  const select = useCallback(
+    async (option: CollectionOption | null) => {
+      setFailure("");
+      if (!option) {
+        onChange({ kind: "job", jobId });
+        return;
+      }
+      // 必须先物化再切 —— 不然终端会落进一个过期或不存在的工作区,而那个失败
+      // 是静默的（Python 侧退回私有目录,表现是 books/ 空着）。
+      setBusy(true);
+      const reason = await ensureCollectionWorkspace(fetchJson, option.collectionId);
+      setBusy(false);
+      if (reason) {
+        setFailure(reason);
+        return;
+      }
+      onChange({ kind: "collection", ...option });
+    },
+    [fetchJson, jobId, onChange],
+  );
+
+  if (options.length === 0) return null;
+  return (
+    <div className="reader-terminal-scope" aria-label="终端作用域">
+      <span className="reader-terminal-scope-lead">范围</span>
+      <button
+        type="button"
+        className="reader-terminal-scope-option"
+        aria-pressed={scope.kind === "job"}
+        disabled={busy}
+        onClick={() => void select(null)}
+      >
+        这本书
+      </button>
+      {options.map((option) => {
+        const active =
+          scope.kind === "collection" && scope.collectionId === option.collectionId;
+        return (
+          <button
+            key={option.collectionId}
+            type="button"
+            className="reader-terminal-scope-option"
+            aria-pressed={active}
+            disabled={busy}
+            title={`让 fx 一次看见这 ${option.documentCount} 本书`}
+            onClick={() => void select(option)}
+          >
+            {scopeLabel({ kind: "collection", ...option })}
+          </button>
+        );
+      })}
+      {failure ? <span className="reader-terminal-scope-note">{failure}</span> : null}
     </div>
   );
 }
