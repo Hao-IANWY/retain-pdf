@@ -63,6 +63,24 @@ port_pids() {
 
 # ---------------------------------------------------------------- 命令
 
+# 组装 dev_stack 的启动参数。
+#
+# 单独成函数**是为了能验证它**：这几行原来内联在 cmd_up 里，而 cmd_up 会杀端口、
+# 起后台进程，没法在测试里跑。于是这段一直没被任何东西守着 —— 直到它真的坏了。
+#
+# 坏法是这样的：macOS 自带 bash 3.2，`set -u` 下展开**空数组**会报
+# `unbound variable`。所以 `"${build_flag[@]}"` 在不带 --fast 时直接炸，
+# 也就是**改过 Rust 之后必须走的那条路**。而报错指向脚本行号，看不出是空数组。
+# `${arr[@]+"${arr[@]}"}` 是 3.2 安全的写法：数组为空时整个展开消失。
+stack_argv() {
+  local fast="${1:-}"
+  local build_flag=()
+  [[ "$fast" == "--fast" ]] && build_flag=(--no-build)
+  printf '%s ' --host 0.0.0.0 --port "$API_PORT" --data-root "$DATA_ROOT" --no-sync \
+    ${build_flag[@]+"${build_flag[@]}"}
+  printf '\n'
+}
+
 cmd_down() {
   local killed=0
   for port in "$STATIC_PORT" "$API_PORT" 41002 41100 42000; do
@@ -89,11 +107,8 @@ cmd_up() {
     >"$RUN_DIR/static.log" 2>&1 &
   disown
 
-  local build_flag=()
-  [[ "$fast" == "--fast" ]] && build_flag=(--no-build)
-  nohup python3 "$REPO/ops/development/dev_stack.py" \
-    --host 0.0.0.0 --port "$API_PORT" --data-root "$DATA_ROOT" --no-sync \
-    "${build_flag[@]}" >"$RUN_DIR/stack.log" 2>&1 &
+  nohup python3 "$REPO/ops/development/dev_stack.py" $(stack_argv "$fast") \
+    >"$RUN_DIR/stack.log" 2>&1 &
   disown
 
   echo -n "等后端就绪"
@@ -140,8 +155,9 @@ cmd_logs() { tail -f "$RUN_DIR/stack.log" "$RUN_DIR/static.log"; }
 
 case "${1:-status}" in
   up)     cmd_up "${2:-}" ;;
+  argv)   stack_argv "${2:-}" ;;
   down)   cmd_down ;;
   status) cmd_status ;;
   logs)   cmd_logs ;;
-  *)      echo "用法: $0 {up [--fast]|down|status|logs}" >&2; exit 2 ;;
+  *)      echo "用法: $0 {up [--fast]|down|status|logs|argv [--fast]}" >&2; exit 2 ;;
 esac

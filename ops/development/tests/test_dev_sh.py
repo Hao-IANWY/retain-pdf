@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -82,3 +83,69 @@ def test_the_readme_documents_both_commands(source: str) -> None:
     assert "npm run verify" in readme
     # 那张「哪条命令覆盖什么」的表是这次的重点，不能丢。
     assert "重建 bundle" in readme
+
+
+# ---------------------------------------------------------------- 真跑一遍 bash
+
+
+def _argv(*extra: str) -> subprocess.CompletedProcess[str]:
+    """跑 `dev.sh argv`，它只组装参数,不碰端口也不起进程。"""
+    return subprocess.run(
+        ["bash", str(SCRIPT), "argv", *extra],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+
+
+def test_the_backend_argv_assembles_under_the_system_bash() -> None:
+    """**这一条是真跑 bash,不是读文本。**
+
+    起因:`dev.sh up`（不带 --fast,也就是改过 Rust 之后必须走的那条）一直是坏的。
+    macOS 自带 bash 3.2,`set -u` 下展开**空数组**会报 `unbound variable`,而
+    `--fast` 那条因为数组非空反而正常 —— 于是只在最需要它的时候失败。
+
+    读文本的门禁挡不住这个:`"${build_flag[@]}"` 看起来完全正常。只有在真正的
+    bash 里跑一遍才会红。
+    """
+    done = _argv()
+    assert done.returncode == 0, f"不带 --fast 的参数组装失败了:\n{done.stderr}"
+    args = done.stdout.split()
+    assert "--no-build" not in args, "不带 --fast 却跳过了构建 —— 改了 Rust 不会重编"
+    for flag in ("--host", "--port", "--data-root", "--no-sync"):
+        assert flag in args, f"少了 {flag}"
+
+    fast = _argv("--fast")
+    assert fast.returncode == 0, fast.stderr
+    assert "--no-build" in fast.stdout.split(), "--fast 没有跳过构建"
+
+
+def test_up_actually_uses_the_function_that_is_guarded(source: str) -> None:
+    """门禁守的是 `stack_argv`,所以 `cmd_up` 必须真的走它。
+
+    反证时发现的洞:把参数内联回 cmd_up,上面那条照样绿 —— 它验的是一个没人用的
+    函数。真实路径不经过被守的代码,等于没守。
+    """
+    up_block = source[source.index("cmd_up() {") : source.index("cmd_status() {")]
+    assert "stack_argv" in up_block, "cmd_up 不再走 stack_argv,门禁管不到真实路径了"
+    assert "--data-root" not in up_block, "参数又被内联回 cmd_up 了"
+
+
+def test_the_system_bash_is_the_one_that_has_this_trap() -> None:
+    """把「为什么要上面那条」钉死,而不是只留一句注释。
+
+    bash 3.2 下 `set -u` + 空数组展开会失败,4.4+ 已经不会了。哪天 macOS 换了
+    默认 bash,上面那条仍然绿,但这一条会红 —— 那时可以把这两条一起删掉,而不是
+    让一条没人记得为什么存在的规则留在仓库里。
+    """
+    probe = subprocess.run(
+        ["bash", "-c", 'set -u; arr=(); printf "%s" "${arr[@]}"'],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    if probe.returncode == 0:
+        pytest.skip("这个系统的 bash 已经不会在空数组上炸了,上面那条门禁可以退休")
+    assert "unbound" in probe.stderr.lower()
