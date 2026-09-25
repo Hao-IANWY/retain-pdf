@@ -42,7 +42,9 @@ test("唯一那个启动器上有 AI 批注", () => {
   assert.ok(entry, `启动器清单里没有 AI 批注: ${tabs.map((t) => t.id)}`);
   assert.equal(entry.label, "AI 批注");
   assert.ok(entry.Icon, "没给图标，那个 tab 会崩");
-  assert.match(APP, /open=\{assistantPanel === "ai-notes"\}/, "点了没人接");
+  // 面板 id 只写一处（见 use-reader-panel-slot.ts）：插槽在 + 面板消费它的 open。
+  assert.match(APP, /useReaderPanelSlot\(assistantPanel, "ai-notes"\)/, "没给 AI 批注开插槽");
+  assert.match(APP, /open=\{aiNotesSlot\.open\}/, "点了没人接");
   assert.match(APP, /<ReaderAiNotesPanel/, "面板没挂上去");
 });
 

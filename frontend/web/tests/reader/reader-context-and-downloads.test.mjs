@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { JSDOM } from "jsdom";
 
 import {
   ReaderProvider,
@@ -139,6 +140,18 @@ test("产物没就绪的那一路禁用但不隐藏，原因写在 title 上", (
   assert.match(markup, /译文 PDF 尚未生成或清单不可用/);
   // 原文那一路是好的，必须没被一起禁掉 —— 否则上面那条断言在"全都禁用"时也绿。
   assert.doesNotMatch(markup, /id="reader-download-source"[^>]*disabled/);
+
+  // **原因得挂在没被禁用的那一层上**：disabled 的按钮在主流浏览器上不派发鼠标
+  // 事件，title 写在它自己身上等于只有读屏拿得到。窄屏（≤900px）下文字标签还会
+  // 被裁成 1px，鼠标用户连「这是哪一路」都看不到。
+  const doc = new JSDOM(`<body>${markup}</body>`).window.document;
+  const button = doc.querySelector("#reader-download-translated");
+  assert.ok(button.disabled, "这条门禁守错了地方：这一路没被禁用");
+  assert.equal(button.getAttribute("title"), null, "title 挂在 disabled 的按钮上，弹不出来");
+  const hoverable = button.closest("[title]");
+  assert.ok(hoverable, "没有任何一层能 hover 的祖先带着原因");
+  assert.ok(!hoverable.disabled, "带着原因的那一层也被禁用了，还是弹不出来");
+  assert.match(hoverable.getAttribute("title"), /译文 PDF 尚未生成或清单不可用/);
 });
 
 test("ReaderAppReactPdf provides context and stops drilling controller props", () => {

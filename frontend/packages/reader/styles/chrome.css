@@ -185,6 +185,13 @@
   -webkit-backdrop-filter: blur(16px);
 }
 
+/* 按钮外面那层：disabled 的按钮不派发鼠标事件，title 得挂在它身上才弹得出来
+ * （见 ReaderDownloadActions.tsx）。它不该在布局上多占一层，所以就是个
+ * inline-flex 的贴身盒。 */
+.reader-download-action-slot {
+  display: inline-flex;
+}
+
 .reader-download-action {
   display: inline-flex;
   align-items: center;

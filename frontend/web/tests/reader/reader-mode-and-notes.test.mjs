@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { READER_HOST_PANEL_IDS } from "../../../../frontend/packages/reader/src/shared/types/reader-assistant-panels.ts";
 import { readerDockTabs } from "../../../../frontend/packages/reader/src/components/react-pdf/reader-dock-tabs.ts";
+import { resolveAssistantPanelAfterNote } from "../../../../frontend/packages/reader/src/ReaderAppReactPdf.tsx";
 import {
   loadReaderViewState,
   normalizeReaderViewState,
@@ -83,9 +84,25 @@ test("批注面板的开合和别的面板同一个状态，没有第二份 open
   const app = readerSource(
     "../../../../frontend/packages/reader/src/ReaderAppReactPdf.tsx",
   );
-  assert.match(app, /open=\{assistantPanel === "notes"\}/);
+  assert.match(app, /useReaderPanelSlot\(assistantPanel, "notes"\)/);
+  assert.match(app, /open=\{notesSlot\.open\}/);
   assert.doesNotMatch(app, /notesOpen|aiNotesOpen|useReaderTools/);
   assert.doesNotMatch(app, /打开批注/);
+});
+
+test("加批注不会把你正开着的那个面板顶掉", () => {
+  // 一份状态的代价：无条件 setAssistantPanel("notes") 在浮窗年代只是弹个浮窗，
+  // 搬进 dock 之后变成「把当前面板整个换掉」—— 终端里跑着长任务，划一句加个
+  // 批注，终端就被切走了。
+  assert.equal(resolveAssistantPanelAfterNote(null), "notes", "没有面板开着时得把批注顶出来");
+  for (const open of ["terminal", "ai", "markdown", "favorites", "notes"]) {
+    assert.equal(resolveAssistantPanelAfterNote(open), open, `${open} 面板开着时被批注顶掉了`);
+  }
+  // 阅读页真的用的是这个决策，不是自己又写了一遍。
+  const app = readerSource(
+    "../../../../frontend/packages/reader/src/ReaderAppReactPdf.tsx",
+  );
+  assert.match(app, /setAssistantPanel\(resolveAssistantPanelAfterNote\)/);
 });
 
 test("原来 FAB 菜单里的三样（摘录 / Markdown / AI）一个都没丢", () => {

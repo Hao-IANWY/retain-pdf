@@ -59,19 +59,30 @@ export function ReaderDownloadActions(props: ReaderDownloadActionsProps): ReactE
         const reason = enabled ? "" : readerDownloadDisabledReason(action, urls);
         const Icon = ICONS[action];
         return (
-          <button
+          // 外面这层 span 是为了**让「为什么点不动」这句话真的弹得出来**。
+          //
+          // disabled 的按钮在主流浏览器上不派发鼠标事件，挂在它自己身上的
+          // title 永远不显示 —— 原因只有读屏拿得到（aria-label 还在），鼠标
+          // 用户看到的就是一个灰掉的按钮。窄屏（≤900px）下文字标签还会被裁成
+          // 1px 只留图标，那时连「这是哪一路」都没了。
+          // span 不是 disabled，hover 照样触发。
+          <span
             key={action}
-            type="button"
-            id={`reader-download-${action}`}
-            className={`reader-download-action${busy ? " is-busy" : ""}`}
-            disabled={!enabled}
-            aria-label={enabled ? `下载${meta.label}` : reason}
+            className="reader-download-action-slot"
             title={enabled ? `下载${meta.label}` : reason}
-            onClick={() => void handleDownload(action)}
           >
-            <Icon size={15} strokeWidth={2.1} aria-hidden />
-            <span className="reader-download-action-label">{SHORT[action]}</span>
-          </button>
+            <button
+              type="button"
+              id={`reader-download-${action}`}
+              className={`reader-download-action${busy ? " is-busy" : ""}`}
+              disabled={!enabled}
+              aria-label={enabled ? `下载${meta.label}` : reason}
+              onClick={() => void handleDownload(action)}
+            >
+              <Icon size={15} strokeWidth={2.1} aria-hidden />
+              <span className="reader-download-action-label">{SHORT[action]}</span>
+            </button>
+          </span>
         );
       })}
     </div>

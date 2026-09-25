@@ -54,5 +54,17 @@ export declare function resolveReaderPaneComposition(input: {
  */
 export declare function resolveLiveTranslationVisibleOnWorkspaceChange(next: ReaderWorkspaceMode, liveTranslationAvailable: boolean): boolean | null;
 export declare function resolveInitialAssistantPanel(mode: "source" | "compare" | "translated", saved: ReturnType<typeof loadReaderViewState>): ReaderAssistantPanel | null;
+/** 加完一条批注之后该显示哪个面板。
+ *
+ * 没有面板开着 → 把批注面板顶出来（否则刚加的那条在哪儿完全没反馈）；
+ * 已经有面板开着 → **不动它**。
+ *
+ * 原来是无条件 `setAssistantPanel("notes")`。浮窗年代那行是对的：它只是弹一个
+ * 浮窗，不碰 dock。三个面板搬进 dock、共用同一个 assistantPanel 之后，同一行
+ * 代码的含义变成「把你正开着的那个面板整个换掉」—— 正在终端里跑着一条长任务，
+ * 顺手划一句加个批注，终端就被切走了。页面上本来就会画出批注记号，开着别的
+ * 面板时不缺这条反馈。
+ */
+export declare function resolveAssistantPanelAfterNote(current: ReaderAssistantPanel | null): ReaderAssistantPanel;
 export declare function ReaderAppReactPdf(): import("react").JSX.Element;
 //# sourceMappingURL=ReaderAppReactPdf.d.ts.map

@@ -24,11 +24,10 @@
  */
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync } from "node:fs";
-import { join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { JSDOM } from "jsdom";
 
 import {
   READER_ASSISTANT_PANEL_IDS,
@@ -37,19 +36,27 @@ import {
 import { readerDockTabs } from "../../../packages/reader/src/components/react-pdf/reader-dock-tabs.ts";
 import { ReaderAssistantDock } from "../../../packages/reader/src/components/react-pdf/ReaderAssistantDock.tsx";
 import { READER_DOWNLOAD_ORDER } from "../../../packages/reader/src/components/react-pdf/use-reader-downloads.ts";
+import {
+  allRules,
+  hidingDeclarations,
+  isStateSelector,
+  readerStyleSources,
+  stripComments,
+} from "./helpers/reader-css.mjs";
 
-const READER_STYLES = fileURLToPath(
-  new URL("../../../packages/reader/styles/", import.meta.url),
-);
-const stripComments = (css) => css.replace(/\/\*[\s\S]*?\*\//g, "");
-const styleFiles = () =>
-  readdirSync(READER_STYLES).filter((name) => name.endsWith(".css")).sort();
-const readStyle = (name) => stripComments(readFileSync(join(READER_STYLES, name), "utf8"));
+// 扫描范围包含宿主那两个 reader 入口 —— 它们和包的 styles 一起编译进同一份
+// dist/css/reader.css。只扫包目录的话，隐藏规则写在 entries/reader.css 里整套全绿
+// （复查实测过）。细节见 helpers/reader-css.mjs。
+const allStyles = () => readerStyleSources().map(({ css }) => css).join("\n");
 
 const APP = readFileSync(
   new URL("../../../packages/reader/src/ReaderAppReactPdf.tsx", import.meta.url),
   "utf8",
 );
+const readStyle = (name) => stripComments(readFileSync(
+  new URL(`../../../packages/reader/styles/${name}`, import.meta.url),
+  "utf8",
+));
 
 // ------------------------------------------------------------------ 清单对账
 
@@ -77,84 +84,64 @@ test("每个面板都有标签和图标 —— 少一样那个 tab 要么空白�
 test("**只有一个**启动器：圆钮那一套连同它的 CSS 一起没了", () => {
   // 先证明「另一个东西存在」：启动器本身的样式必须真的在，否则下面那条
   // 「圆钮不存在」在任何情况下都绿（整份 CSS 都被删掉时也绿）。
-  const all = styleFiles().map(readStyle).join("\n");
+  const all = allStyles();
   assert.match(all, /\.reader-assistant-rail\b/, "启动器的竖条样式没了");
   assert.match(all, /\.reader-assistant-dock-tabs\b/, "启动器的 tab 条样式没了");
   assert.doesNotMatch(all, /\.reader-fab\b/, "圆钮的 CSS 又回来了");
   assert.doesNotMatch(APP, /ReaderFab|fabActiveTool/, "阅读页又挂了一个圆钮");
 });
 
+/** 阅读页里每个包内面板的开合插槽声明：变量名 → 面板 id。
+ *
+ * 面板 id 在阅读页里只写这一处（见 use-reader-panel-slot.ts）。所以「哪个 tab
+ * 接到哪个面板」这件事可以**当账来对**：每个 id 恰好一个插槽、每个插槽的
+ * `.open` 恰好被一个面板消费。抄改写错的表现一定是某个插槽被用了两次、另一个
+ * 一次都没用到。 */
+function panelSlots() {
+  return [...APP.matchAll(/const (\w+) = useReaderPanelSlot\(assistantPanel, "([a-z-]+)"\)/g)]
+    .map(([, name, id]) => ({ name, id }));
+}
+
 test("每个面板的 tab 真的接到了那个面板上 —— 不是「tab 在、点了没东西」", () => {
   // 这条是补上来的：反证时把摘录的 `open` 改成写死的 false（tab 还在、点了
   // 打不开），**整个 2000 条的套件全绿**。启动器清单那几条只证明 tab 在，
-  // 证明不了 tab 接到了东西 —— 而这正是这次要修的那类缺陷本身。
+  // 证明不了 tab 接到了东西 —— 而这正是要修的那类缺陷本身。
   //
-  // 包自己渲染的面板逐个对账；宿主槽位面板走 READER_HOST_PANELS.map + 壳里的
-  // `active === panel.id`，那一条由 reader-terminal-slot 的壳测试盖住。
-  //
-  // id 从真源 map 出来，不在这里抄第二份清单。
-  for (const id of READER_BASE_PANEL_IDS) {
-    const wiring = `open={assistantPanel === "${id}"}`;
-    const at = APP.indexOf(wiring);
-    assert.ok(at > 0, `${id} 的 tab 没接到面板上：阅读页里找不到 ${wiring}`);
-    assert.equal(APP.indexOf(wiring, at + 1), -1, `${id} 接了两遍，会开出两个面板`);
+  // 包自己渲染的面板逐个对账；宿主槽位面板的同一条由
+  // reader-host-panel-wiring.test.mjs 真渲染一遍盖住（它以前谁也没守，
+  // 把壳里的 `active === panel.id` 改成 `active === "terminal"` 全套绿）。
+  const slots = panelSlots();
+  assert.deepEqual(
+    [...slots.map((slot) => slot.id)].sort(),
+    [...READER_BASE_PANEL_IDS].sort(),
+    `面板插槽和 id 真源对不上：${slots.map((slot) => slot.id)}`,
+  );
+  assert.equal(new Set(slots.map((slot) => slot.id)).size, slots.length, "同一个面板声明了两次插槽");
+  for (const { name, id } of slots) {
+    const used = APP.split(`open={${name}.open}`).length - 1;
+    assert.equal(used, 1, `${id} 的插槽被 ${used} 个面板当作 open —— 不是 1 就是接错了人`);
   }
 });
 
-test("懒加载面板的挂载闸用的是它自己那个 id", () => {
-  // 闸和 open 用了不同的 id 是个抄改出来的错：面板永远不挂载，点了什么都没有，
-  // 而 tsc 和上面那条都不会红（两个 id 各自都是合法的）。
-  const latched = [...APP.matchAll(/useMountedSinceFirstOpen\(assistantPanel === "([a-z-]+)"\)/g)]
-    .map((m) => m[1]);
+test("懒加载面板的挂载闸守的就是它自己那个面板", () => {
+  // 闸和面板用了不同的插槽是个抄改出来的错：闸是单调 latch，面板会变成
+  // 「先开过另一个面板才打得开」，而 tsc 和上面那条都不会红。
+  //
+  // 上一版这条只校验「闸上那个 id 在别处有 open 绑定」—— 把摘录的闸换成
+  // "markdown"，那条绑定被 Markdown 面板自己满足了，全套 2049 条全绿（复查实测）。
+  const names = new Set(panelSlots().map((slot) => slot.name));
+  const latched = [...APP.matchAll(/\{(\w+)\.mounted \? ([\s\S]*?) : null\}/g)];
   assert.ok(latched.length >= 3, `只找到 ${latched.length} 个挂载闸，正则八成没匹配上`);
-  for (const id of latched) {
+  for (const [, name, jsx] of latched) {
+    assert.ok(names.has(name), `挂载闸用了没声明过的插槽 ${name}`);
     assert.ok(
-      APP.includes(`open={assistantPanel === "${id}"}`),
-      `挂载闸盯着 ${id}，但没有面板用这个 id 决定开合 —— 闸和面板对不上`,
+      jsx.includes(`open={${name}.open}`),
+      `挂载闸用的是 ${name}，它守着的面板 open 却来自另一个插槽 —— 闸和面板对不上`,
     );
   }
 });
 
 // ------------------------------------------------- 没有 CSS 会把启动器整体藏掉
-
-/** 顶层规则：选择器 → 声明块。 */
-function topLevelRules(css) {
-  const rules = [];
-  let depth = 0;
-  let start = 0;
-  for (let i = 0; i < css.length; i += 1) {
-    const ch = css[i];
-    if (ch === "{") {
-      if (depth === 0) {
-        rules.push({ prelude: css.slice(start, i).trim(), bodyStart: i + 1 });
-      }
-      depth += 1;
-    } else if (ch === "}") {
-      depth -= 1;
-      if (depth === 0) {
-        const rule = rules[rules.length - 1];
-        rule.body = css.slice(rule.bodyStart, i);
-        start = i + 1;
-      }
-    }
-  }
-  return rules.filter((rule) => rule.body !== undefined && !rule.prelude.startsWith("@"));
-}
-
-/** at-rule（@media / @container）里的规则也要看 —— 圆钮那条就住在普通规则里，
- * 但把它挪进一条 @media 同样能把入口藏掉。 */
-function allRules(css) {
-  const out = [];
-  for (const rule of topLevelRules(css)) {
-    if (rule.prelude.startsWith("@")) continue;
-    out.push(rule);
-  }
-  // at-rule 的内容展开一层再扫。
-  for (const [, body] of css.matchAll(/@(?:media|container|supports)[^{]*\{([\s\S]*?)\n\}/g)) {
-    out.push(...topLevelRules(body));
-  }
-  return out;
-}
 
 const LAUNCHER_SELECTORS = [
   ".reader-assistant-rail",
@@ -164,23 +151,14 @@ const LAUNCHER_SELECTORS = [
   ".reader-assistant-dock-close",
 ];
 
-/** 「整体藏起来」的写法。圆钮当年用的是 opacity: 0 + pointer-events: none。 */
-const HIDING = [
-  /display\s*:\s*none/,
-  /visibility\s*:\s*hidden/,
-  /opacity\s*:\s*0(?:\.0*)?\s*(?:;|$)/,
-  /pointer-events\s*:\s*none/,
-  /content-visibility\s*:\s*hidden/,
-];
-
 test("没有任何 CSS 规则会把这个启动器整体隐藏", () => {
   // 圆钮就是这么没的：一条 `.is-assistant-open .reader-fab { opacity: 0 }`，
   // 于是它管的 6 个功能在「有面板开着」时全部不可达，而三条测试还在守着它的
   // 高亮逻辑 —— 守的是一段永远渲染不出来的 UI。
   let seen = 0;
   const problems = [];
-  for (const file of styleFiles()) {
-    for (const rule of allRules(readStyle(file))) {
+  for (const { name, css } of readerStyleSources()) {
+    for (const rule of allRules(css)) {
       const hitsLauncher = LAUNCHER_SELECTORS.some((sel) =>
         // `.reader-assistant-rail-button` 是启动器里的一个按钮，不是启动器本身；
         // 只认「选择器以这个类结尾」的那些。
@@ -188,12 +166,9 @@ test("没有任何 CSS 规则会把这个启动器整体隐藏", () => {
       if (!hitsLauncher) continue;
       seen += 1;
       // :hover / :focus / :disabled 之类的状态不算 —— 那是交互反馈，不是入口消失。
-      if (/:(hover|focus|active|disabled|focus-visible)\b/.test(rule.prelude)) continue;
-      if (/::(before|after|-webkit-scrollbar)/.test(rule.prelude)) continue;
-      for (const pattern of HIDING) {
-        if (pattern.test(rule.body)) {
-          problems.push(`${file}: ${rule.prelude} { …${pattern} }`);
-        }
+      if (isStateSelector(rule.prelude)) continue;
+      for (const pattern of hidingDeclarations(rule.body)) {
+        problems.push(`${name}: ${rule.prelude} { …${pattern.source} }`);
       }
     }
   }
@@ -229,7 +204,7 @@ test("三路下载仍然可达，而且不在启动器里 —— 它不该和面
   assert.match(tray, /<ReaderDownloadActions/, "下载组不在顶栏那一组里");
   assert.match(tray, /<ReaderCloseHome/, "顶栏那一组里没有「关闭回主页」");
   // 这一组不能被 dock 的开合影响 —— 圆钮当年就死在这一点上。
-  const all = styleFiles().map(readStyle).join("\n");
+  const all = allStyles();
   assert.match(all, /\.reader-chrome-tray\b/, "顶栏那一组没有样式");
   for (const rule of allRules(all)) {
     if (!/\.reader-(chrome-tray|download-action)(?![\w-])/.test(rule.prelude)) continue;
@@ -270,6 +245,24 @@ test("8 个 tab 放不下时有降级，而不是溢出", () => {
   // 后面的 padding / gap 覆盖回去 —— 看着写了降级，实际没生效。
   const labelHidden = css.indexOf("@container reader-dock");
   assert.ok(labelHidden > 0, "没有按 dock 宽度降级的容器查询");
+
+  // 断点那个**数值**是这条降级唯一承重的东西，必须单独守。
+  // 上一版只断言「@container reader-dock 这个字符串在、且排在基础规则之后」，
+  // 把 700px 改成 200px 整套 2049 条全绿（复查实测）—— 而 200px 的后果正是
+  // CSS 注释里自己写明的那个：1280 屏上 dock 默认 50vw = 640px，降级压根不触发，
+  // 8 个中文标签 tab 一打开就带着横向滚动。
+  const breakpoint = /@container reader-dock \(max-width:\s*(\d+)px\)/.exec(css);
+  assert.ok(breakpoint, "降级的容器查询不是按 max-width 写的，量不出断点");
+  const px = Number(breakpoint[1]);
+  assert.ok(
+    px >= 664,
+    `降级断点 ${px}px 太小：8 个中文标签连同内边距要 ~664px，而 1280 屏上 dock 默认 640px，`
+      + "这个数落在标签那一侧就等于没降级",
+  );
+  assert.ok(
+    px <= 960,
+    `降级断点 ${px}px 太大：宽 dock 上也只剩图标，标签形同虚设`,
+  );
   assert.ok(
     labelHidden > css.indexOf(".reader-assistant-dock-tab {"),
     "容器查询写在基础规则之前，会被覆盖回去",
@@ -278,4 +271,46 @@ test("8 个 tab 放不下时有降级，而不是溢出", () => {
   // 容器本身要声明，否则那条查询永远不匹配。
   assert.match(rules.get(".reader-assistant-dock-header"), /container-name\s*:\s*reader-dock/);
   assert.match(rules.get(".reader-assistant-dock-header"), /container-type\s*:\s*inline-size/);
+});
+
+// ------------------------------------------------------- 纯本地 PDF 下的可达性
+
+/** 渲染一次启动器，读出「每个入口点不点得动」。
+ *
+ * 读的是真渲染出来的 button.disabled，不是 reader-base-panels.ts 里那张表 ——
+ * 抄那张表的话，抄错和实现错长得一模一样。 */
+function launcherDisabledState(active) {
+  const html = renderToStaticMarkup(
+    createElement(ReaderAssistantDock, { active, sourceOnly: true, onSelect() {}, onClose() {} }),
+  );
+  const doc = new JSDOM(`<body>${html}</body>`).window.document;
+  const state = new Map();
+  for (const button of doc.querySelectorAll("button")) {
+    const title = (button.getAttribute("title") ?? "").replace(/ 需打开任务阅读$/, "");
+    state.set(title, button.disabled);
+  }
+  return state;
+}
+
+test("纯本地 PDF（没有 job）下，不需要 job 的那几个面板照样点得动", () => {
+  // needsJob 是启动器上**唯一**会让入口变成点不动的字段，而它一条门禁都没有：
+  // 把批注和摘录的 needsJob 从 false 改成 true，整套 2049 条全绿（复查实测），
+  // 后果是纯本地 PDF 下这两个 tab 直接禁用 —— 它们的数据根本不需要 job
+  // （摘录走 documentId 也能读，见 reader-base-panels.ts）。
+  const labelOf = (id) => readerDockTabs(() => true).find((tab) => tab.id === id)?.label;
+  for (const active of [null, "notes"]) {
+    const state = launcherDisabledState(active);
+    // 正对照：确实有入口被禁用。否则 disabled 那条分支整个失效时下面也全绿。
+    assert.ok(
+      [...state.values()].some(Boolean),
+      `${active ? "tab 条" : "竖条"}上一个禁用的入口都没有，sourceOnly 那条分支八成失效了`,
+    );
+    for (const id of ["notes", "ai-notes", "favorites"]) {
+      assert.equal(
+        state.get(labelOf(id)),
+        false,
+        `${labelOf(id)} 在纯本地 PDF 下点不动了 —— 这个面板的数据不需要 job`,
+      );
+    }
+  }
 });

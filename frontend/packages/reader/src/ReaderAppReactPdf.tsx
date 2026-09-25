@@ -35,7 +35,7 @@ const ReaderFavoritesPanel = lazy(() => import("./components/react-pdf/ReaderFav
 const ReaderMarkdownPanel = lazy(() => import("./components/react-pdf/ReaderMarkdownPanel.js").then((m) => ({ default: m.ReaderMarkdownPanel })));
 const ReaderAiPanel = lazy(() => import("./components/react-pdf/ReaderAiPanel.js").then((m) => ({ default: m.ReaderAiPanel })));
 
-import { useMountedSinceFirstOpen } from "./shared/react/use-mounted-since-first-open.js";
+import { useReaderPanelSlot } from "./components/react-pdf/use-reader-panel-slot.js";
 import { ReaderHostPanelShell } from "./components/react-pdf/ReaderHostPanelShell.js";
 import { ReaderAiNotePopover } from "./pdf/ReaderAiNotePopover.js";
 import { ReaderAiNotesPanel } from "./components/react-pdf/ReaderAiNotesPanel.js";
@@ -173,6 +173,23 @@ export function resolveInitialAssistantPanel(
   return null;
 }
 
+/** 加完一条批注之后该显示哪个面板。
+ *
+ * 没有面板开着 → 把批注面板顶出来（否则刚加的那条在哪儿完全没反馈）；
+ * 已经有面板开着 → **不动它**。
+ *
+ * 原来是无条件 `setAssistantPanel("notes")`。浮窗年代那行是对的：它只是弹一个
+ * 浮窗，不碰 dock。三个面板搬进 dock、共用同一个 assistantPanel 之后，同一行
+ * 代码的含义变成「把你正开着的那个面板整个换掉」—— 正在终端里跑着一条长任务，
+ * 顺手划一句加个批注，终端就被切走了。页面上本来就会画出批注记号，开着别的
+ * 面板时不缺这条反馈。
+ */
+export function resolveAssistantPanelAfterNote(
+  current: ReaderAssistantPanel | null,
+): ReaderAssistantPanel {
+  return current ?? "notes";
+}
+
 export function ReaderAppReactPdf() {
   const c = useReaderReactController();
   const { boot, panes, sessionFiles, session } = c;
@@ -202,10 +219,7 @@ export function ReaderAppReactPdf() {
   });
   const sourceViewOnly = paneComposition.sourceViewOnly;
   const visiblePdfMode = paneComposition.visibleMode;
-  // 批注 / AI 批注 / 摘录 以前各有一个 open 布尔、由可拖动圆钮（FAB）开合。
-  // 现在它们就是 dock 的三个 tab，开合和 Markdown / AI 走同一个 assistantPanel
-  // —— 这正是「合成一个启动器」的全部内容：一处状态，一份清单。
-  const openNotes = useCallback(() => setAssistantPanel("notes"), []);
+  const openNotes = useCallback(() => setAssistantPanel(resolveAssistantPanelAfterNote), []);
   const annotations = useReaderAnnotations(
     { jobId: session.jobId, documentId: session.documentId },
     { onAfterAdd: openNotes },
@@ -260,10 +274,14 @@ export function ReaderAppReactPdf() {
     saveReaderViewState(c.viewStateKey, { mode: c.mode });
   }, [boot.failed, boot.loading, c.mode, c.setModeKeepingPage, c.viewStateKey, sourceViewOnly]);
   const workspaceView = assistantPanel || (c.mode === "compare" ? "compare" : "reading");
-  // 三个 lazy 面板各自的挂载 latch，见 useMountedSinceFirstOpen。
-  const favoritesMounted = useMountedSinceFirstOpen(assistantPanel === "favorites");
-  const markdownMounted = useMountedSinceFirstOpen(assistantPanel === "markdown");
-  const aiMounted = useMountedSinceFirstOpen(assistantPanel === "ai");
+  // 五个包内面板的开合 —— 每个 id 只在这里写一次，open 和挂载闸都从它派生。
+  // 原来是「闸一遍、open 一遍」，两处各自合法，抄改时把闸上那个写成别的面板
+  // 整套测试全绿而摘录永远打不开。见 use-reader-panel-slot.ts。
+  const favoritesSlot = useReaderPanelSlot(assistantPanel, "favorites");
+  const markdownSlot = useReaderPanelSlot(assistantPanel, "markdown");
+  const aiSlot = useReaderPanelSlot(assistantPanel, "ai");
+  const notesSlot = useReaderPanelSlot(assistantPanel, "notes");
+  const aiNotesSlot = useReaderPanelSlot(assistantPanel, "ai-notes");
   // 槽位面板（阅读路径 / 画布 / 终端）的挂载、适配器查找和壳都在
   // ReaderHostPanelShell 里，按 READER_HOST_PANELS 逐个渲染 —— 见下面那段 map。
   // 键盘与 UI 共用同一「可见模式」真源：paneComposition.visibleMode。
@@ -447,7 +465,7 @@ export function ReaderAppReactPdf() {
           badges={{ notes: annotations.count, "ai-notes": aiNoteDoc?.notes.length ?? 0 }}
         />
         {assistantOpen ? <ReaderAiSplitResizeHandle /> : null}
-        <ReaderCompareGrid paneComposition={paneComposition} markdownSplit={assistantPanel === "markdown"} assistantSplit={assistantOpen} liveTranslation={c.liveTranslation} sourcePaneAction={sourcePaneAction} />
+        <ReaderCompareGrid paneComposition={paneComposition} markdownSplit={markdownSlot.open} assistantSplit={assistantOpen} liveTranslation={c.liveTranslation} sourcePaneAction={sourcePaneAction} />
         {c.showHud ? (
           <ReaderZoomHud
             mode={visiblePdfMode}
@@ -455,7 +473,7 @@ export function ReaderAppReactPdf() {
           />
         ) : null}
         <Suspense fallback={null}>
-          {favoritesMounted ? <ReaderFavoritesPanel open={assistantPanel === "favorites"} jobId={session.jobId} documentId={session.documentId} onClose={closeAssistant} onJumpPage={c.goToPage} /> : null}
+          {favoritesSlot.mounted ? <ReaderFavoritesPanel open={favoritesSlot.open} jobId={session.jobId} documentId={session.documentId} onClose={closeAssistant} onJumpPage={c.goToPage} /> : null}
           {READER_HOST_PANELS.map((panel) => (
             <ReaderHostPanelShell
               key={panel.id}
@@ -464,8 +482,8 @@ export function ReaderAppReactPdf() {
               context={hostPanelContext}
             />
           ))}
-          {markdownMounted ? <ReaderMarkdownPanel open={assistantPanel === "markdown"} jobId={session.jobId} sourceOnly={c.sourceOnly} side="right" onClose={closeAssistant} /> : null}
-          {aiMounted ? <ReaderAiPanel key={session.documentId || session.jobId || "reader-ai-pending"} open={assistantPanel === "ai"} jobId={session.jobId} documentId={session.documentId} sessionIdentity={session.sessionIdentity} side="right" selectionContext={aiSelectionContext} onClearSelectionContext={() => setAiSelectionContext(null)} onClose={closeAssistant} onJumpCitation={jumpCitation} onDocumentCommitted={refreshCommittedDocument} /> : null}
+          {markdownSlot.mounted ? <ReaderMarkdownPanel open={markdownSlot.open} jobId={session.jobId} sourceOnly={c.sourceOnly} side="right" onClose={closeAssistant} /> : null}
+          {aiSlot.mounted ? <ReaderAiPanel key={session.documentId || session.jobId || "reader-ai-pending"} open={aiSlot.open} jobId={session.jobId} documentId={session.documentId} sessionIdentity={session.sessionIdentity} side="right" selectionContext={aiSelectionContext} onClearSelectionContext={() => setAiSelectionContext(null)} onClose={closeAssistant} onJumpCitation={jumpCitation} onDocumentCommitted={refreshCommittedDocument} /> : null}
         </Suspense>
         {activeAiNote ? (
           <ReaderAiNotePopover
@@ -476,13 +494,13 @@ export function ReaderAppReactPdf() {
           />
         ) : null}
         <ReaderAiNotesPanel
-          open={assistantPanel === "ai-notes"}
+          open={aiNotesSlot.open}
           doc={aiNoteDoc}
           onClose={closeAssistant}
           onJump={jumpCitation}
         />
         <ReaderNotesPanel
-          open={assistantPanel === "notes"}
+          open={notesSlot.open}
           groups={annotations.groups}
           count={annotations.count}
           onClose={closeAssistant}

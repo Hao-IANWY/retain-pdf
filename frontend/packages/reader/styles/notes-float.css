@@ -62,12 +62,24 @@
   }
 }
 
+/* 工具条：条数 / 导出 / 刷新 / 层级开关都住在这里。
+ *
+ * 这条规则一度**完全看不见** —— float-markdown.css 里有一条
+ * `.reader-notes-panel--workspace .reader-notes-panel-toolbar { display: none }`，
+ * 特异性 (0,2,0) 压过这里的 (0,1,0)。浮窗形态下命不中（当时是 --float），
+ * 三个面板改成贴右栏之后整条工具条被吃掉：批注的「导出 Markdown」是
+ * annotations.exportMarkdown 在整个包里唯一的入口，AI 批注的「显示全部 N 条」
+ * 是 level 3 批注进索引列表的唯一入口，摘录的「刷新」同理 —— 全部渲染到 DOM
+ * 里、永远看不见。和圆钮那次是同一种死法，所以现在有门禁扫这条链上的隐藏规则。
+ *
+ * padding 上沿是 10px 而不是 0：浮窗形态下它上面还有一条标题栏，现在它就是
+ * 面板的第一行，贴着顶边看着像没对齐。 */
 .reader-notes-panel-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 0 14px 10px;
+  padding: 10px 14px;
   border-bottom: 1px solid color-mix(in srgb, var(--ink) 6%, transparent);
 }
 .reader-notes-count {
