@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import { Sparkles } from "lucide-react";
 import { type AiCitationLike } from "../../external.js";
-import { ReaderFloatShell } from "./ReaderFloatShell.js";
+import { ReaderPanelShell } from "./ReaderPanelShell.js";
 import { ReaderAssistantThread } from "./assistant/ReaderAssistantThread.js";
 import { ReaderConversationBar } from "./assistant/ReaderConversationBar.js";
 import { useReaderAskRuntime } from "./assistant/use-reader-ask-runtime.js";
@@ -19,7 +19,6 @@ export type ReaderAiPanelProps = {
   /** page_idx 为 0 基；由阅读器 goToPage(page_idx+1) */
   onJumpCitation: (citation: AiCitationLike) => void;
   onDocumentCommitted?: (input: { documentId: string; revision: string }) => void;
-  layout?: "floating" | "docked" | "workspace";
   side?: "left" | "right";
   selectionContext?: ReaderSelection | null;
   onClearSelectionContext?: () => void;
@@ -33,7 +32,6 @@ export function ReaderAiPanel({
   onClose,
   onJumpCitation,
   onDocumentCommitted,
-  layout = "floating",
   side = "right",
   selectionContext = null,
   onClearSelectionContext,
@@ -92,17 +90,11 @@ export function ReaderAiPanel({
   }, [onJumpCitation]);
 
   return (
-    <ReaderFloatShell
+    <ReaderPanelShell
       id="reader-ai-panel"
       open={open}
-      title="RetainPDF AI"
-      titleIcon={<Sparkles size={14} strokeWidth={2.1} aria-hidden />}
-      storageKey="retainpdf.reader.ai-float.pos.v2"
       ariaLabel="阅读问答"
-      width={420}
-      placement={layout === "workspace" ? "workspace" : layout === "docked" ? "dock-right" : "floating"}
-      showHeader={layout !== "workspace"}
-      className={`reader-float-ai is-${layout}${layout === "workspace" ? ` is-pane-${side}` : ""}${sessionBusy ? " is-session-busy" : ""}`}
+      className={`reader-float-ai is-workspace is-pane-${side}${sessionBusy ? " is-session-busy" : ""}`}
       onClose={onClose}
     >
       {!jobId ? (
@@ -152,6 +144,6 @@ export function ReaderAiPanel({
           </div>
         </div>
       )}
-    </ReaderFloatShell>
+    </ReaderPanelShell>
   );
 }

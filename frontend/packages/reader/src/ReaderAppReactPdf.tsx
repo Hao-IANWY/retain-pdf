@@ -1,6 +1,4 @@
 // 从 frontend/web 迁入的 React-pdf 视图真值，现为 @retainpdf/reader 主入口
-import { getReaderAdapters } from "./adapters.js";
-import { ReaderFloatShell } from "./components/react-pdf/ReaderFloatShell.js";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useReaderReactController } from "./hooks/use-reader-react-controller.js";
 import { useReaderKeyboard } from "./hooks/use-reader-keyboard.js";
@@ -12,12 +10,11 @@ import {
   ReaderReactBoot,
   ReaderCompareGrid,
   ReaderZoomHud,
-  ReaderFab,
+  ReaderDownloadActions,
   ReaderSelectionToolbar,
   ReaderNotesPanel,
 } from "./components/react-pdf/index.js";
 import type { ReaderAssistantPanel, ReaderWorkspaceMode } from "./components/react-pdf/index.js";
-import type { ReaderFabToolId } from "./components/react-pdf/ReaderFab.js";
 import { useReaderAnnotations } from "./hooks/use-reader-annotations.js";
 import type { ReaderNote } from "./annotations/types.js";
 import { DownloadToastHost } from "./shared/react/DownloadToastHost.jsx";
@@ -48,14 +45,7 @@ import type { AiNote } from "./shared/data/ai-notes.js";
 /** 稳定的空数组：每次渲染新建一个会让每页的标记层白白重算。 */
 const EMPTY_AI_NOTES: readonly AiNote[] = [];
 import { READER_HOST_PANELS } from "./components/react-pdf/reader-host-panels.js";
-import {
-  isReaderAssistantPanel,
-  isReaderHostPanel,
-} from "./shared/types/reader-assistant-panels.js";
-
-export function resolveReaderAiLayout(_mode: string): "workspace" {
-  return "workspace";
-}
+import { isReaderAssistantPanel } from "./shared/types/reader-assistant-panels.js";
 
 export function resolveVisiblePdfMode(
   mode: "source" | "compare" | "translated",
@@ -185,7 +175,7 @@ export function resolveInitialAssistantPanel(
 
 export function ReaderAppReactPdf() {
   const c = useReaderReactController();
-  const { boot, panes, sessionFiles, tools, session } = c;
+  const { boot, panes, sessionFiles, session } = c;
   const [assistantPanel, setAssistantPanel] = useState<ReaderAssistantPanel | null>(() => (
     resolveInitialAssistantPanel(c.mode, loadReaderViewState(c.viewStateKey))
   ));
@@ -212,14 +202,10 @@ export function ReaderAppReactPdf() {
   });
   const sourceViewOnly = paneComposition.sourceViewOnly;
   const visiblePdfMode = paneComposition.visibleMode;
-  // 本地批注：选中文字后生成注记，面板内按页分组 / 编辑 / 删除 / 导出。
-  const [notesOpen, setNotesOpen] = useState(false);
-  // AI 批注的索引面板。页面上的记号只有翻到那一页才看得见，没有它这个功能等于
-  // 不存在。**必须声明在 fabActiveTool 之前** —— const 不提升，放在下面那段
-  // aiNoteDoc 旁边会直接 TDZ 报错（踩过）。
-  const [aiNotesOpen, setAiNotesOpen] = useState(false);
-  const openNotes = useCallback(() => setNotesOpen(true), []);
-  const toggleNotes = useCallback(() => setNotesOpen((value) => !value), []);
+  // 批注 / AI 批注 / 摘录 以前各有一个 open 布尔、由可拖动圆钮（FAB）开合。
+  // 现在它们就是 dock 的三个 tab，开合和 Markdown / AI 走同一个 assistantPanel
+  // —— 这正是「合成一个启动器」的全部内容：一处状态，一份清单。
+  const openNotes = useCallback(() => setAssistantPanel("notes"), []);
   const annotations = useReaderAnnotations(
     { jobId: session.jobId, documentId: session.documentId },
     { onAfterAdd: openNotes },
@@ -239,7 +225,6 @@ export function ReaderAppReactPdf() {
   useEffect(() => {
     setAiSelectionContext(null);
     setLiveTranslationVisible(true);
-    setNotesOpen(false);
   }, [c.viewStateKey]);
 
   // 任务到终态后自动取消「实时译文」选中：终态应回到最终译文 PDF / 对照，
@@ -276,7 +261,7 @@ export function ReaderAppReactPdf() {
   }, [boot.failed, boot.loading, c.mode, c.setModeKeepingPage, c.viewStateKey, sourceViewOnly]);
   const workspaceView = assistantPanel || (c.mode === "compare" ? "compare" : "reading");
   // 三个 lazy 面板各自的挂载 latch，见 useMountedSinceFirstOpen。
-  const favoritesMounted = useMountedSinceFirstOpen(tools.isOpen("favorites"));
+  const favoritesMounted = useMountedSinceFirstOpen(assistantPanel === "favorites");
   const markdownMounted = useMountedSinceFirstOpen(assistantPanel === "markdown");
   const aiMounted = useMountedSinceFirstOpen(assistantPanel === "ai");
   // 槽位面板（阅读路径 / 画布 / 终端）的挂载、适配器查找和壳都在
@@ -294,7 +279,6 @@ export function ReaderAppReactPdf() {
     goToPage: c.goToPage,
     enabled: c.showHud,
   });
-  const closeTool = useCallback(() => { tools.close(); }, [tools]);
   const closeAssistant = useCallback(() => {
     setAssistantPanel(null);
     setAssistantPdfPane(null);
@@ -308,7 +292,6 @@ export function ReaderAppReactPdf() {
     session.refreshCommittedDocument(input);
   }, [session.refreshCommittedDocument]);
   const changeWorkspace = useCallback((next: ReaderWorkspaceMode) => {
-    tools.close();
     setAssistantPdfPane(null);
     // A running translation can provide the compare workspace before the
     // immutable translated PDF exists. Keep the visible workspace and the
@@ -318,7 +301,7 @@ export function ReaderAppReactPdf() {
     const autoEnable = resolveLiveTranslationVisibleOnWorkspaceChange(next, c.liveTranslationAvailable);
     if (autoEnable !== null) setLiveTranslationVisible(autoEnable);
     c.setModeKeepingPage(next);
-  }, [c.liveTranslationAvailable, c.setModeKeepingPage, tools]);
+  }, [c.liveTranslationAvailable, c.setModeKeepingPage]);
 
   // 源栏「译文」开关：把流式译文直接叠在原文 PDF 上 / 收起。进行中与完成后
   // 都可用（只要有可叠加内容）。默认关，避免自动叠加造成「左右都中文」。
@@ -341,41 +324,6 @@ export function ReaderAppReactPdf() {
     setAssistantPanel(next);
     if (next !== "ai") setAiSelectionContext(null);
   }, []);
-
-  // FAB 与 Dock 行为一致：favorites 走 tools，markdown/ai 走辅助面板
-  // （workspace），notes 走本地批注。markdown/ai 点击为 toggle（再点关闭）。
-  const handleFabTool = useCallback((id: ReaderFabToolId) => {
-    if (id === "notes") {
-      toggleNotes();
-      return;
-    }
-    if (id === "ai-notes") {
-      setAiNotesOpen((value) => !value);
-      return;
-    }
-    if (id === "markdown" || id === "ai") {
-      if (assistantPanel === id) {
-        setAssistantPanel(null);
-        setAssistantPdfPane(null);
-        setAiSelectionContext(null);
-      } else {
-        setAssistantPanel(id);
-        setAssistantPdfPane(null);
-        if (id !== "ai") setAiSelectionContext(null);
-      }
-      return;
-    }
-    tools.toggle(id);
-  }, [assistantPanel, toggleNotes, tools]);
-  // FAB 高亮：批注 > 辅助面板（与 Dock 同真源）> tools（摘录）。
-  // 终端住在 dock 里，不在 FAB 的工具注册表（READER_TOOLS）里，所以它打开时
-  // FAB 不高亮任何东西 —— 而不是硬塞一个 FAB 没有图标的 id 进去。
-  const fabAssistantTool = isReaderHostPanel(assistantPanel) ? null : assistantPanel;
-  const fabActiveTool: ReaderFabToolId | null = notesOpen
-    ? "notes"
-    : aiNotesOpen
-      ? "ai-notes"
-      : (fabAssistantTool ?? tools.active);
 
   // AI 批注：标记画在每页上，正文在弹窗里。轮询是必须的 —— agent 是在你读的
   // 时候写的，一次性加载会让「标完了要刷新才看得见」重演（画布那次的 bug）。
@@ -477,7 +425,12 @@ export function ReaderAppReactPdf() {
     <ReaderProvider value={readerContext} hud={readerHud}>
       <div className={rootClasses} data-reader-engine="react-pdf" data-reader-workspace={workspaceView}>
         <ReaderReactBoot loading={boot.loading} failed={boot.failed} text={boot.text} percent={boot.percent} regionsError={Boolean(session.readerErrors.regions)} metadataError={Boolean(session.readerErrors.metadata)} />
-        <ReaderCloseHome onBeforeClose={session.prepareClose} />
+        {/* 三路下载和「关闭回主页」同一组：顶栏常驻，任何面板开着都够得到。
+            原来它们在可拖动圆钮的菜单里，而圆钮一开 dock 就被 CSS 整个吃掉。 */}
+        <div className="reader-chrome-tray">
+          <ReaderDownloadActions />
+          <ReaderCloseHome onBeforeClose={session.prepareClose} />
+        </div>
         <ReaderWorkspaceTabs
           mode={visiblePdfMode}
           documentReady={Boolean(session.jobId)}
@@ -489,9 +442,11 @@ export function ReaderAppReactPdf() {
             onToggle: () => setLiveTranslationVisible((visible) => !visible),
           } : null}
         />
-        <ReaderAssistantDock active={assistantPanel} />
+        <ReaderAssistantDock
+          active={assistantPanel}
+          badges={{ notes: annotations.count, "ai-notes": aiNoteDoc?.notes.length ?? 0 }}
+        />
         {assistantOpen ? <ReaderAiSplitResizeHandle /> : null}
-        {c.showHud ? <ReaderFab activeTool={fabActiveTool} noteCount={annotations.count} aiNoteCount={aiNoteDoc?.notes.length ?? 0} onToggleTool={handleFabTool} /> : null}
         <ReaderCompareGrid paneComposition={paneComposition} markdownSplit={assistantPanel === "markdown"} assistantSplit={assistantOpen} liveTranslation={c.liveTranslation} sourcePaneAction={sourcePaneAction} />
         {c.showHud ? (
           <ReaderZoomHud
@@ -500,7 +455,7 @@ export function ReaderAppReactPdf() {
           />
         ) : null}
         <Suspense fallback={null}>
-          {favoritesMounted ? <ReaderFavoritesPanel open={tools.isOpen("favorites")} jobId={session.jobId} documentId={session.documentId} onClose={closeTool} onJumpPage={c.goToPage} /> : null}
+          {favoritesMounted ? <ReaderFavoritesPanel open={assistantPanel === "favorites"} jobId={session.jobId} documentId={session.documentId} onClose={closeAssistant} onJumpPage={c.goToPage} /> : null}
           {READER_HOST_PANELS.map((panel) => (
             <ReaderHostPanelShell
               key={panel.id}
@@ -509,8 +464,8 @@ export function ReaderAppReactPdf() {
               context={hostPanelContext}
             />
           ))}
-          {markdownMounted ? <ReaderMarkdownPanel open={assistantPanel === "markdown"} jobId={session.jobId} sourceOnly={c.sourceOnly} layout="workspace" side="right" onClose={closeAssistant} /> : null}
-          {aiMounted ? <ReaderAiPanel key={session.documentId || session.jobId || "reader-ai-pending"} open={assistantPanel === "ai"} jobId={session.jobId} documentId={session.documentId} sessionIdentity={session.sessionIdentity} layout={resolveReaderAiLayout(c.mode)} side="right" selectionContext={aiSelectionContext} onClearSelectionContext={() => setAiSelectionContext(null)} onClose={closeAssistant} onJumpCitation={jumpCitation} onDocumentCommitted={refreshCommittedDocument} /> : null}
+          {markdownMounted ? <ReaderMarkdownPanel open={assistantPanel === "markdown"} jobId={session.jobId} sourceOnly={c.sourceOnly} side="right" onClose={closeAssistant} /> : null}
+          {aiMounted ? <ReaderAiPanel key={session.documentId || session.jobId || "reader-ai-pending"} open={assistantPanel === "ai"} jobId={session.jobId} documentId={session.documentId} sessionIdentity={session.sessionIdentity} side="right" selectionContext={aiSelectionContext} onClearSelectionContext={() => setAiSelectionContext(null)} onClose={closeAssistant} onJumpCitation={jumpCitation} onDocumentCommitted={refreshCommittedDocument} /> : null}
         </Suspense>
         {activeAiNote ? (
           <ReaderAiNotePopover
@@ -521,16 +476,16 @@ export function ReaderAppReactPdf() {
           />
         ) : null}
         <ReaderAiNotesPanel
-          open={aiNotesOpen}
+          open={assistantPanel === "ai-notes"}
           doc={aiNoteDoc}
-          onClose={() => setAiNotesOpen(false)}
+          onClose={closeAssistant}
           onJump={jumpCitation}
         />
         <ReaderNotesPanel
-          open={notesOpen}
+          open={assistantPanel === "notes"}
           groups={annotations.groups}
           count={annotations.count}
-          onClose={() => setNotesOpen(false)}
+          onClose={closeAssistant}
           onJump={jumpToNote}
           onUpdateNote={annotations.updateNote}
           onRemove={annotations.remove}

@@ -5,8 +5,8 @@
  * 用户报的是「从终端切换到画板会暂停对话」。实际是**整条链断在中间**：
  *
  *     keepMounted: true  →  ReaderHostPanelShell 留在树上        ✓
- *                        →  但传 open={false} 给 ReaderFloatShell
- *                        →  ReaderFloatShell 里 `if (!open) return null`  ✗
+ *                        →  但传 open={false} 给 ReaderPanelShell
+ *                        →  ReaderPanelShell 里 `if (!open) return null`  ✗
  *                        →  FxTerminal 卸载 → WebSocket 关 → PTY 被杀
  *
  * 也就是说 `keepMounted` 只让**壳组件**留在树上，壳内部又把子树整个摘了 ——
@@ -26,7 +26,7 @@ const PKG = new URL("../../../packages/reader/src/", import.meta.url);
 const read = (relative) => readFileSync(new URL(relative, PKG), "utf8");
 
 test("壳不再无条件卸载 —— keepMounted 的面板关着也留在树上", () => {
-  const shell = read("components/react-pdf/ReaderFloatShell.tsx");
+  const shell = read("components/react-pdf/ReaderPanelShell.tsx");
   assert.match(shell, /if \(!open && !keepMounted\) return null;/);
   // 无条件那行必须消失，否则里层照样推翻外层。
   assert.doesNotMatch(shell, /\n\s*if \(!open\) return null;/);
@@ -40,7 +40,7 @@ test("keepMounted 真的从注册表传到了壳", () => {
 
 test("隐藏不能用 display:none —— xterm 会把 0 尺寸容器算成 1 行", () => {
   // 切回来那段输出全挤在一行里。挪到视口外是唯一既看不见又保住布局的做法。
-  const shell = read("components/react-pdf/ReaderFloatShell.tsx");
+  const shell = read("components/react-pdf/ReaderPanelShell.tsx");
   assert.match(shell, /data-hidden=\{!open \? "" : undefined\}/);
   const css = read("../styles/react-pdf.css");
   const block = css.slice(css.indexOf(".reader-notes-panel[data-hidden]"));
@@ -53,7 +53,7 @@ test("隐藏不能用 display:none —— xterm 会把 0 尺寸容器算成 1 �
 });
 
 test("藏起来的面板不参与 Tab、不被读屏念出来", () => {
-  const shell = read("components/react-pdf/ReaderFloatShell.tsx");
+  const shell = read("components/react-pdf/ReaderPanelShell.tsx");
   assert.match(shell, /inert=\{!open \? true : undefined\}/);
   assert.match(shell, /aria-hidden=\{!open \? true : undefined\}/);
 });

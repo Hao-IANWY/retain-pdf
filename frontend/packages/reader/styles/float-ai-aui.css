@@ -93,10 +93,6 @@
   margin: 0;
   padding-block: 28px 18px;
 }
-.reader-float-ai.is-floating .aui-thread-inner.is-empty .aui-empty {
-  align-content: start;
-  padding-top: clamp(54px, 10vh, 92px);
-}
 .reader-float-ai .aui-empty-mascot {
   display: grid;
   place-items: center;

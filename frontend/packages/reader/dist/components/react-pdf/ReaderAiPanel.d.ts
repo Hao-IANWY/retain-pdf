@@ -13,10 +13,9 @@ export type ReaderAiPanelProps = {
         documentId: string;
         revision: string;
     }) => void;
-    layout?: "floating" | "docked" | "workspace";
     side?: "left" | "right";
     selectionContext?: ReaderSelection | null;
     onClearSelectionContext?: () => void;
 };
-export declare function ReaderAiPanel({ open, jobId, documentId, sessionIdentity, onClose, onJumpCitation, onDocumentCommitted, layout, side, selectionContext, onClearSelectionContext, }: ReaderAiPanelProps): import("react").JSX.Element;
+export declare function ReaderAiPanel({ open, jobId, documentId, sessionIdentity, onClose, onJumpCitation, onDocumentCommitted, side, selectionContext, onClearSelectionContext, }: ReaderAiPanelProps): import("react").JSX.Element;
 //# sourceMappingURL=ReaderAiPanel.d.ts.map

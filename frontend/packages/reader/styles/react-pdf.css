@@ -13,32 +13,6 @@
   color: var(--ink);
 }
 
-.reader-react-title {
-  position: fixed;
-  top: 56px;
-  top: var(--reader-topbar-offset, 56px);
-  left: 50%;
-  z-index: 35;
-  z-index: var(--z-chrome, 35);
-  max-width: min(520px, calc(100vw - 48px));
-  max-width: min(520px, calc(100dvw - 48px));
-  padding: 4px 12px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--paper) 72%, transparent);
-  border: 1px solid color-mix(in srgb, var(--ink) 6%, transparent);
-  box-shadow: 0 4px 16px color-mix(in srgb, var(--shadow-color) 6%, transparent);
-  backdrop-filter: blur(12px);
-  transform: translateX(-50%);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  color: var(--muted, var(--muted));
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  pointer-events: none;
-}
-
 /* 唯一纵向滚动容器；双栏不各自 overflow */
 .reader-react-scroll-shell {
   position: absolute;
@@ -48,12 +22,6 @@
   scrollbar-width: none;
   -ms-overflow-style: none;
   transition: right 180ms ease;
-}
-
-.reader-react-root.is-workspace-markdown .reader-fab,
-.reader-react-root.is-workspace-ai .reader-fab {
-  opacity: 0;
-  pointer-events: none;
 }
 
 /* 工作区布局现由根类 is-workspace-{reading,compare,markdown,ai} 与
@@ -364,7 +332,6 @@
   opacity: 1;
   transform: translateY(0);
 }
-
 
 @keyframes reader-region-focus {
   from {

@@ -272,15 +272,15 @@ test("reader page exposes ai/favorites/download entries, keeps paused tools hidd
   const jsxSources = [
     "../../../../frontend/packages/reader/src/components/react-pdf/ReaderFavoritesPanel.tsx",
     "../../../../frontend/packages/reader/src/components/react-pdf/ReaderAiPanel.tsx",
-    "../../../../frontend/packages/reader/src/components/react-pdf/ReaderFab.tsx",
+    "../../../../frontend/packages/reader/src/components/react-pdf/ReaderDownloadActions.tsx",
   ].map((file) => {
     try { return readFileSync(new URL(file, import.meta.url), "utf8"); } catch { return ""; }
   }).join("\n");
 
-  // 新引擎：favorites/ai 在 Fab/Panel 中，不再经 legacy SideDrawers
+  // 新引擎：favorites/ai 是 dock 的 tab，下载在顶栏；都不经 legacy SideDrawers。
   assert.match(jsxSources, /ReaderFavoritesPanel|reader-favorites/);
   assert.match(jsxSources, /ReaderAiPanel|reader-ai/);
-  assert.match(jsxSources, /ReaderFab|reader-fab/);
+  assert.match(jsxSources, /ReaderDownloadActions|reader-download-action/);
 
   const markup = readFileSync(new URL("../../reader.html", import.meta.url), "utf8");
   assert.match(markup, /id="reader-root"/);

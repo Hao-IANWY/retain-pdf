@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { READER_HOST_PANEL_IDS } from "../../../../frontend/packages/reader/src/shared/types/reader-assistant-panels.ts";
+import { readerDockTabs } from "../../../../frontend/packages/reader/src/components/react-pdf/reader-dock-tabs.ts";
 import {
   loadReaderViewState,
   normalizeReaderViewState,
@@ -59,72 +60,46 @@ test("reader view state rejects unknown modes and keeps legacy payloads clean", 
   }).mode, undefined);
 });
 
-test("ReaderFab exposes notes as a tool row with a count badge", () => {
-  const fab = readerSource(
-    "../../../../frontend/packages/reader/src/components/react-pdf/ReaderFab.tsx",
-  );
-  assert.match(fab, /ReaderFabToolId = ReaderToolId \| "notes"/);
-  assert.match(fab, /notes: StickyNote/);
-  assert.match(fab, /title: "批注"/);
-  assert.match(fab, /handleTool\(tool\.id\)/);
-  assert.match(fab, /noteCount/);
-  // 角标的标记搬到了 ReaderFabMenu 的共用行里 —— 本地工具（批注 / AI 批注）
-  // 和注册表工具现在走同一条渲染路径,不再各写一份。
-  const row = readerSource(
-    "../../../../frontend/packages/reader/src/components/react-pdf/ReaderFabMenu.tsx",
-  );
-  assert.match(row, /reader-fab-row-badge/);
-  assert.match(row, /badge\?: number;/);
-});
+test("批注是唯一那个启动器上的一个 tab，带条数角标", () => {
+  // 原来批注只能从可拖动圆钮（FAB）进，而圆钮被
+  // `.is-assistant-open .reader-fab { opacity: 0 }` 在任何 dock 面板开着时整个
+  // 吃掉 —— 开着 Markdown 就加不了批注。现在它和别的面板同一个清单。
+  const ids = readerDockTabs(() => true).map((tab) => tab.id);
+  assert.ok(ids.includes("notes"), `批注不在启动器清单里: ${ids}`);
 
-test("ReaderAppReactPdf routes notes through ReaderFab instead of a duplicate left rail", () => {
+  // 角标喂的是条数，但 tab 的存在与否**拿不到条数** —— readerDockTabs 的签名
+  // 里根本没有这个入参，所以「0 条就把入口藏掉」在这里写不出来。
   const app = readerSource(
     "../../../../frontend/packages/reader/src/ReaderAppReactPdf.tsx",
   );
-  assert.match(app, /activeTool=\{fabActiveTool\}/);
-  assert.match(app, /noteCount=\{annotations\.count\}/);
-  assert.match(app, /onToggleTool=\{handleFabTool\}/);
+  assert.match(app, /badges=\{\{ notes: annotations\.count/);
+  assert.match(app, /<ReaderNotesPanel/);
+});
+
+test("批注面板的开合和别的面板同一个状态，没有第二份 open 布尔", () => {
+  // 两个启动器时代的遗留：notesOpen / aiNotesOpen 各是一份独立状态，于是
+  // 「同时开着 Markdown 和批注」这种 dock 表达不了的组合是可能的，而它在
+  // 界面上就是两个面板叠在一起。
+  const app = readerSource(
+    "../../../../frontend/packages/reader/src/ReaderAppReactPdf.tsx",
+  );
+  assert.match(app, /open=\{assistantPanel === "notes"\}/);
+  assert.doesNotMatch(app, /notesOpen|aiNotesOpen|useReaderTools/);
   assert.doesNotMatch(app, /打开批注/);
 });
 
-test("ReaderFab exposes favorites/markdown/ai aligned with the tool registry", () => {
-  const fab = readerSource(
-    "../../../../frontend/packages/reader/src/components/react-pdf/ReaderFab.tsx",
-  );
-  // 与 tools/registry.ts READER_TOOLS 对齐：不再只展示摘录。
-  assert.doesNotMatch(fab, /filter\(\(tool\) => tool\.id === "favorites"\)/);
-  assert.match(fab, /AUXILIARY_TOOLS = READER_TOOLS/);
-
-  const app = readerSource(
-    "../../../../frontend/packages/reader/src/ReaderAppReactPdf.tsx",
-  );
-  // FAB 的 markdown/ai 与 Dock 同行为：走辅助面板 toggle，而非 tools。
-  assert.match(app, /if \(id === "markdown" \|\| id === "ai"\)/);
-  // FAB 高亮仍以辅助面板为真源，但只有 READER_TOOLS 里的面板有 FAB 图标。
-  // 宿主槽位面板（终端/阅读路径/画布）都没有，必须先滤掉再回退到 tools ——
-  // 漏一个，FAB 就会拿到一个它渲染不了的 id。
-  //
-  // 这条红过三次，每次都只是机械地补一个条件。现在过滤按注册表判断，加面板
-  // 不用改这里；断言也跟着改成查那个判断本身，而不是逐个 id 查。
-  assert.ok(READER_HOST_PANEL_IDS.length >= 3, `宿主槽位面板没找全: ${READER_HOST_PANEL_IDS}`);
-  const fabBlock = app.slice(
-    app.indexOf("const fabAssistantTool"),
-    app.indexOf("const fabActiveTool"),
-  );
-  assert.ok(fabBlock, "找不到 fabAssistantTool 那段");
-  assert.match(
-    fabBlock,
-    /isReaderHostPanel\(assistantPanel\)/,
-    "FAB 不再按注册表滤掉宿主槽位面板 —— 它会拿到一个渲染不了的 id",
-  );
-  // 注册表里的 id 一个都不能出现在 READER_TOOLS 里，否则「滤掉」就是错的。
-  const registry = readerSource(
-    "../../../../frontend/packages/reader/src/tools/registry.ts",
-  );
-  for (const id of READER_HOST_PANEL_IDS) {
-    assert.doesNotMatch(registry, new RegExp(`"${id}"`), `${id} 同时在 READER_TOOLS 里`);
+test("原来 FAB 菜单里的三样（摘录 / Markdown / AI）一个都没丢", () => {
+  // READER_TOOLS 这张表连同 FAB 一起删了；能证明「没丢」的是它们现在都在
+  // 唯一那个启动器的清单里，而不是某个文件里还留着字符串。
+  const ids = readerDockTabs(() => true).map((tab) => tab.id);
+  for (const id of ["favorites", "markdown", "ai"]) {
+    assert.ok(ids.includes(id), `${id} 不在启动器清单里: ${ids}`);
   }
-  assert.match(app, /fabAssistantTool \?\? tools\.active/);
+  // 宿主槽位面板也在同一份清单里 —— 这正是「两个启动器各管一半」消失的证据。
+  assert.ok(READER_HOST_PANEL_IDS.length >= 3, `宿主槽位面板没找全: ${READER_HOST_PANEL_IDS}`);
+  for (const id of READER_HOST_PANEL_IDS) {
+    assert.ok(ids.includes(id), `${id} 不在启动器清单里: ${ids}`);
+  }
 });
 
 test("ReaderAppReactPdf restores and persists reading mode with a sourceViewOnly guard", () => {

@@ -1,6 +1,5 @@
 import type { ReaderAssistantPanel, ReaderWorkspaceMode } from "./components/react-pdf/index.js";
 import { loadReaderViewState } from "./shared/state/reader-view-state.js";
-export declare function resolveReaderAiLayout(_mode: string): "workspace";
 export declare function resolveVisiblePdfMode(mode: "source" | "compare" | "translated", assistantPanel: ReaderAssistantPanel | null): "compare" | "source" | "translated";
 /** 阅读视图可见台面的判别联合。 */
 export type ReaderPaneComposition = {

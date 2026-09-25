@@ -24,7 +24,6 @@
  * shared/data/ai-notes.ts 顶部）。想看全的人点一下切到全部，而不是反过来让
  * 所有人先被细节淹一遍。
  */
-import { Highlighter } from "lucide-react";
 import { useState, type ReactElement } from "react";
 
 import {
@@ -34,7 +33,7 @@ import {
   type AiNote,
   type AiNotesDoc,
 } from "../../shared/data/ai-notes.js";
-import { ReaderFloatShell } from "./ReaderFloatShell.js";
+import { ReaderPanelShell } from "./ReaderPanelShell.js";
 
 export type ReaderAiNotesPanelProps = {
   open: boolean;
@@ -68,14 +67,11 @@ export function ReaderAiNotesPanel({
   const groups = groupAiNotesByPage(visible);
 
   return (
-    <ReaderFloatShell
+    <ReaderPanelShell
       id="reader-ai-notes-panel"
       open={open}
-      title="AI 批注"
-      subtitle="agent 标在页面上 · 点一条跳过去"
-      titleIcon={<Highlighter size={14} strokeWidth={2.25} aria-hidden />}
-      storageKey="retainpdf.reader.ai-notes-float.pos.v1"
       ariaLabel="AI 批注"
+      className="is-pane-right"
       onClose={onClose}
       toolbar={(
         <>
@@ -138,6 +134,6 @@ export function ReaderAiNotesPanel({
           </section>
         ))
       )}
-    </ReaderFloatShell>
+    </ReaderPanelShell>
   );
 }

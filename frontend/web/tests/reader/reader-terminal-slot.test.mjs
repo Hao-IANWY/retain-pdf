@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 
 import { READER_ADAPTER_KEYS } from "../../../../frontend/packages/reader/src/adapters.ts";
 import { READER_HOST_PANELS } from "../../../../frontend/packages/reader/src/components/react-pdf/reader-host-panels.ts";
+import { readerDockTabs } from "../../../../frontend/packages/reader/src/components/react-pdf/reader-dock-tabs.ts";
 
 const read = (relative) =>
   readFileSync(fileURLToPath(new URL(relative, import.meta.url)), "utf8");
@@ -30,13 +31,15 @@ const SHELL = read(
 test("每个宿主槽位都按「有没有注册渲染器」决定显不显示", () => {
   // 点了没反应的 tab 比没有这个功能更糟 —— 用户会以为是坏了。
   //
-  // 改成遍历注册表，不再逐个面板抄一遍：加面板时这条自动覆盖到，不用记得来补。
-  assert.match(
-    DOCK,
-    /typeof adapters\?\.\[panel\.adapterKey\] === "function"/,
-    "dock 不再按「适配器注册了没有」过滤 tab",
-  );
+  // 直接跑 readerDockTabs 的两支，不对 dock 源码做正则：正则在实现换个变量名
+  // 之后照样绿，而这里跑的就是 dock 渲染 tab 用的那一个函数。
+  const registered = readerDockTabs(() => true).map((tab) => tab.id);
+  const none = readerDockTabs(() => false).map((tab) => tab.id);
   assert.ok(READER_HOST_PANELS.length >= 3, "槽位面板没找全");
+  for (const panel of READER_HOST_PANELS) {
+    assert.ok(registered.includes(panel.id), `宿主注册了渲染器，${panel.id} 却没有 tab`);
+    assert.ok(!none.includes(panel.id), `宿主没注册渲染器，${panel.id} 仍然给了一个点不出东西的 tab`);
+  }
   for (const panel of READER_HOST_PANELS) {
     // adapterKey 拼错的话过滤永远为假，tab 永远不出现，而且不报错。
     assert.ok(
@@ -47,9 +50,9 @@ test("每个宿主槽位都按「有没有注册渲染器」决定显不显示",
   }
 });
 
-test("宿主槽位的 id、标签、存储键都不重复", () => {
-  // 两个面板共用一个 storageKey 的话，挪了一个另一个跟着跳。
-  for (const field of ["id", "label", "short", "storageKey", "adapterKey"]) {
+test("宿主槽位的 id、标签、缩写都不重复", () => {
+  // 两个面板共用一个 adapterKey 的话，两个 tab 打开同一块内容，而且不报错。
+  for (const field of ["id", "label", "short", "adapterKey"]) {
     const values = READER_HOST_PANELS.map((panel) => panel[field]);
     assert.equal(new Set(values).size, values.length, `${field} 有重复: ${values}`);
   }
@@ -77,12 +80,11 @@ test("终端一旦开过就保持挂载", () => {
 });
 
 test("所有宿主槽位都套在和其它面板同一个壳里", () => {
-  // 第一版把终端渲染在 <Suspense> 外面、不套 ReaderFloatShell，结果它铺满整个
-  // 窗口盖住了 PDF —— 定位是包的事，宿主只给内容。
+  // 第一版把终端渲染在 <Suspense> 外面、不套壳，结果它铺满整个窗口盖住了 PDF
+  // —— 定位是包的事，宿主只给内容。
   //
   // 现在三个面板共用一个壳，所以这条一次覆盖全部，不用每加一个面板补一遍。
-  assert.match(SHELL, /<ReaderFloatShell/, "槽位必须套在 ReaderFloatShell 里");
-  assert.match(SHELL, /placement="workspace"/);
+  assert.match(SHELL, /<ReaderPanelShell/, "槽位必须套在 ReaderPanelShell 里");
   assert.match(SHELL, /className="is-pane-right"/);
   assert.match(SHELL, /id=\{`reader-\$\{panel\.id\}-panel`\}/, "壳的 id 不再按面板 id 生成（CSS 会失配）");
 

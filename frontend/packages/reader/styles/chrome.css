@@ -152,130 +152,97 @@
   cursor: default;
 }
 
-.reader-pane-selector {
-  position: fixed;
-  top: 50%;
-  z-index: 34;
-  display: grid;
-  place-items: center;
-  width: 48px;
-  height: 96px;
-  transform: translateY(-50%);
-}
-
-.reader-pane-selector.is-left {
-  left: 0;
-}
-
-.reader-pane-selector.is-right {
-  right: 0;
-}
-
-.reader-pane-selector-trigger {
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 64px;
-  padding: 0;
-  border: 1px solid color-mix(in srgb, var(--ink) 8%, transparent);
-  border-radius: 999px;
-  color: color-mix(in srgb, var(--ink) 36%, var(--muted));
-  background: color-mix(in srgb, var(--paper) 74%, transparent);
-  box-shadow: 0 8px 24px color-mix(in srgb, var(--shadow-color) 7%, transparent);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  cursor: pointer;
-  transition: width 140ms ease, color 140ms ease, background 140ms ease, box-shadow 140ms ease;
-}
-
-.reader-pane-selector:hover .reader-pane-selector-trigger,
-.reader-pane-selector:focus-within .reader-pane-selector-trigger,
-.reader-pane-selector.is-open .reader-pane-selector-trigger {
-  width: 34px;
-  color: var(--ink);
-  background: color-mix(in srgb, var(--paper) 94%, transparent);
-  box-shadow: 0 10px 28px color-mix(in srgb, var(--shadow-color) 11%, transparent);
-}
-
-.reader-pane-selector-menu {
-  position: absolute;
-  top: 50%;
-  display: grid;
-  gap: 2px;
-  width: 178px;
-  padding: 5px;
-  border: 1px solid color-mix(in srgb, var(--ink) 9%, transparent);
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--paper) 96%, transparent);
-  box-shadow: 0 18px 48px color-mix(in srgb, var(--shadow-color) 16%, transparent);
-  backdrop-filter: blur(22px);
-  -webkit-backdrop-filter: blur(22px);
-  transform: translateY(-50%);
-  animation: reader-pane-menu-in 120ms ease-out both;
-}
-
-.reader-pane-selector.is-left .reader-pane-selector-menu {
-  left: calc(100% - 3px);
-}
-
-.reader-pane-selector.is-right .reader-pane-selector-menu {
-  right: calc(100% - 3px);
-}
-
-.reader-pane-selector-menu button {
-  display: grid;
-  grid-template-columns: 20px minmax(0, 1fr) 18px;
-  align-items: center;
-  gap: 7px;
-  min-height: 40px;
-  padding: 0 8px;
-  border: 0;
-  border-radius: 9px;
-  color: color-mix(in srgb, var(--ink) 72%, var(--muted));
-  background: transparent;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 620;
-  text-align: left;
-  cursor: pointer;
-}
-
-.reader-pane-selector-menu button:hover,
-.reader-pane-selector-menu button:focus-visible {
-  outline: 0;
-  color: var(--ink);
-  background: color-mix(in srgb, var(--ink) 5%, transparent);
-}
-
-.reader-pane-selector-menu button.is-selected {
-  color: var(--ink);
-  background: color-mix(in srgb, var(--ink) 7%, transparent);
-}
-
-.reader-pane-selector-check-space {
-  width: 14px;
-}
-
-@keyframes reader-pane-menu-in {
-  from { opacity: 0; transform: translateY(-50%) scale(0.97); }
-  to { opacity: 1; transform: translateY(-50%) scale(1); }
-}
-
-@media (max-width: 899px) {
-  .reader-pane-selector {
-    width: 44px;
-    height: 88px;
-  }
-  .reader-pane-selector-menu {
-    width: 160px;
-  }
-}
-
-/* 整页阅读器「关闭 → 主页」（替代旧 iframe 宿主右上角关闭） */
-.reader-close-home-btn {
+/* 顶栏右上角这一组：三路下载 + 「关闭 → 主页」。
+ *
+ * 下载原来住在可拖动圆钮（FAB）的菜单里，而圆钮被
+ * `.is-assistant-open .reader-fab { opacity: 0 }` 在任何 dock 面板开着时整个
+ * 吃掉 —— 开着 Markdown 就下不了 PDF。搬到这一组后它和「关闭」同层常驻。
+ *
+ * 这一组自己定位，关闭按钮因此改成 static：两处都写 fixed 的话，谁在右边
+ * 只看谁的 right 更小，加一个按钮就得重算一次偏移。
+ */
+.reader-chrome-tray {
   position: fixed;
   top: 12px;
   right: clamp(12px, 2.2vw, 28px);
+  z-index: 36;
+  z-index: var(--z-hud, 36);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.reader-download-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid color-mix(in srgb, var(--ink) 8%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--paper) 88%, transparent);
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--shadow-color) 10%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.reader-download-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  color: color-mix(in srgb, var(--ink) 62%, var(--muted));
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: color 130ms ease, background 130ms ease;
+}
+
+.reader-download-action:hover:not(:disabled),
+.reader-download-action:focus-visible:not(:disabled) {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+  outline: none;
+}
+
+/* 产物还没就绪时禁用，但**不隐藏** —— 看不见那一路的人会以为功能没了；
+ * 原因写在 title / aria-label 里（「译文 PDF 尚未生成或清单不可用」）。 */
+.reader-download-action:disabled {
+  opacity: 0.38;
+  cursor: default;
+}
+
+.reader-download-action.is-busy {
+  opacity: 0.6;
+}
+
+/* 窄屏只留图标 —— 按钮本身还在，下载仍然够得到。
+ *
+ * 900px 这个数是算出来的，不是拍的：顶栏页签在内容盒里居中（左右各 72px
+ * 内边距），带文字的下载组连同关闭按钮约 274px。900 以下两边会开始压到一起，
+ * 而顶栏页签被盖住比下载少三个字糟得多。 */
+@media (max-width: 900px) {
+  .reader-download-action {
+    padding: 0;
+    width: 32px;
+    justify-content: center;
+  }
+
+  .reader-download-action-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+  }
+}
+
+.reader-close-home-btn {
+  position: static;
   z-index: 36;
   z-index: var(--z-hud, 36);
   display: inline-flex;

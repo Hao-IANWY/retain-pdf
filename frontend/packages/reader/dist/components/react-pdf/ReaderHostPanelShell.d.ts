@@ -1,6 +1,6 @@
 /** 宿主槽位面板的壳 —— 三个面板共用这一个，不再各写一份。
  *
- * 原来 ReaderAppReactPdf 里有三段 19–21 行、彼此九成相同的 `ReaderFloatShell`。
+ * 原来 ReaderAppReactPdf 里有三段 19–21 行、彼此九成相同的 `ReaderPanelShell`。
  * 重复本身还不是最糟的：dock 的 tab 由「适配器在不在」决定，而壳由宿主另写一遍，
  * **两边没有任何强制关系** —— 忘了写壳，tab 照样在，点了什么都不显示，tsc 和
  * 609 个测试全绿（实测）。现在两边同源于 READER_HOST_PANELS。

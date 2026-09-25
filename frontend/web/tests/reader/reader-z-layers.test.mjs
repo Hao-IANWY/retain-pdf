@@ -1,6 +1,6 @@
 /** 阅读器 z-index 层级契约。
  *
- * 起因：`--z-dialog` 是 40，而批注浮卡 `--z-notes-float` 是 48 —— 致命错误提示
+ * 起因：`--z-dialog` 是 40，而批注浮卡（当时的 `--z-notes-float`）是 48 —— 致命错误提示
  * （.reader-react-error）、产物失败提示（.reader-error-notice）和启动遮罩
  * （.reader-boot-loading）全都被任何一个开着的浮窗盖住。用户看到的是界面不动
  * 了，而不是不动的原因。
@@ -87,12 +87,13 @@ function zIndexFor(selector) {
 
 const TOKENS = zTokens();
 
-/** 会盖在内容之上的浮层 —— 告知层必须压过它们每一个。 */
+/** 会盖在内容之上的浮层 —— 告知层必须压过它们每一个。
+ *
+ * 批注卡和圆钮那两层不在这里了：可拖动浮窗和可拖动圆钮整套删除，面板进了
+ * dock（z-index 24，在 chrome 之下），那两个 token 没有消费者也没有定义。 */
 const FLOATING_LAYERS = [
-  "--z-notes-float",
   "--z-selection-pop",
   "--z-popover",
-  "--z-fab",
   "--z-region-popover",
   "--z-citation-hover",
 ];

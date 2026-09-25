@@ -1,9 +1,11 @@
-// 批注悬浮窗：列表 / 笔记 / 删除 / 导出 / 定位
+// 批注面板：列表 / 笔记 / 删除 / 导出 / 定位。dock 里的一个 tab。
+//
+// 原来只能从可拖动圆钮（FAB）进，而圆钮在任何 dock 面板开着时被一条 CSS
+// 整个吃掉 —— 开着 Markdown 就加不了批注、看不了已有的。
 
 import { useEffect, useState } from "react";
-import { StickyNote } from "lucide-react";
 import type { ReaderNote } from "../../annotations/types.js";
-import { ReaderFloatShell } from "./ReaderFloatShell.js";
+import { ReaderPanelShell } from "./ReaderPanelShell.js";
 
 export type ReaderNotesPanelProps = {
   open: boolean;
@@ -108,14 +110,11 @@ export function ReaderNotesPanel({
   const [copied, setCopied] = useState(false);
 
   return (
-    <ReaderFloatShell
+    <ReaderPanelShell
       id="reader-notes-panel"
       open={open}
-      title="批注"
-      subtitle="选中 PDF 文字后可添加 · 本地保存"
-      titleIcon={<StickyNote size={14} strokeWidth={2.25} aria-hidden />}
-      storageKey="retainpdf.reader.notes-float.pos.v1"
       ariaLabel="批注"
+      className="is-pane-right"
       onClose={onClose}
       toolbar={(
         <>
@@ -157,6 +156,6 @@ export function ReaderNotesPanel({
           </section>
         ))
       )}
-    </ReaderFloatShell>
+    </ReaderPanelShell>
   );
 }

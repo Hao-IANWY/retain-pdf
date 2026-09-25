@@ -13,7 +13,6 @@ import {
   resolveReaderPageWidthBasis,
 } from "../../../../frontend/packages/reader/src/components/react-pdf/ReaderCompareGrid.tsx";
 import {
-  resolveReaderAiLayout,
   resolveInitialAssistantPanel,
   resolveVisiblePdfMode,
 } from "../../../../frontend/packages/reader/src/ReaderAppReactPdf.tsx";
@@ -141,12 +140,6 @@ test("failed live translation remains a readable paused workspace", () => {
     pagesByPage: new Map([[0, {}], [1, {}]]),
   };
   assert.equal(liveTranslationPendingCopy(failedWithPages), "翻译已暂停，已保留 2 页译文");
-});
-
-test("Reader AI is a full workspace in every PDF display mode", () => {
-  assert.equal(resolveReaderAiLayout("source"), "workspace");
-  assert.equal(resolveReaderAiLayout("translated"), "workspace");
-  assert.equal(resolveReaderAiLayout("compare"), "workspace");
 });
 
 test("split workspaces show one PDF pane without losing the saved compare mode", () => {
@@ -308,7 +301,7 @@ test("assistant dock keeps the PDF mounted and owns Markdown or AI independently
   );
   assert.match(source, /is-workspace-\$\{workspaceView\}/);
   assert.match(source, /<ReaderCompareGrid/);
-  assert.match(source, /<ReaderAssistantDock active=\{assistantPanel\}/);
+  assert.match(source, /<ReaderAssistantDock\s+active=\{assistantPanel\}/);
   assert.match(source, /assistantOpen \? <ReaderAiSplitResizeHandle \/>/);
   assert.match(source, /markdownSplit=\{assistantPanel === "markdown"\}/);
   assert.match(source, /assistantSplit=\{assistantOpen\}/);

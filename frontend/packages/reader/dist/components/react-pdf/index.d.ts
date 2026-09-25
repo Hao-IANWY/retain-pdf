@@ -10,11 +10,10 @@ export { ReaderMarkdownPanel } from "./ReaderMarkdownPanel.js";
 export { ReaderNotesPanel } from "./ReaderNotesPanel.js";
 export type { ReaderNotesPanelProps } from "./ReaderNotesPanel.js";
 export { ReaderAiPanel } from "./ReaderAiPanel.js";
-export { ReaderFloatShell } from "./ReaderFloatShell.js";
+export { ReaderPanelShell } from "./ReaderPanelShell.js";
 export { ReaderReactBoot } from "./ReaderReactBoot.js";
 export { ReaderSelectionToolbar } from "./ReaderSelectionToolbar.js";
 export { ReaderShortcutsHelp } from "./ReaderShortcutsHelp.js";
-export { ReaderFab } from "./ReaderFab.js";
-export { ReaderToolsBar } from "./ReaderToolsBar.js";
+export { ReaderDownloadActions } from "./ReaderDownloadActions.js";
 export { ReaderZoomHud } from "./ReaderZoomHud.js";
 //# sourceMappingURL=index.d.ts.map

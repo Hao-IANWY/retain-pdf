@@ -10,6 +10,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 
 import {
   AI_NOTE_NO_PAGE,
@@ -17,45 +19,67 @@ import {
   notesUpToLevel,
   parseAiNotes,
 } from "../../../packages/reader/src/shared/data/ai-notes.ts";
+import { readerDockTabs } from "../../../packages/reader/src/components/react-pdf/reader-dock-tabs.ts";
+import { ReaderAssistantDock } from "../../../packages/reader/src/components/react-pdf/ReaderAssistantDock.tsx";
 
 const read = (relative) =>
   readFileSync(fileURLToPath(new URL(relative, import.meta.url)), "utf8");
 
 const PKG = "../../../packages/reader/src/";
-const FAB = read(`${PKG}components/react-pdf/ReaderFab.tsx`);
 const PANEL = read(`${PKG}components/react-pdf/ReaderAiNotesPanel.tsx`);
 const APP = read(`${PKG}ReaderAppReactPdf.tsx`);
-const ROW = read(`${PKG}components/react-pdf/ReaderFabMenu.tsx`);
+const DOCK = read(`${PKG}components/react-pdf/ReaderAssistantDock.tsx`);
 
 // ---------------------------------------------------------------- 入口
 
-test("FAB 上有 AI 批注这一行", () => {
+test("唯一那个启动器上有 AI 批注", () => {
   // 没有它，这个功能只能靠"碰巧翻到有记号的那一页"被发现。
   //
-  // 钉在 LOCAL_TOOLS 这个数组上,不是全文查 "ai-notes" —— 那个词在 TOOL_ICONS
-  // 和类型别名里也有,把这一项从数组里删掉照样绿（反证时发现的）。
-  const tools = FAB.slice(FAB.indexOf("const LOCAL_TOOLS"), FAB.indexOf("];", FAB.indexOf("const LOCAL_TOOLS")));
-  assert.match(tools, /id: "ai-notes" as const/, "LOCAL_TOOLS 里没有 AI 批注这一项");
-  assert.match(tools, /title: "AI 批注"/);
-  assert.match(FAB, /"ai-notes": Highlighter/, "没给图标,那一行会崩");
-  assert.match(APP, /id === "ai-notes"/, "FAB 点了没人接");
+  // 跑 readerDockTabs 本身，不对源码做正则：dock 渲染 tab 用的就是这个函数，
+  // 换个变量名、搬个文件都绕不过去。
+  const tabs = readerDockTabs(() => true);
+  const entry = tabs.find((tab) => tab.id === "ai-notes");
+  assert.ok(entry, `启动器清单里没有 AI 批注: ${tabs.map((t) => t.id)}`);
+  assert.equal(entry.label, "AI 批注");
+  assert.ok(entry.Icon, "没给图标，那个 tab 会崩");
+  assert.match(APP, /open=\{assistantPanel === "ai-notes"\}/, "点了没人接");
   assert.match(APP, /<ReaderAiNotesPanel/, "面板没挂上去");
 });
 
-test("0 条时那一行照样画出来", () => {
+test("0 条时那个 tab 照样在", () => {
   // 这是整条修复的要害：条数为 0 恰恰是最需要入口的时候（用户根本不知道
-  // 有这回事）。把行本身藏掉等于把功能藏掉。
-  // 枚举"哪几种藏法"是守不住的（反证时一个 .filter 就绕过去了）。改成守
-  // **条数只能喂给角标**：整行的存在与否完全不看它。
-  const block = FAB.slice(FAB.indexOf("{LOCAL_TOOLS"), FAB.indexOf("AUXILIARY_TOOLS.map"));
-  const uses = block.match(/aiNoteCount/g) ?? [];
-  assert.equal(uses.length, 1, `渲染这段里 aiNoteCount 出现了 ${uses.length} 次,只该有角标那一处`);
-  assert.match(block, /badge=\{tool\.id === "notes" \? noteCount : aiNoteCount\}/);
-  // 直接 .map 而不是先 .filter —— 任何按条数筛的写法都会让上面那条计数失败,
-  // 这一条再挡住"换个变量名筛"。
-  assert.ok(block.startsWith("{LOCAL_TOOLS.map("), `整行渲染被加了条件: ${block.slice(0, 60)}`);
-  // 角标本身可以不画（"0 条"比不画更像坏了），但那是 badge 的事，不是行的事。
-  assert.match(ROW, /\{badge \? <span className="reader-fab-row-badge">/);
+  // 有这回事）。把入口藏掉等于把功能藏掉。
+  //
+  // 枚举"哪几种藏法"是守不住的（反证时一个 .filter 就绕过去了）。现在是
+  // **结构上不可能**：readerDockTabs 的签名里没有条数这个入参，按条数筛
+  // 写不出来。这里连一条 0 都不用喂 —— 它本来就拿不到。
+  const ids = readerDockTabs(() => true).map((tab) => tab.id);
+  assert.ok(ids.includes("ai-notes"));
+  assert.ok(ids.includes("notes"));
+  assert.equal(readerDockTabs.length, 1, "readerDockTabs 多了入参 —— 条数可能又被引进来了");
+
+  // 角标本身可以不画（"0 条"比不画更像坏了），但那是角标的事，不是 tab 的事。
+  assert.match(APP, /"ai-notes": aiNoteDoc\?\.notes\.length \?\? 0/);
+});
+
+test("有几条要在**两种形态上都**看得见 —— 关着的竖条和开着的 tab 条", () => {
+  // 这条原本只查源码里有没有那个 <span>，于是「只在竖条上画、tab 条上漏掉」
+  // 照样绿（反证时发现的）。现在两种形态各渲染一次，各自数一遍。
+  const badges = { "ai-notes": 7, notes: 0 };
+  const rail = renderToStaticMarkup(
+    createElement(ReaderAssistantDock, { active: null, badges, onSelect() {}, onClose() {} }),
+  );
+  const dock = renderToStaticMarkup(
+    createElement(ReaderAssistantDock, { active: "markdown", badges, onSelect() {}, onClose() {} }),
+  );
+  for (const [form, markup] of [["竖条", rail], ["tab 条", dock]]) {
+    assert.match(markup, /reader-assistant-dock-badge/, `${form}上没有角标`);
+    assert.match(markup, />7</, `${form}上的角标没写出条数`);
+    // 0 条不画角标（"0 条"比不画更像坏了），但那个入口本身必须还在。
+    assert.doesNotMatch(markup, />0</, `${form}上画了一个「0」`);
+    assert.ok(markup.includes("批注"), `${form}上没有批注入口`);
+  }
+  assert.ok(DOCK.includes("badges"), "dock 不再接收角标");
 });
 
 test("空状态要教人怎么生成，而不是只说「暂无」", () => {

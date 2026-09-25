@@ -1,71 +1,85 @@
-import { FileCode2, Sparkles, X } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+/** 阅读页唯一的面板启动器。
+ *
+ * 关着 = 右侧竖条（rail），开着 = 面板顶上的 tab 条。两种形态**同一份清单**，
+ * 来自 readerDockTabs()，不在这里手抄。
+ *
+ * ## 这里以前是「两个启动器各管一半」
+ *
+ * rail 只有 Markdown / AI / 阅读路径 / 画布 / 终端，批注 / AI 批注 / 摘录 和
+ * 三路下载只能从可拖动的圆钮（FAB）进。而
+ * `.is-assistant-open .reader-fab { opacity: 0; pointer-events: none }` 这一条
+ * 让圆钮在任何 dock 面板开着时整个消失 —— 那 6 个功能当场变成不可达，键盘也
+ * 没有入口。用户还得先记住「批注在圆钮、路径在竖条」这张哪儿都没写的表。
+ *
+ * ## 8 个 tab 放不下怎么办
+ *
+ * dock 最窄 30vw（reader-ai-split-constraints.ts），1280 的屏上只有 384px，
+ * 8 个中文 tab 一行肯定放不下。**降级在 CSS 里**（assistant-dock.css）：tab 条
+ * 可横向滚动、min-width: 0 能被压缩、窄到一定程度只留图标（label 有 title 兜
+ * 底）。不用 JS 量宽度 —— 量宽度要监听 resize、要处理首帧为 0，而这里没有任何
+ * 需要 JS 才能表达的东西。
+ */
+import { X } from "lucide-react";
 import type { ReactElement } from "react";
 import { getReaderAdapters } from "../../adapters.js";
-import { READER_HOST_PANELS } from "./reader-host-panels.js";
 import { useReaderContext } from "./reader-context.js";
+import { readerDockTabs, type ReaderDockTab } from "./reader-dock-tabs.js";
 import type { ReaderAssistantPanel } from "./reader-assistant-types.js";
 
 // 既有 import 兼容：类型真值已移至叶子文件。
 export type { ReaderAssistantPanel } from "./reader-assistant-types.js";
 
-const BASE_PANELS = [
-  { id: "markdown", label: "Markdown", short: "MD", Icon: FileCode2 },
-  { id: "ai", label: "AI 问答", short: "AI", Icon: Sparkles },
-] as const;
-
-type DockTab = { id: string; label: string; short: string; Icon: LucideIcon };
-
-/** 宿主没注册对应渲染器的槽位面板不显示 tab。
- *
- * 点了没反应的 tab 比没有这个功能更糟 —— 用户会以为是坏了。
- *
- * 面板清单来自 READER_HOST_PANELS，不在这里逐个写 if —— 那份表同时也是宿主
- * 渲染面板壳的依据，两边同源才不会出现「tab 在、内容没有」。
- */
-function panelsFor(): readonly DockTab[] {
+function tabsFromAdapters(): readonly ReaderDockTab[] {
   const adapters = getReaderAdapters();
-  return [
-    ...BASE_PANELS,
-    ...READER_HOST_PANELS.filter(
-      (panel) => typeof adapters?.[panel.adapterKey] === "function",
-    ),
-  ];
+  return readerDockTabs((key) => typeof adapters?.[key] === "function");
 }
 
 export type ReaderAssistantDockProps = {
   active: ReaderAssistantPanel | null;
+  /** 角标条数。0 / 缺省不画 —— 「0 条」比不画更让人以为坏了。
+   *
+   * 但**行本身永远在**：条数为 0 恰恰是最需要入口的时候（用户根本不知道有
+   * AI 批注这回事）。tab 清单来自 readerDockTabs()，它连条数都拿不到，
+   * 所以「按条数把 tab 藏掉」在这里写不出来。
+   */
+  badges?: Partial<Record<ReaderAssistantPanel, number>>;
+  /** 无 job 时为 true；缺省从 reader context 取 controller.sourceOnly */
+  sourceOnly?: boolean;
   /** 缺省时从 reader context 的 assistant actions 取 */
   onSelect?: (panel: ReaderAssistantPanel) => void;
   onClose?: () => void;
 };
 
-/**
- * Markdown 和 AI 是阅读辅助工具，不参与 PDF 阅读模式的选择。
- * 关闭时只显示安静的右侧工具栏；打开后由 Dock 顶栏负责切换与关闭。
- */
 export function ReaderAssistantDock(props: ReaderAssistantDockProps): ReactElement {
   const ctx = useReaderContext();
-  const { active } = props;
+  const { active, badges } = props;
+  const sourceOnly = props.sourceOnly ?? ctx?.sourceOnly ?? false;
   const onSelect = props.onSelect ?? ctx?.assistant.select ?? (() => {});
   const onClose = props.onClose ?? ctx?.assistant.close ?? (() => {});
-  const PANELS = panelsFor();
+  const tabs = tabsFromAdapters();
+
   if (!active) {
     return (
       <nav className="reader-assistant-rail" aria-label="阅读辅助工具">
-        {PANELS.map(({ id, label, short, Icon }) => (
-          <button
-            key={id}
-            type="button"
-            className="reader-assistant-rail-button"
-            aria-label={`打开${label}`}
-            title={label}
-            onClick={() => onSelect(id as never)}
-          >
-            <Icon size={18} strokeWidth={2} aria-hidden />
-            <span>{short}</span>
-          </button>
-        ))}
+        {tabs.map(({ id, label, short, Icon, needsJob }) => {
+          const disabled = needsJob && sourceOnly;
+          const badge = badges?.[id];
+          return (
+            <button
+              key={id}
+              type="button"
+              className="reader-assistant-rail-button"
+              aria-label={`打开${label}`}
+              title={disabled ? `${label} 需打开任务阅读` : label}
+              disabled={disabled}
+              onClick={() => onSelect(id)}
+            >
+              <Icon size={18} strokeWidth={2} aria-hidden />
+              <span>{short}</span>
+              {badge ? <span className="reader-assistant-dock-badge">{badge}</span> : null}
+            </button>
+          );
+        })}
       </nav>
     );
   }
@@ -73,8 +87,10 @@ export function ReaderAssistantDock(props: ReaderAssistantDockProps): ReactEleme
   return (
     <header className="reader-assistant-dock-header">
       <div className="reader-assistant-dock-tabs" role="tablist" aria-label="阅读辅助面板">
-        {PANELS.map(({ id, label, Icon }) => {
+        {tabs.map(({ id, label, Icon, needsJob }) => {
           const selected = active === id;
+          const disabled = needsJob && sourceOnly;
+          const badge = badges?.[id];
           return (
             <button
               key={id}
@@ -82,10 +98,15 @@ export function ReaderAssistantDock(props: ReaderAssistantDockProps): ReactEleme
               role="tab"
               aria-selected={selected}
               className={`reader-assistant-dock-tab${selected ? " is-active" : ""}`}
-              onClick={() => onSelect(id as never)}
+              // 窄 dock 上只剩图标（见 assistant-dock.css 的容器查询），
+              // title 是那时候唯一还能说出「这是哪个面板」的东西。
+              title={disabled ? `${label} 需打开任务阅读` : label}
+              disabled={disabled}
+              onClick={() => onSelect(id)}
             >
               <Icon size={15} strokeWidth={2.15} aria-hidden />
-              <span>{label}</span>
+              <span className="reader-assistant-dock-tab-label">{label}</span>
+              {badge ? <span className="reader-assistant-dock-badge">{badge}</span> : null}
             </button>
           );
         })}

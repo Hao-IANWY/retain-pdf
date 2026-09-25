@@ -87,23 +87,24 @@ test("Markdown-only AI composer 不受翻译状态影响并保持可输入", asy
   assert.doesNotMatch(primitivesSource, /MutationObserver|useViewportStickBottom/);
   assert.doesNotMatch(threadSource, /components\/ai-elements/);
   assert.match(panelSource, /const enabled = open && Boolean\(jobId\)/);
-  assert.match(panelSource, /layout === "workspace" \? "workspace"/);
-  assert.match(panelSource, /showHeader=\{layout !== "workspace"\}/);
-  assert.match(panelSource, /is-\$\{layout\}/);
+  // 面板只剩一种形态（贴右栏）：floating / docked 两支连同 layout 入参一起删了。
+  assert.doesNotMatch(panelSource, /layout/);
+  assert.match(panelSource, /is-workspace is-pane-\$\{side\}/);
   assert.doesNotMatch(panelSource, /!sourceOnly|sourceOnly \|\| !jobId/);
   assert.match(appSource, /is-workspace-\$\{workspaceView\}/);
-  assert.match(appSource, /resolveReaderAiLayout\(_mode: string\): "workspace"/);
-  assert.doesNotMatch(appSource, /tools\.close\("ai"\)/);
   assert.doesNotMatch(appSource, /retainpdf\.reader\.ai-layout/);
   assert.doesNotMatch(panelSource, /onLayoutChange|reader-ai-layout-toggle/);
   assert.match(appSource, /<ReaderAiPanel key=\{session\.documentId \|\| session\.jobId \|\| "reader-ai-pending"\}/);
   assert.doesNotMatch(appSource, /<ReaderAiPanel[^>]*sourceOnly=/);
   assert.doesNotMatch(panelSource, /aui-branch-pointer-shield/);
   assert.doesNotMatch(floatCss, /\.aui-branch-pointer-shield/);
-  assert.match(floatCss, /\.reader-float-ai\.reader-notes-panel--docked/);
-  assert.match(floatCss, /@media \(max-width: 899px\)[\s\S]*?\.reader-float-ai\.is-floating[\s\S]*?inset:\s*0 !important/);
+  // --docked 零调用点、.is-floating 的拖动是坏的，两套皮肤一起删了。
+  assert.match(floatCss, /\.reader-float-ai\.reader-notes-panel--workspace/);
+  assert.doesNotMatch(floatCss, /\.reader-float-ai\.reader-notes-panel--docked/);
+  assert.doesNotMatch(floatCss, /\.reader-float-ai\.is-floating/);
   assert.match(assistantCss, /\.reader-react-root\.is-assistant-open \.reader-react-scroll-shell[\s\S]*?right:\s*var\(--reader-ai-split-width\)/);
-  assert.doesNotMatch(notesCss, /\.reader-notes-panel--float\s*\{\s*touch-action:\s*none/);
+  assert.match(notesCss, /\.reader-notes-panel--workspace\s*\{/);
+  assert.doesNotMatch(notesCss, /\.reader-notes-panel--(float|docked)\b/);
 });
 
 test("assistant-ui Composer can type and submit in an OCR-only Reader", async () => {

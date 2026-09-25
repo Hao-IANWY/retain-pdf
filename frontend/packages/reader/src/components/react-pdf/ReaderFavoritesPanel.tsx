@@ -1,7 +1,6 @@
-// 摘录悬浮窗：当前文档的服务端收藏列表（对齐 legacy 云端区）
+// 摘录面板：当前文档的服务端收藏列表。dock 里的一个 tab。
 
 import { useCallback, useEffect, useState } from "react";
-import { Bookmark } from "lucide-react";
 import {
   API_PREFIX,
   createReaderServerFavoritesPort,
@@ -9,7 +8,7 @@ import {
   normalizeServerFavorite,
   type ServerFavorite,
 } from "../../external.js";
-import { ReaderFloatShell } from "./ReaderFloatShell.js";
+import { ReaderPanelShell } from "./ReaderPanelShell.js";
 
 export type ReaderFavoritesPanelProps = {
   open: boolean;
@@ -73,14 +72,11 @@ export function ReaderFavoritesPanel({
   }, [open, reload]);
 
   return (
-    <ReaderFloatShell
+    <ReaderPanelShell
       id="reader-favorites-panel"
       open={open}
-      title="摘录"
-      subtitle="本书云端摘录 · 服务端保存"
-      titleIcon={<Bookmark size={14} strokeWidth={2.25} aria-hidden />}
-      storageKey="retainpdf.reader.favorites-float.pos.v1"
       ariaLabel="摘录"
+      className="is-pane-right"
       onClose={onClose}
       toolbar={(
         <>
@@ -126,6 +122,6 @@ export function ReaderFavoritesPanel({
           </article>
         ))
       )}
-    </ReaderFloatShell>
+    </ReaderPanelShell>
   );
 }

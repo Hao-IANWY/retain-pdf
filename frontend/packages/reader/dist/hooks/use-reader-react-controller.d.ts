@@ -1,5 +1,4 @@
 import { type RefObject } from "react";
-import { type ReaderToolsApi } from "./use-reader-tools.js";
 import type { PageRowHeights } from "../pdf/usePageRowSync.js";
 import type { ReaderMode, ReaderSessionState } from "./use-reader-session.js";
 import type { ProtectedPdfFile } from "../pdf/useProtectedPdfFile.js";
@@ -49,7 +48,6 @@ export type ReaderReactController = {
     jumpToAnchor: (target: ReaderAnchorTarget, pane?: "source" | "translated") => void;
     setModeKeepingPage: (next: ReaderMode) => void;
     showHud: boolean;
-    tools: ReaderToolsApi;
     selection: ReaderSelection | null;
     clearSelection: () => void;
     selectRegion: (selection: ReaderRegionSelection) => void;

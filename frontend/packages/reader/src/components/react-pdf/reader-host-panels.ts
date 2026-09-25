@@ -46,10 +46,7 @@ type ReaderHostPanelBase = {
   /** dock 收起时侧边竖条上的缩写。 */
   short: string;
   Icon: LucideIcon;
-  /** 浮窗位置的 localStorage 键。改了等于用户挪好的位置丢失。 */
-  storageKey: string;
   ariaLabel: string;
-  width: number;
   /** 关了 tab 也不卸载。
    *
    * 只在「卸载会丢东西」时才开：终端卸载 = 关 WebSocket = 杀掉 PTY 子进程，
@@ -76,9 +73,7 @@ const SPECS = {
     Icon: Route,
     adapterKey: "renderReaderReadingPath",
     slot: "document",
-    storageKey: "retainpdf.reader.reading-path-float.pos.v1",
     ariaLabel: "阅读路径",
-    width: 420,
     keepMounted: false,
   },
   "reading-canvas": {
@@ -87,9 +82,7 @@ const SPECS = {
     Icon: PenTool,
     adapterKey: "renderReaderReadingCanvas",
     slot: "document",
-    storageKey: "retainpdf.reader.reading-canvas-float.pos.v1",
     ariaLabel: "AI 画布",
-    width: 520,
     keepMounted: true,
   },
   terminal: {
@@ -98,9 +91,7 @@ const SPECS = {
     Icon: SquareTerminal,
     adapterKey: "renderReaderTerminal",
     slot: "terminal",
-    storageKey: "retainpdf.reader.terminal-float.pos.v1",
     ariaLabel: "fx 终端",
-    width: 420,
     keepMounted: true,
   },
 } satisfies Record<ReaderHostPanelId, Omit<ReaderHostPanelSpec, "id">>;

@@ -1,6 +1,6 @@
 /** 宿主槽位面板的壳 —— 三个面板共用这一个，不再各写一份。
  *
- * 原来 ReaderAppReactPdf 里有三段 19–21 行、彼此九成相同的 `ReaderFloatShell`。
+ * 原来 ReaderAppReactPdf 里有三段 19–21 行、彼此九成相同的 `ReaderPanelShell`。
  * 重复本身还不是最糟的：dock 的 tab 由「适配器在不在」决定，而壳由宿主另写一遍，
  * **两边没有任何强制关系** —— 忘了写壳，tab 照样在，点了什么都不显示，tsc 和
  * 609 个测试全绿（实测）。现在两边同源于 READER_HOST_PANELS。
@@ -16,7 +16,7 @@ import type { ReactNode } from "react";
 
 import { getReaderAdapters } from "../../adapters.js";
 import { useMountedSinceFirstOpen } from "../../shared/react/use-mounted-since-first-open.js";
-import { ReaderFloatShell } from "./ReaderFloatShell.js";
+import { ReaderPanelShell } from "./ReaderPanelShell.js";
 import type { ReaderHostPanelSpec } from "./reader-host-panels.js";
 
 export type ReaderHostPanelContext = {
@@ -67,20 +67,15 @@ export function ReaderHostPanelShell({
   if (content === undefined || content === null) return null;
 
   return (
-    <ReaderFloatShell
+    <ReaderPanelShell
       id={`reader-${panel.id}-panel`}
       open={open}
-      title={panel.label}
-      storageKey={panel.storageKey}
       ariaLabel={panel.ariaLabel}
-      width={panel.width}
       keepMounted={panel.keepMounted}
-      placement="workspace"
-      showHeader={false}
       className="is-pane-right"
       onClose={context.onClose}
     >
       {content}
-    </ReaderFloatShell>
+    </ReaderPanelShell>
   );
 }

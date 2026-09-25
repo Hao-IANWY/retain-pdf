@@ -1,4 +1,4 @@
-// Composes full react-pdf reader logic (session → shell → panes → tools → HUD).
+// Composes full react-pdf reader logic (session → shell → panes → HUD).
 
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { useReaderSession } from "./use-reader-session.js";
@@ -7,7 +7,6 @@ import { useReaderPaneModel } from "./use-reader-pane-model.js";
 import { useReaderZoom } from "./use-reader-zoom.js";
 import { useReaderTextSelection } from "./use-reader-text-selection.js";
 import { useReaderModeNavigation } from "./use-reader-mode-navigation.js";
-import { useReaderTools, type ReaderToolsApi } from "./use-reader-tools.js";
 import { useCurrentPage } from "../pdf/useCurrentPage.js";
 import { usePageRowSync } from "../pdf/usePageRowSync.js";
 import { useReadingAnchor } from "../pdf/useReadingAnchor.js";
@@ -95,7 +94,6 @@ export type ReaderReactController = {
   jumpToAnchor: (target: ReaderAnchorTarget, pane?: "source" | "translated") => void;
   setModeKeepingPage: (next: ReaderMode) => void;
   showHud: boolean;
-  tools: ReaderToolsApi;
   selection: ReaderSelection | null;
   clearSelection: () => void;
   selectRegion: (selection: ReaderRegionSelection) => void;
@@ -156,7 +154,6 @@ export function useReaderReactController(): ReaderReactController {
     jobStatus: session.jobStatus,
     enabled: liveTranslationTracked,
   });
-  const tools = useReaderTools();
   const { shellRef, shellEl, shellWidth, bindShell } = useReaderShell();
   const viewStateKey = readerViewStateScope({
     documentId: session.documentId,
@@ -329,9 +326,6 @@ export function useReaderReactController(): ReaderReactController {
 
   const showHud = !session.boot.loading && !session.boot.failed;
 
-  // tools 对象引用稳定到 active 变化时
-  const toolsApi = useMemo(() => tools, [tools.active, tools.open, tools.close, tools.toggle, tools.isOpen]);
-
   const shellMemo = useMemo(() => ({ bindShell, shellEl, shellWidth, shellRef }), [bindShell, shellEl, shellWidth, shellRef]);
   const sessionFilesMemo = useMemo(() => ({
     sourceUrl: session.sourceUrl,
@@ -340,7 +334,7 @@ export function useReaderReactController(): ReaderReactController {
     translatedFile: session.translatedFile,
   }), [session.sourceUrl, session.translatedUrl, session.sourceFile, session.translatedFile]);
 
-  // 将频繁变化的 currentPage 隔离：主体 shell/panes/tools 等保持稳定，避免滚动时全量重渲染
+  // 将频繁变化的 currentPage 隔离：主体 shell/panes 等保持稳定，避免滚动时全量重渲染
   const stablePart = useMemo(() => ({
     session,
     boot: session.boot,
@@ -358,14 +352,13 @@ export function useReaderReactController(): ReaderReactController {
     setModeKeepingPage,
     download: session.download,
     showHud,
-    tools: toolsApi,
     selection,
     clearSelection,
     selectRegion,
     viewStateKey,
     liveTranslation,
     liveTranslationAvailable,
-  }), [session, shellMemo, panes, sessionFilesMemo, rowHeights, goToPage, activeRegion, jumpToAnchor, setModeKeepingPage, showHud, toolsApi, selection, clearSelection, selectRegion, userZoom, onZoomChange, viewStateKey, liveTranslation, liveTranslationAvailable]);
+  }), [session, shellMemo, panes, sessionFilesMemo, rowHeights, goToPage, activeRegion, jumpToAnchor, setModeKeepingPage, showHud, selection, clearSelection, selectRegion, userZoom, onZoomChange, viewStateKey, liveTranslation, liveTranslationAvailable]);
 
   return useMemo(() => ({
     ...stablePart,

@@ -26,7 +26,7 @@
  * xterm.css 留在上面没拆：只有 6 KB，不值得再建一套机制。 */
 
 @layer pages {
-  /* 面板在 ReaderFloatShell 里面（placement="workspace"），所以这里不做定位，
+  /* 面板在 ReaderPanelShell 里面（贴右栏），所以这里不做定位，
    * 只负责把高度撑满壳、把 xterm 框住。第一版自己定位，结果终端铺满整个
    * 窗口盖住了 PDF —— 定位是包的事。 */
   .reader-terminal-panel {
