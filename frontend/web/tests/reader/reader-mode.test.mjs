@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { READER_HOST_PANEL_IDS } from "../../../../frontend/packages/reader/src/shared/types/reader-assistant-panels.ts";
 import { readerDockTabs } from "../../../../frontend/packages/reader/src/components/react-pdf/reader-dock-tabs.ts";
-import { resolveAssistantPanelAfterNote } from "../../../../frontend/packages/reader/src/ReaderAppReactPdf.tsx";
 import {
   loadReaderViewState,
   normalizeReaderViewState,
@@ -59,50 +58,6 @@ test("reader view state rejects unknown modes and keeps legacy payloads clean", 
     schema: "retainpdf_reader_view_v1",
     updatedAt: 0,
   }).mode, undefined);
-});
-
-test("批注是唯一那个启动器上的一个 tab，带条数角标", () => {
-  // 原来批注只能从可拖动圆钮（FAB）进，而圆钮被
-  // `.is-assistant-open .reader-fab { opacity: 0 }` 在任何 dock 面板开着时整个
-  // 吃掉 —— 开着 Markdown 就加不了批注。现在它和别的面板同一个清单。
-  const ids = readerDockTabs(() => true).map((tab) => tab.id);
-  assert.ok(ids.includes("notes"), `批注不在启动器清单里: ${ids}`);
-
-  // 角标喂的是条数，但 tab 的存在与否**拿不到条数** —— readerDockTabs 的签名
-  // 里根本没有这个入参，所以「0 条就把入口藏掉」在这里写不出来。
-  const app = readerSource(
-    "../../../../frontend/packages/reader/src/ReaderAppReactPdf.tsx",
-  );
-  assert.match(app, /badges=\{\{ notes: annotations\.count/);
-  assert.match(app, /<ReaderNotesPanel/);
-});
-
-test("批注面板的开合和别的面板同一个状态，没有第二份 open 布尔", () => {
-  // 两个启动器时代的遗留：notesOpen / aiNotesOpen 各是一份独立状态，于是
-  // 「同时开着 Markdown 和批注」这种 dock 表达不了的组合是可能的，而它在
-  // 界面上就是两个面板叠在一起。
-  const app = readerSource(
-    "../../../../frontend/packages/reader/src/ReaderAppReactPdf.tsx",
-  );
-  assert.match(app, /useReaderPanelSlot\(assistantPanel, "notes"\)/);
-  assert.match(app, /open=\{notesSlot\.open\}/);
-  assert.doesNotMatch(app, /notesOpen|aiNotesOpen|useReaderTools/);
-  assert.doesNotMatch(app, /打开批注/);
-});
-
-test("加批注不会把你正开着的那个面板顶掉", () => {
-  // 一份状态的代价：无条件 setAssistantPanel("notes") 在浮窗年代只是弹个浮窗，
-  // 搬进 dock 之后变成「把当前面板整个换掉」—— 终端里跑着长任务，划一句加个
-  // 批注，终端就被切走了。
-  assert.equal(resolveAssistantPanelAfterNote(null), "notes", "没有面板开着时得把批注顶出来");
-  for (const open of ["terminal", "ai", "markdown", "favorites", "notes"]) {
-    assert.equal(resolveAssistantPanelAfterNote(open), open, `${open} 面板开着时被批注顶掉了`);
-  }
-  // 阅读页真的用的是这个决策，不是自己又写了一遍。
-  const app = readerSource(
-    "../../../../frontend/packages/reader/src/ReaderAppReactPdf.tsx",
-  );
-  assert.match(app, /setAssistantPanel\(resolveAssistantPanelAfterNote\)/);
 });
 
 test("原来 FAB 菜单里的东西一个都没丢", () => {

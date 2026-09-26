@@ -184,10 +184,9 @@ test("assistant tools use a visible right rail and a unified dock header", () =>
   }));
   assert.match(rail, /reader-assistant-rail/);
   assert.match(rail, /aria-label="打开Markdown"/);
-  assert.match(rail, /aria-label="打开批注"/);
 
   const dock = renderToStaticMarkup(createElement(ReaderAssistantDock, {
-    active: "notes",
+    active: "markdown",
     onSelect() {},
     onClose() {},
   }));

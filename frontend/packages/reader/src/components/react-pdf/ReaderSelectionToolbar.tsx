@@ -1,7 +1,7 @@
 // PDF 选择浮条：正文走原生选区，公式/表格/图片走 OCR 结构选择层。
 
 import { useEffect, useState } from "react";
-import { Check, Copy, Image, Sigma, Sparkles, StickyNote, Table2, Type, X } from "lucide-react";
+import { Check, Copy, Image, Sigma, Sparkles, Table2, Type, X } from "lucide-react";
 import type { ReaderSelection } from "../../shared/data/reader-regions.js";
 import type { ReaderPaneId } from "../../shared/types/reader-dom.js";
 import {
@@ -10,7 +10,7 @@ import {
 } from "./reader-selection-view.js";
 import { READER_SCROLL_SHELL_CLASS } from "../../pdf/reader-dom-contract.js";
 
-/** 紧凑工具条约 360px 宽（复制 / 批注 / 问 AI / 取消 + 原文·译文 切换），
+/** 紧凑工具条约 320px 宽（复制 / 问 AI / 取消 + 原文·译文 切换），
  * 避免覆盖大段正文。原文／译文那一对按钮是**顶掉**了原来那个只能看不能点的
  * 栏别文字，不是加在它旁边，所以只贵了 40px 左右；切过去要看的那段文本走下面
  * 的气泡（纵向），宽度不再涨。 */
@@ -47,17 +47,10 @@ export function clampSelectionToolbarLeft(midX: number, columnWidth: number): nu
   return Math.min(Math.max(min, midX), max);
 }
 
-export type ReaderSelectionNoteInput = {
-  page: number;
-  pane: "source" | "translated";
-  quote: string;
-};
-
 export type ReaderSelectionToolbarProps = {
   selection: ReaderSelection | null;
   onDismiss: () => void;
   onAskAi?: (selection: ReaderSelection) => void;
-  onAddNote?: (input: ReaderSelectionNoteInput) => void;
 };
 
 export async function copyReaderSelectionText(value: string): Promise<void> {
@@ -87,7 +80,6 @@ export function ReaderSelectionToolbar({
   selection,
   onDismiss,
   onAskAi,
-  onAddNote,
 }: ReaderSelectionToolbarProps) {
   const [copied, setCopied] = useState(false);
   // null = 跟着选区所在那一栏。换一个选区就回到 null：上一段切到过原文，不该让
@@ -191,16 +183,6 @@ export function ReaderSelectionToolbar({
             ) : (
               <span className="reader-sel-pop-selection-hint">已选择图片</span>
             )}
-            {onAddNote && copyValue ? (
-              <button
-                type="button"
-                className="reader-sel-pop-btn reader-sel-pop-btn--secondary"
-                onClick={() => onAddNote({ page: view.page, pane: view.pane, quote: copyValue })}
-              >
-                <StickyNote size={15} strokeWidth={2.2} aria-hidden />
-                <span>添加批注</span>
-              </button>
-            ) : null}
             {onAskAi ? (
               // 问 AI 交的是原选区，不跟着上面的切换走：askSelectedRegion 会把
               // 文档切到选区所在那一栏，跟着切等于人只想瞄一眼原文，阅读位置却

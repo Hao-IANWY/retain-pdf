@@ -37,7 +37,7 @@
 @import "./react-pdf.css" layer(pages);
 @import "./live-translation.css" layer(pages);
 @import "./selection-pop.css" layer(pages);
-@import "./notes-float.css" layer(pages);
+@import "./panel-shell.css" layer(pages);
 @import "./float-markdown.css" layer(pages);
 @import "./float-ai.css" layer(pages);
 @import "./float-ai-aui.css" layer(pages);

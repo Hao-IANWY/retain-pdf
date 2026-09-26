@@ -1,5 +1,5 @@
 import type { ReaderSelection } from "../../shared/data/reader-regions.js";
-/** 紧凑工具条约 360px 宽（复制 / 批注 / 问 AI / 取消 + 原文·译文 切换），
+/** 紧凑工具条约 320px 宽（复制 / 问 AI / 取消 + 原文·译文 切换），
  * 避免覆盖大段正文。原文／译文那一对按钮是**顶掉**了原来那个只能看不能点的
  * 栏别文字，不是加在它旁边，所以只贵了 40px 左右；切过去要看的那段文本走下面
  * 的气泡（纵向），宽度不再涨。 */
@@ -18,17 +18,11 @@ export declare function readerColumnWidth(): number;
  * 分栏线右边，也就是糊在 AI 面板上。
  */
 export declare function clampSelectionToolbarLeft(midX: number, columnWidth: number): number;
-export type ReaderSelectionNoteInput = {
-    page: number;
-    pane: "source" | "translated";
-    quote: string;
-};
 export type ReaderSelectionToolbarProps = {
     selection: ReaderSelection | null;
     onDismiss: () => void;
     onAskAi?: (selection: ReaderSelection) => void;
-    onAddNote?: (input: ReaderSelectionNoteInput) => void;
 };
 export declare function copyReaderSelectionText(value: string): Promise<void>;
-export declare function ReaderSelectionToolbar({ selection, onDismiss, onAskAi, onAddNote, }: ReaderSelectionToolbarProps): import("react").JSX.Element;
+export declare function ReaderSelectionToolbar({ selection, onDismiss, onAskAi, }: ReaderSelectionToolbarProps): import("react").JSX.Element;
 //# sourceMappingURL=ReaderSelectionToolbar.d.ts.map

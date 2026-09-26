@@ -29,7 +29,6 @@
 /** 包自己渲染的面板。内容在包里，不需要宿主注入。 */
 export const READER_BASE_PANEL_IDS = [
   "markdown",
-  "notes",
 ] as const;
 
 /** 宿主槽位面板：包决定它在 dock 里的位置和生命周期，**内容由宿主注入**。

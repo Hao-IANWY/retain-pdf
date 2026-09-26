@@ -67,11 +67,7 @@ export {
 } from "./domain/host/config.js";
 
 export {
-  ANNOTATION_KIND_META,
-  annotationAnchor,
-  buildAnnotationsMarkdown,
   extractMarkdownMath,
-  groupAnnotationsByPage,
   materializeMarkdownMathFallbackHtml,
   materializeMarkdownMathHtml,
   mathFailureStats,
@@ -80,7 +76,6 @@ export {
   resetMarkdownMathEngineLoader,
   revealProtectedTokens,
   setMarkdownMathEngineLoader,
-  sortAnnotations,
   wrapMathSvgHtml,
 } from "./domain/host/content.js";
 

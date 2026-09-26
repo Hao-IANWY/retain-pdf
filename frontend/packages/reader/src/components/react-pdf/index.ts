@@ -7,8 +7,6 @@ export { ReaderAssistantDock } from "./ReaderAssistantDock.js";
 export type { ReaderAssistantPanel } from "./ReaderAssistantDock.js";
 export { ReaderAssistantSplitResizeHandle } from "./ReaderAssistantSplitResizeHandle.js";
 export { ReaderMarkdownPanel } from "./ReaderMarkdownPanel.js";
-export { ReaderNotesPanel } from "./ReaderNotesPanel.js";
-export type { ReaderNotesPanelProps } from "./ReaderNotesPanel.js";
 export { ReaderPanelShell } from "./ReaderPanelShell.js";
 export { ReaderReactBoot } from "./ReaderReactBoot.js";
 export { ReaderSelectionToolbar } from "./ReaderSelectionToolbar.js";

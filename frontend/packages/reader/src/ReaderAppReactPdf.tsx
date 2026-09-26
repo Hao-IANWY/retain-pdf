@@ -12,12 +12,9 @@ import {
   ReaderZoomHud,
   ReaderDownloadActions,
   ReaderSelectionToolbar,
-  ReaderNotesPanel,
 } from "./components/react-pdf/index.js";
 import type { ReaderAssistantPanel, ReaderWorkspaceMode } from "./components/react-pdf/index.js";
-import { useReaderAnnotations } from "./hooks/use-reader-annotations.js";
 import { useReaderAssistantPanel } from "./hooks/use-reader-assistant-panel.js";
-import type { ReaderNote } from "./annotations/types.js";
 import { DownloadToastHost } from "./shared/react/DownloadToastHost.jsx";
 import { READER_ROOT_CLASS } from "./pdf/reader-dom-contract.js";
 import {
@@ -26,7 +23,6 @@ import {
 } from "./shared/state/reader-view-state.js";
 import { readerSelectionPrompt } from "./shared/data/reader-regions.js";
 import type { ReaderSelection } from "./shared/data/reader-regions.js";
-import type { ReaderSelectionNoteInput } from "./components/react-pdf/ReaderSelectionToolbar.js";
 import {
   ReaderProvider,
   type ReaderContextValue,
@@ -152,23 +148,6 @@ export function resolveLiveTranslationVisibleOnWorkspaceChange(
   return false;
 }
 
-/** 加完一条批注之后该显示哪个面板。
- *
- * 没有面板开着 → 把批注面板顶出来（否则刚加的那条在哪儿完全没反馈）；
- * 已经有面板开着 → **不动它**。
- *
- * 原来是无条件 `setAssistantPanel("notes")`。浮窗年代那行是对的：它只是弹一个
- * 浮窗，不碰 dock。三个面板搬进 dock、共用同一个 assistantPanel 之后，同一行
- * 代码的含义变成「把你正开着的那个面板整个换掉」—— 正在终端里跑着一条长任务，
- * 顺手划一句加个批注，终端就被切走了。页面上本来就会画出批注记号，开着别的
- * 面板时不缺这条反馈。
- */
-export function resolveAssistantPanelAfterNote(
-  current: ReaderAssistantPanel | null,
-): ReaderAssistantPanel {
-  return current ?? "notes";
-}
-
 export function ReaderAppReactPdf() {
   const c = useReaderReactController();
   const { boot, panes, sessionFiles, session } = c;
@@ -209,23 +188,6 @@ export function ReaderAppReactPdf() {
   });
   const sourceViewOnly = paneComposition.sourceViewOnly;
   const visiblePdfMode = paneComposition.visibleMode;
-  const openNotes = useCallback(() => setAssistantPanel(resolveAssistantPanelAfterNote), []);
-  const annotations = useReaderAnnotations(
-    { jobId: session.jobId, documentId: session.documentId },
-    { onAfterAdd: openNotes },
-  );
-  const addNoteFromSelection = useCallback((input: ReaderSelectionNoteInput) => {
-    annotations.addFromQuote(input);
-    c.clearSelection();
-  }, [annotations.addFromQuote, c.clearSelection]);
-  const jumpToNote = useCallback((note: ReaderNote) => {
-    c.goToPage(note.page, note.pane === "translated" ? "translated" : "source");
-  }, [c.goToPage]);
-  const exportNotes = useCallback(
-    () => annotations.exportMarkdown(session.title || ""),
-    [annotations.exportMarkdown, session.title],
-  );
-
   // 换文档（或 viewStateKey 迁移）时丢掉上一本书的选区上下文。
   //
   // 这里原来还有一行 `setLiveTranslationVisible(true)`，它让上面那个
@@ -269,7 +231,6 @@ export function ReaderAppReactPdf() {
   // 原来是「闸一遍、open 一遍」，两处各自合法，抄改时把闸上那个写成别的面板
   // 整套测试全绿而摘录永远打不开。见 use-reader-panel-slot.ts。
   const markdownSlot = useReaderPanelSlot(assistantPanel, "markdown");
-  const notesSlot = useReaderPanelSlot(assistantPanel, "notes");
   // 槽位面板（阅读路径 / 画布 / 终端）的挂载、适配器查找和壳都在
   // ReaderHostPanelShell 里，按 READER_HOST_PANELS 逐个渲染 —— 见下面那段 map。
   // 键盘与 UI 共用同一「可见模式」真源：paneComposition.visibleMode。
@@ -426,10 +387,7 @@ export function ReaderAppReactPdf() {
           compareDegraded={paneComposition.compareDegradedByAssistant}
           onRestoreCompare={closeAssistant}
         />
-        <ReaderAssistantDock
-          active={assistantPanel}
-          badges={{ notes: annotations.count }}
-        />
+        <ReaderAssistantDock active={assistantPanel} />
         {assistantOpen ? <ReaderAssistantSplitResizeHandle /> : null}
         <ReaderCompareGrid paneComposition={paneComposition} markdownSplit={markdownSlot.open} assistantSplit={assistantOpen} liveTranslation={c.liveTranslation} sourcePaneAction={sourcePaneAction} />
         {c.showHud ? (
@@ -449,17 +407,7 @@ export function ReaderAppReactPdf() {
           ))}
           {markdownSlot.mounted ? <ReaderMarkdownPanel open={markdownSlot.open} jobId={session.jobId} sourceOnly={c.sourceOnly} side="right" onClose={closeAssistant} /> : null}
         </Suspense>
-        <ReaderNotesPanel
-          open={notesSlot.open}
-          groups={annotations.groups}
-          count={annotations.count}
-          onClose={closeAssistant}
-          onJump={jumpToNote}
-          onUpdateNote={annotations.updateNote}
-          onRemove={annotations.remove}
-          onExport={exportNotes}
-        />
-        <ReaderSelectionToolbar selection={c.selection} onDismiss={c.clearSelection} onAskAi={askSelectedRegion} onAddNote={addNoteFromSelection} />
+        <ReaderSelectionToolbar selection={c.selection} onDismiss={c.clearSelection} onAskAi={askSelectedRegion} />
         <DownloadToastHost />
       </div>
     </ReaderProvider>

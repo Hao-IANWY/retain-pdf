@@ -119,7 +119,7 @@ test("恢复只看存下来的东西 —— 存的 mode 是哪个都不影响", 
   }
   // 清单是从真源 map 出来的，漏登记一个面板这里的组合数会掉。
   assert.equal(checked.length, savedModes.length * READER_ASSISTANT_PANEL_IDS.length);
-  assert.ok(READER_ASSISTANT_PANEL_IDS.length >= 3, "面板清单疑似漏登记");
+  assert.ok(READER_ASSISTANT_PANEL_IDS.length >= 2, "面板清单疑似漏登记");
 
   // 这条就是病 1 本身：有译文的书默认 mode 就是 compare。
   assert.equal(resolveInitialAssistantPanel({
@@ -189,13 +189,13 @@ test("真实时序：viewStateKey 从空串 → job: → document:，存着的�
   // 实测顺序（起开发栈量的）：第一帧 key 还是空串，随后 documentId 到了。
   localStorage.clear();
   writes.length = 0;
-  seed("document:D2", { mode: "translated", assistantPanel: "notes" });
+  seed("document:D2", { mode: "translated", assistantPanel: "markdown" });
   const view = mountPanel("");
   view.rerender("job:J2");
   view.rerender("document:D2");
-  assert.equal(view.seen.api.panel, "notes", "迁到 document: 之后没恢复");
+  assert.equal(view.seen.api.panel, "markdown", "迁到 document: 之后没恢复");
   // 中间任何一帧都不许往 document 键上写别的 —— 那一瞬关掉页面就永久丢了。
-  assert.deepEqual([...new Set(writesTo("document:D2"))], ["notes"]);
+  assert.deepEqual([...new Set(writesTo("document:D2"))], ["markdown"]);
   view.unmount();
 });
 

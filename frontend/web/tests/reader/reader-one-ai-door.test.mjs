@@ -24,10 +24,44 @@ import { READER_HOST_PANELS }
   from "../../../packages/reader/src/components/react-pdf/reader-host-panels.ts";
 import { readerSelectionPrompt }
   from "../../../packages/reader/src/shared/data/reader-regions.ts";
+import { stripComments } from "./helpers/reader-css.mjs";
 
 const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), "utf8");
 const APP = read("../../../packages/reader/src/ReaderAppReactPdf.tsx");
 const TERMINAL = read("../../src/features/reader/ui/terminal.tsx");
+
+test("dock 收到只剩 Markdown 和 AI", () => {
+  // 批注也删了 —— 用户的原话是「批注部分我觉得也去掉，后续翻译什么的也全部走
+  // ai agent」。它是 localStorage 存的，磁盘上量不到用量，按产品方向删。
+  assert.deepEqual([...READER_ASSISTANT_PANEL_IDS], ["markdown", "terminal"]);
+});
+
+test("选区浮条上不再有批注入口 —— 面板没了按钮还在等于点了没反应", () => {
+  const toolbar = read("../../../packages/reader/src/components/react-pdf/ReaderSelectionToolbar.tsx");
+  assert.doesNotMatch(toolbar, /onAddNote/, "浮条还在往外发批注回调");
+  assert.doesNotMatch(toolbar, /添加批注/, "浮条上还有「添加批注」按钮");
+  // 正对照：浮条本身还活着，上面两条不是因为文件空了才绿。
+  assert.match(toolbar, /问 AI/, "浮条连「问 AI」都没了，上面两条没有判别力");
+});
+
+test("批注的样式和外壳样式分开了 —— 外壳是所有面板共用的，不能一起删", () => {
+  // 必须先剥注释再比：这个文件顶上的说明里就写着 .reader-notes-count，
+  // 不剥的话把规则整条删掉、正则照样命中那句注释（反证时实测，这条曾是假的）。
+  const shell = stripComments(read("../../../packages/reader/styles/panel-shell.css"));
+  // 还活着的：ReaderPanelShell 的三层 + Markdown 面板用的两个
+  for (const c of ["reader-notes-panel", "reader-notes-panel-toolbar",
+                   "reader-notes-panel-body", "reader-notes-count", "reader-notes-empty"]) {
+    assert.match(shell, new RegExp(`\\.${c}\\b`), `${c} 被删了，但组件还在用它`);
+  }
+  // 批注专属的：不该留
+  for (const c of ["reader-notes-export", "reader-notes-quote", "reader-notes-editor",
+                   "reader-ai-note-row"]) {
+    assert.doesNotMatch(shell, new RegExp(`\\.${c}\\b`), `${c} 是批注专属的，没跟着走`);
+  }
+  // 窄屏和减动效那两块 @media 里装的是**存活**规则，整块删掉会静默弄坏面板布局。
+  assert.match(shell, /@media \(max-width: 520px\)[\s\S]{0,120}reader-notes-panel--workspace/);
+  assert.match(shell, /@keyframes reader-workspace-in/, "动画关键帧没了，但 animation 还引用着它");
+});
 
 test("dock 里只有一个 AI 入口", () => {
   assert.ok(!READER_ASSISTANT_PANEL_IDS.includes("ai"), "AI 问答面板还在");

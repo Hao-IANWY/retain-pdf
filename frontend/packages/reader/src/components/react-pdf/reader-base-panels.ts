@@ -10,7 +10,7 @@
  * 圆钮被 `.is-assistant-open .reader-fab { opacity: 0 }` 一条 CSS 吃掉后，
  * 那三个面板在「dock 开着」时完全进不去 —— 所以现在只保留一个启动器。
  */
-import { FileCode2, StickyNote } from "lucide-react";
+import { FileCode2 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import {
@@ -35,9 +35,6 @@ export type ReaderBasePanelSpec = {
 
 const SPECS = {
   markdown: { label: "Markdown", short: "MD", Icon: FileCode2, needsJob: true },
-  notes: { label: "批注", short: "注", Icon: StickyNote, needsJob: false },
-  // 手写批注和 agent 标的批注不合并：前者可改可删可导出，后者是 agent 重写整份
-  // 摘录走 documentId 也能读，没有 job 一样有内容。
 } satisfies Record<ReaderBasePanelId, Omit<ReaderBasePanelSpec, "id">>;
 
 /** 顺序来自 id 清单，不是这张表的字面量顺序 —— 清单才是真源。 */

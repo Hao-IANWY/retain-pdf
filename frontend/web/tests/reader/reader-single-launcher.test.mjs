@@ -70,7 +70,8 @@ test("每个面板都在唯一那个启动器的清单里", () => {
   assert.deepEqual(ids, [...READER_ASSISTANT_PANEL_IDS]);
   // 下限而不是等号：加面板不该让这条红。3 = markdown / 批注 / AI(终端)，
   // 是「阅读页只留一扇 AI 的门」之后的数目。
-  assert.ok(ids.length >= 3, `只有 ${ids.length} 个面板，八成漏登记了`);
+  // 下限：Markdown + AI(终端)。批注也删了之后就是这两个。
+  assert.ok(ids.length >= 2, `只有 ${ids.length} 个面板，八成漏登记了`);
 });
 
 test("每个面板都有标签和图标 —— 少一样那个 tab 要么空白要么崩", () => {
@@ -297,25 +298,35 @@ function launcherDisabledState(active) {
   return state;
 }
 
-test("纯本地 PDF（没有 job）下，不需要 job 的那几个面板照样点得动", () => {
-  // needsJob 是启动器上**唯一**会让入口变成点不动的字段，而它一条门禁都没有：
-  // 把批注和摘录的 needsJob 从 false 改成 true，整套 2049 条全绿（复查实测），
-  // 后果是纯本地 PDF 下这两个 tab 直接禁用 —— 它们的数据根本不需要 job
-  // （摘录走 documentId 也能读，见 reader-base-panels.ts）。
-  const labelOf = (id) => readerDockTabs(() => true).find((tab) => tab.id === id)?.label;
-  for (const active of [null, "notes"]) {
+test("needsJob 真的会让入口点不动 —— 它是启动器上唯一的禁用开关", () => {
+  // 起因：needsJob 一条门禁都没有。把批注和摘录的 needsJob 从 false 改成 true，
+  // 整套 2049 条全绿（复查实测），后果是纯本地 PDF 下那两个 tab 直接禁用。
+  //
+  // 那两个面板后来都删了。这个 helper 渲染的是**没注册宿主适配器**的 dock，
+  // 所以它只看得见 base 面板（终端那类宿主槽位面板归 reader-terminal-slot 管，
+  // 顺带一提终端是 needsJob: false —— 它接 agent 进程，没有翻译任务照样能开）。
+  //
+  // 现在 base 面板只剩 Markdown，它 needsJob: true。所以主断言反过来写：
+  // 没有 job 时它必须点不动。把它的 needsJob 改成 false，这条就红。
+  // 按 base 面板的 id 真源筛。不能用 `needsJob !== undefined` —— readerDockTabs
+  // 给宿主槽位面板也填了 needsJob: false，那样会把终端筛进来，而这个 helper
+  // 根本没渲染它（没注册适配器），断言会拿到 undefined。
+  const base = readerDockTabs(() => true)
+    .filter((tab) => READER_BASE_PANEL_IDS.includes(tab.id));
+  assert.ok(base.length > 0, "一个 base 面板都没有，这条测试等于不存在");
+
+  for (const active of [null, "markdown"]) {
     const state = launcherDisabledState(active);
-    // 正对照：确实有入口被禁用。否则 disabled 那条分支整个失效时下面也全绿。
+    for (const tab of base) {
+      assert.equal(
+        state.get(tab.label), tab.needsJob,
+        `${tab.label} 的 needsJob=${tab.needsJob}，启动器上却是 disabled=${state.get(tab.label)}`,
+      );
+    }
+    // 正对照：确实有入口被禁用。否则 disabled 那条分支整个失效时上面也可能全绿。
     assert.ok(
       [...state.values()].some(Boolean),
       `${active ? "tab 条" : "竖条"}上一个禁用的入口都没有，sourceOnly 那条分支八成失效了`,
     );
-    for (const id of ["notes"]) {
-      assert.equal(
-        state.get(labelOf(id)),
-        false,
-        `${labelOf(id)} 在纯本地 PDF 下点不动了 —— 这个面板的数据不需要 job`,
-      );
-    }
   }
 });

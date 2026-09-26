@@ -173,7 +173,7 @@ test("栏别按钮没有被 CSS 藏掉 —— 和圆钮、面板工具条同一�
   assert.notDeepEqual(hidingRulesFor(button), [], "扫描器失效，上一条是假门禁");
 });
 
-test("点「原文」之后：气泡里是原文，复制和添加批注也跟着切", async () => {
+test("点「原文」之后：气泡里是原文，复制也跟着切", async () => {
   const dom = new JSDOM("<!doctype html><html><body><div id='root'></div></body></html>", {
     url: "http://localhost/reader.html",
     pretendToBeVisual: true,
@@ -197,14 +197,12 @@ test("点「原文」之后：气泡里是原文，复制和添加批注也跟�
   });
   globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
-  const notes = [];
   const root = createRoot(document.getElementById("root"));
   try {
     await act(async () => {
       root.render(createElement(ReaderSelectionToolbar, {
         selection: bilingualSelection(),
         onDismiss() {},
-        onAddNote: (input) => notes.push(input),
       }));
     });
 
@@ -229,12 +227,8 @@ test("点「原文」之后：气泡里是原文，复制和添加批注也跟�
       "复制拿的还是译文 —— 切换没带上复制",
     );
 
-    await act(async () => { actionButton("添加批注").click(); });
-    assert.deepEqual(notes, [{
-      page: 3,
-      pane: "source",
-      quote: "The estimator is consistent under i.i.d. sampling.",
-    }], "批注存下来的还是译文那一栏");
+    // 「问 AI」**故意不跟着切**（见 ReaderSelectionToolbar 里那段注释）：它交的是
+    // 原选区，跟着切等于人只想瞄一眼原文、阅读位置却被搬走了。所以这里不断言它。
 
     // 切回去：同一条浮条上来回切都要成立，不是只有第一次对。
     await act(async () => { paneButton("译文").click(); });

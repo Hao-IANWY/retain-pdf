@@ -26,7 +26,7 @@
  * components/react-pdf/reader-base-panels.ts 和 reader-host-panels.ts。
  */
 /** 包自己渲染的面板。内容在包里，不需要宿主注入。 */
-export declare const READER_BASE_PANEL_IDS: readonly ["markdown", "notes"];
+export declare const READER_BASE_PANEL_IDS: readonly ["markdown"];
 /** 宿主槽位面板：包决定它在 dock 里的位置和生命周期，**内容由宿主注入**。
  *
  * 宿主没注册对应的渲染器时，这个 tab 根本不出现 —— 留一个点了没反应的 tab 比
@@ -35,7 +35,7 @@ export declare const READER_BASE_PANEL_IDS: readonly ["markdown", "notes"];
  * 顺序就是 dock 里 tab 的顺序。
  */
 export declare const READER_HOST_PANEL_IDS: readonly ["terminal"];
-export declare const READER_ASSISTANT_PANEL_IDS: readonly ["markdown", "notes", "terminal"];
+export declare const READER_ASSISTANT_PANEL_IDS: readonly ["markdown", "terminal"];
 export type ReaderBasePanelId = (typeof READER_BASE_PANEL_IDS)[number];
 export type ReaderHostPanelId = (typeof READER_HOST_PANEL_IDS)[number];
 export type ReaderAssistantPanel = ReaderBasePanelId | ReaderHostPanelId;
