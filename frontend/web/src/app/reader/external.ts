@@ -117,19 +117,9 @@ export {
   clearStoredConversationId,
 } from "@/features/reader/domain.js";
 
-// —— 服务端收藏面板 ——
+// —— 文档身份（按 jobId 反查）——
 export { API_PREFIX } from "@/platform/config/api-constants.js";
 export { fetchDocumentByJobId } from "@/platform/api/index.js";
-export {
-  createFavorite,
-  deleteFavorite,
-  fetchFavorites,
-} from "@/platform/api/index.js";
-export {
-  createReaderServerFavoritesPort,
-  normalizeServerFavorite,
-} from "@/features/reader/domain.js";
-export type { ServerFavorite } from "@/features/reader/domain.js";
 
 // —— 阅读器 AI 面板：模型 Key 门禁 ——
 export { defaultCredentialsStatePort } from "@/features/credentials/domain.js";

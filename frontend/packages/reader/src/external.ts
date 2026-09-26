@@ -28,10 +28,6 @@ import {
   resolveReaderDownloadUrls as defaultResolveReaderDownloadUrls,
 } from "./shared/state/downloads/resolve.js";
 import {
-  createReaderServerFavoritesPort as createSharedReaderServerFavoritesPort,
-} from "./shared/state/server-favorites-port.js";
-import type { CreateServerFavoritesPortOptions } from "./shared/types/types.js";
-import {
   createReaderAskAnswerer as createSharedReaderAskAnswerer,
 } from "./shared/ai/ask-answerer.js";
 
@@ -215,30 +211,10 @@ export {
   saveStoredConversationId,
 } from "./shared/ai/conversation-store.js";
 
-// —— 服务端收藏 ——
+// —— 文档身份（按 jobId 反查）——
 export const API_PREFIX = "/api/v1";
 export const fetchDocumentByJobId = (...args: [string, string]) =>
   requireAdapter("fetchDocumentByJobId")(...args);
-export const fetchFavorites = (
-  apiPrefix = API_PREFIX,
-  options: { documentId?: string } = {},
-) => requireAdapter("fetchFavorites")(
-  getReaderAdapters()?.apiPrefix ?? apiPrefix,
-  options,
-);
-export function createReaderServerFavoritesPort(options: CreateServerFavoritesPortOptions = {}) {
-  const adapters = getReaderAdapters();
-  return createSharedReaderServerFavoritesPort({
-    apiPrefix: adapters?.apiPrefix ?? API_PREFIX,
-    documentByJobId: (...args) => requireAdapter("fetchDocumentByJobId")(...args),
-    submitFavorite: (...args) => requireAdapter("createFavorite")(...args),
-    loadFavorites: (...args) => requireAdapter("fetchFavorites")(...args),
-    removeFavorite: (...args) => requireAdapter("deleteFavorite")(...args),
-    ...options,
-  });
-}
-export { normalizeServerFavorite } from "./shared/state/server-favorites-port.js";
-export type { ServerFavorite } from "./shared/types/types.js";
 
 // —— 阅读器 AI 面板：模型 Key 门禁 ——
 export {

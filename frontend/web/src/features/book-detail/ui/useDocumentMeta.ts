@@ -4,16 +4,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchDocument } from "@/platform/api/index.js";
 import { API_PREFIX } from "@/platform/config/api-constants.js";
-import {
-  blockedClearFavoritesPath,
-  blockedFavoriteCount,
-  isDeleteBlockedByFavorites,
-} from "@/features/library/domain.js";
-
-export type DeleteBlockedState = {
-  favoriteCount: number;
-  clearFavoritesPath: string;
-};
 
 function parseAuthors(authorsJson: unknown): string[] {
   try {
@@ -43,7 +33,6 @@ export function useDocumentMeta({
   const [readingStatus, setReadingStatus] = useState("unread");
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
-  const [deleteBlocked, setDeleteBlocked] = useState<DeleteBlockedState | null>(null);
   const [editing, setEditing] = useState(false);
   const [titleText, setTitleText] = useState("");
   const requestGenerationRef = useRef(0);
@@ -157,60 +146,20 @@ export function useDocumentMeta({
     }
   }
 
-  useEffect(() => {
-    // 只在开合/换文档时清掉确认态；item 轮询不打断用户正在看的确认框。
-    setDeleteBlocked(null);
-  }, [open, documentId]);
-
   async function handleDelete() {
     setBusy("delete");
     setError("");
-    setDeleteBlocked(null);
     try {
       await actions.deleteDocument(documentId);
       onClose?.();
     } catch (err: any) {
-      if (isDeleteBlockedByFavorites(err)) {
-        const favoriteCount = blockedFavoriteCount(err);
-        const clearFavoritesPath = blockedClearFavoritesPath(err);
-        if (favoriteCount > 0 && clearFavoritesPath) {
-          setDeleteBlocked({ favoriteCount, clearFavoritesPath });
-          return;
-        }
-      }
       setError(err?.message || "删除失败");
     } finally {
       setBusy("");
     }
   }
 
-  // 用户确认「一并删除收藏」：先 DELETE clear_favorites_path，再重试原删除。
-  async function clearFavoritesAndDelete() {
-    const blocked = deleteBlocked;
-    if (!blocked) return;
-    setBusy("delete");
-    setError("");
-    try {
-      await actions.clearFavorites(blocked.clearFavoritesPath);
-      setDeleteBlocked(null);
-      await actions.deleteDocument(documentId);
-      onClose?.();
-    } catch (err: any) {
-      if (isDeleteBlockedByFavorites(err)) {
-        // 并发新增了收藏：更新计数并留在确认态，让用户重试。
-        const favoriteCount = blockedFavoriteCount(err);
-        const clearFavoritesPath = blockedClearFavoritesPath(err);
-        if (favoriteCount > 0 && clearFavoritesPath) {
-          setDeleteBlocked({ favoriteCount, clearFavoritesPath });
-          setError("收藏已被重新添加，请重试。");
-          return;
-        }
-      }
-      setError(err?.message || "删除失败");
-    } finally {
-      setBusy("");
-    }
-  }
+
 
   return {
     doc,
@@ -233,8 +182,5 @@ export function useDocumentMeta({
     handleSaveEdit,
     handleReadingStatus,
     handleDelete,
-    deleteBlocked,
-    clearFavoritesAndDelete,
-    dismissDeleteBlocked: () => setDeleteBlocked(null),
   };
 }

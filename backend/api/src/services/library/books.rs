@@ -45,18 +45,6 @@ pub fn delete_library_book(
     }
     for job in &jobs {
         ensure_deletable(job, force)?;
-        // 锚点块空间保护:被收藏引用的 run 删除后所有锚点断链,拒绝删除。
-        //
-        // 这里必须传播查询错误,不能 unwrap_or(0)。原实现在查询失败时把结果当成
-        // "0 条收藏"直接放行——注释写着"拒绝删除",实现却在出错时静默失去保护,
-        // 且失败方向是"删掉用户策展内容"这种不可逆的一侧。宁可报错让调用方重试。
-        let referencing = deps.db.favorites_referencing_job(&job.job_id)?;
-        if referencing > 0 {
-            return Err(AppError::job_delete_blocked_by_favorites(
-                &job.job_id,
-                referencing,
-            ));
-        }
     }
 
     // 删 job 前先记住它所属文档,删后 reconcile 其 active_job_id,

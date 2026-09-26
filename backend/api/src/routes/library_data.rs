@@ -1,4 +1,4 @@
-//! 图书馆数据层的最小 API:documents / favorites / 全文检索。
+//! 图书馆数据层的最小 API:documents / 全文检索。
 //! 前端图书馆改版前,现有 /api/v1/library/books 投影接口保持不动。
 //!
 //! All handlers go through library_api (PR2–PR4).
@@ -25,12 +25,12 @@ use crate::routes::common::{
 };
 use crate::routes::job_helpers::stream_file;
 use crate::services::library::api::{
-    apply_document_metadata_suggestion_view, clear_favorites_for_document_view,
-    clear_favorites_for_job_view, create_document_metadata_suggestion_view, create_favorite_view,
-    delete_document_view, delete_favorite_view, document_cover_download,
+    apply_document_metadata_suggestion_view,
+    create_document_metadata_suggestion_view,
+    delete_document_view, document_cover_download,
     document_source_pdf_download, document_thumbnail_download, get_document,
-    list_document_metadata_suggestions_view, list_documents, list_favorites_view,
-    ocr_document_view, patch_document, patch_favorite_view, search_blocks_view,
+    list_document_metadata_suggestions_view, list_documents,
+    ocr_document_view, patch_document, search_blocks_view,
     translate_document_view,
 };
 use crate::AppState;
@@ -240,70 +240,6 @@ pub async fn list_document_jobs_route(
     )
     .await?;
     Ok(ok_json(view))
-}
-
-// --- favorites ---
-
-pub async fn create_favorite_route(
-    State(state): State<AppState>,
-    ApiJson(payload): ApiJson<CreateFavoriteInput>,
-) -> Result<Json<ApiResponse<FavoriteRecord>>, AppError> {
-    let deps = build_library_route_deps(&state);
-    Ok(ok_json(create_favorite_view(&deps.library, payload)?))
-}
-
-pub async fn list_favorites_route(
-    State(state): State<AppState>,
-    ApiQuery(query): ApiQuery<ListFavoritesQuery>,
-) -> Result<Json<ApiResponse<FavoriteListView>>, AppError> {
-    let deps = build_library_route_deps(&state);
-    Ok(ok_json(list_favorites_view(&deps.library, &query)?))
-}
-
-pub async fn patch_favorite_route(
-    State(state): State<AppState>,
-    ApiPath(favorite_id): ApiPath<String>,
-    ApiJson(payload): ApiJson<PatchFavoriteInput>,
-) -> Result<Json<ApiResponse<FavoriteMutationResult>>, AppError> {
-    let deps = build_library_route_deps(&state);
-    Ok(ok_json(patch_favorite_view(
-        &deps.library,
-        &favorite_id,
-        &payload,
-    )?))
-}
-
-pub async fn delete_favorite_route(
-    State(state): State<AppState>,
-    ApiPath(favorite_id): ApiPath<String>,
-) -> Result<Json<ApiResponse<FavoriteMutationResult>>, AppError> {
-    let deps = build_library_route_deps(&state);
-    Ok(ok_json(delete_favorite_view(&deps.library, &favorite_id)?))
-}
-
-/// 清空一篇文档名下的全部收藏,与 `DELETE /documents/{id}` 的收藏保护配套。
-pub async fn clear_document_favorites_route(
-    State(state): State<AppState>,
-    ApiPath(document_id): ApiPath<String>,
-) -> Result<Json<ApiResponse<FavoritesClearedResult>>, AppError> {
-    let deps = build_library_route_deps(&state);
-    Ok(ok_json(clear_favorites_for_document_view(
-        &deps.library,
-        &document_id,
-    )?))
-}
-
-/// 清空引用某个 run(及其 -ocr 子任务)的全部收藏,与
-/// `DELETE /library/books/{job_id}` 的收藏保护配套。
-pub async fn clear_book_favorites_route(
-    State(state): State<AppState>,
-    ApiPath(job_id): ApiPath<String>,
-) -> Result<Json<ApiResponse<FavoritesClearedResult>>, AppError> {
-    let deps = build_library_route_deps(&state);
-    Ok(ok_json(clear_favorites_for_job_view(
-        &deps.library,
-        &job_id,
-    )?))
 }
 
 // --- search ---

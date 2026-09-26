@@ -16,14 +16,9 @@ export function DeleteFooterPanel({
   busy,
   onDelete,
   title = "",
-  blockedFavoriteCount = 0,
-  onClearFavorites,
-  onDismissBlocked,
 }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const bookName = `${title || ""}`.trim();
-  // 第一次删除被收藏挡住时，hook 会把结构化 409 的条数传下来，这里弹出第二步确认。
-  const clearFavoritesOpen = blockedFavoriteCount > 0;
   return (
     <>
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
@@ -49,18 +44,6 @@ export function DeleteFooterPanel({
           pending={busy === "delete"}
           onOpenChange={(next) => { if (!next) setConfirmOpen(false); }}
           onConfirm={() => { setConfirmOpen(false); onDelete(); }}
-        />
-        <ConfirmDialog
-          id="book-detail-clear-favorites-confirm"
-          title="文档被收藏引用"
-          description={`该文档有 ${blockedFavoriteCount} 条收藏锚点。收藏会一并删除，之后才能删除文档，此操作无法恢复。`}
-          confirmLabel="一并删除收藏并删除"
-          tone="danger"
-          level="nested"
-          open={clearFavoritesOpen}
-          pending={busy === "delete"}
-          onOpenChange={(next) => { if (!next) onDismissBlocked?.(); }}
-          onConfirm={() => onClearFavorites?.()}
         />
       </div>
     </>

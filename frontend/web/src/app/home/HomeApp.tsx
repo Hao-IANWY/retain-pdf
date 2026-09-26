@@ -41,7 +41,6 @@ import { AppUpdateBanner } from "@/features/app-update/index.js";
 import { HomeAskView } from "@/features/ask/index.js";
 import { TaskCenter } from "@/features/task-center/index.js";
 import { GlossariesDialog } from "@/features/glossaries/index.js";
-import { FavoritesView } from "@/features/favorites/index.js";
 import {
   CredentialsProvider,
   CredentialsWorkbench,
@@ -71,7 +70,7 @@ import {
 // 显式接管注册，避免 pages 层直连 src/js（门禁：home features/pages → external）。
 import "@/features/library/ui/island/index.js";
 
-const HOME_TABS = ["library", "categories", "favorites", "ask"] as const;
+const HOME_TABS = ["library", "categories", "ask"] as const;
 type HomeTab = (typeof HOME_TABS)[number];
 
 function isHomeTab(tab: string): tab is HomeTab {
@@ -122,11 +121,6 @@ function HomeTabsRoot({ children }: { children: ReactNode }) {
 function AppUpdateBannerSlot() {
   const appUpdate = useHomeAppUpdate();
   return <AppUpdateBanner view={appUpdate.view} handlersRef={appUpdate.handlersRef} />;
-}
-
-function FavoritesViewSlot() {
-  const workflowDialog = useHomeWorkflowDialog();
-  return <FavoritesView onRequestUpload={() => workflowDialog.requestOpenUpload()} />;
 }
 
 function CollectionsViewSlot() {
@@ -212,7 +206,6 @@ function HomeShell() {
   // 历史契约 key "categories" == 领域 collections（见 LibraryTopTabs/COLLECTIONS_TAB_KEY 映射）
   const isCategoriesTab = activeTab === "categories";
   const isCollectionsTab = isCategoriesTab; // 统一别名，领域语义用 collections
-  const isFavoritesTab = activeTab === "favorites";
   const isAskTab = activeTab === "ask";
   // #31 批量选择工具栏和底部栏都固定在底部居中,批量模式期间底部栏用 CSS
   // 隐藏(不卸载——搜索 input 卸载会让 library-search-island 的引用失效)让位
@@ -227,8 +220,8 @@ function HomeShell() {
     return () => document.removeEventListener(HOME_TASK_CENTER_OPEN_EVENT, open);
   }, []);
 
-  // 合集/收藏/AI tab：视图挂载即可尝试恢复 panel 滚动（图书馆由 RecentJobsLibrary 在有列表后恢复）
-  useHomeReturnRestore(isCategoriesTab || isFavoritesTab || isAskTab);
+  // 合集/AI tab：视图挂载即可尝试恢复 panel 滚动（图书馆由 RecentJobsLibrary 在有列表后恢复）
+  useHomeReturnRestore(isCategoriesTab || isAskTab);
 
   // 这里曾挂一张页面级状态卡 #job-status-card。已下线：进度主场是书籍详情的
   // 「进度」Tab（#book-detail-job-status-card），图书馆卡片与任务中心也各自
@@ -268,11 +261,6 @@ function HomeShell() {
           ) : isCollectionsTab ? (
             <>
               <CollectionsViewSlot />
-              <AppBottomBar showSearch={false} />
-            </>
-          ) : isFavoritesTab ? (
-            <>
-              <FavoritesViewSlot />
               <AppBottomBar showSearch={false} />
             </>
           ) : isAskTab ? (

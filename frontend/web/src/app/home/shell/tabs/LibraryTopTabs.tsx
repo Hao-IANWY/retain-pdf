@@ -52,12 +52,11 @@ function IconSparkles() {
 // `features/library/categories/CategoriesView.tsx`（已导出 CollectionsView 别名，逐步向 collections 收口）。
 // 若后续全量重命名，需同步改：LibraryTopTabs key / HomeApp activeTab / home-return-state activeTab /
 // categories-view DOM id / CSS .categories-*。
-// "favorites" / "ask" 为后续入口。
+// "ask" 为后续入口。
 export const COLLECTIONS_TAB_KEY = "categories"; // 领域名 collections，UI 契约名 categories
 const TABS = [
   { key: "library", label: "图书馆", Icon: IconLibrary },
   { key: COLLECTIONS_TAB_KEY, label: "合集", Icon: IconLayers },
-  { key: "favorites", label: "收藏", Icon: IconBookmark },
   { key: "ask", label: "AI 问答", Icon: IconSparkles },
 ];
 

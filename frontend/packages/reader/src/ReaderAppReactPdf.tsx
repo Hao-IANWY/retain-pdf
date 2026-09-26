@@ -32,7 +32,6 @@ import {
   type ReaderHudContextValue,
 } from "./components/react-pdf/reader-context.js";
 
-const ReaderFavoritesPanel = lazy(() => import("./components/react-pdf/ReaderFavoritesPanel.js").then((m) => ({ default: m.ReaderFavoritesPanel })));
 const ReaderMarkdownPanel = lazy(() => import("./components/react-pdf/ReaderMarkdownPanel.js").then((m) => ({ default: m.ReaderMarkdownPanel })));
 const ReaderAiPanel = lazy(() => import("./components/react-pdf/ReaderAiPanel.js").then((m) => ({ default: m.ReaderAiPanel })));
 
@@ -258,7 +257,6 @@ export function ReaderAppReactPdf() {
   // 五个包内面板的开合 —— 每个 id 只在这里写一次，open 和挂载闸都从它派生。
   // 原来是「闸一遍、open 一遍」，两处各自合法，抄改时把闸上那个写成别的面板
   // 整套测试全绿而摘录永远打不开。见 use-reader-panel-slot.ts。
-  const favoritesSlot = useReaderPanelSlot(assistantPanel, "favorites");
   const markdownSlot = useReaderPanelSlot(assistantPanel, "markdown");
   const aiSlot = useReaderPanelSlot(assistantPanel, "ai");
   const notesSlot = useReaderPanelSlot(assistantPanel, "notes");
@@ -439,7 +437,6 @@ export function ReaderAppReactPdf() {
           />
         ) : null}
         <Suspense fallback={null}>
-          {favoritesSlot.mounted ? <ReaderFavoritesPanel open={favoritesSlot.open} jobId={session.jobId} documentId={session.documentId} onClose={closeAssistant} onJumpPage={c.goToPage} /> : null}
           {READER_HOST_PANELS.map((panel) => (
             <ReaderHostPanelShell
               key={panel.id}

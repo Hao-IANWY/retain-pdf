@@ -276,37 +276,6 @@ test("书籍详情:后台轮询换 item 引用不覆盖正在编辑的标题", a
   host.remove();
 });
 
-test("书籍详情:删除被收藏挡住 → 二次确认清空收藏后删除", async () => {
-  const dom = makeDom("?mock=parallel");
-  const byId = (id) => dom.window.document.getElementById(id);
-  const { services, root, host } = await bootHomeApp(dom);
-
-  const { MOCK_DOCUMENT_ID } = await import("@/platform/mock/documents.js");
-  const card = await waitFor(
-    () => dom.window.document.querySelector(`#recent-jobs-list [data-document-id="${MOCK_DOCUMENT_ID}"]`),
-    "带收藏的文档卡就位",
-  );
-  click(dom, card);
-  await waitFor(() => byId("book-detail-dialog"), "详情弹窗打开");
-
-  await waitFor(() => byId("book-detail-delete-btn"), "删除按钮就位");
-  click(dom, byId("book-detail-delete-btn"));
-  await waitFor(() => byId("book-detail-delete-confirm"), "第一层删除确认");
-  click(dom, byId("book-detail-delete-confirm-confirm"));
-
-  await waitFor(() => byId("book-detail-clear-favorites-confirm"), "收藏保护二次确认");
-  assert.match(
-    byId("book-detail-clear-favorites-confirm").textContent,
-    /2\s*条收藏/,
-    "二次确认展示结构化 favorite_count",
-  );
-  click(dom, byId("book-detail-clear-favorites-confirm-confirm"));
-  await waitFor(() => !byId("book-detail-dialog"), "清空收藏后删除成功并关闭弹窗");
-
-  root.unmount();
-  services.dispose();
-  host.remove();
-});
 
 test("进度 Tab：运行中的真实 OCR 任务提供取消，派生 OCR 不提供", async () => {
   const dom = makeDom();

@@ -7,7 +7,6 @@ import {
   ocrDocument as _canonOcrDocument,
   translateDocument as _canonTranslateDocument,
   deleteDocument as _canonDeleteDocument,
-  clearFavorites as _canonClearFavorites,
   patchDocument as _canonPatchDocument,
   createDocumentMetadataSuggestion as _canonCreateDocumentMetadataSuggestion,
   fetchDocumentMetadataSuggestions as _canonFetchDocumentMetadataSuggestions,
@@ -23,7 +22,6 @@ export const translateDocument = mockable(_canonTranslateDocument, MockDocuments
 export const ocrDocument = mockable(_canonOcrDocument, MockDocuments.ocrDocument);
 export const fetchDocumentJobs = mockable(_canonFetchDocumentJobs, MockDocuments.fetchDocumentJobs);
 export const deleteDocument = mockable(_canonDeleteDocument, MockDocuments.deleteDocument);
-export const clearFavorites = mockable(_canonClearFavorites, MockDocuments.clearFavorites);
 export const patchDocument = mockable(_canonPatchDocument, MockDocuments.patchDocument);
 export const createDocumentMetadataSuggestion = mockable(_canonCreateDocumentMetadataSuggestion, () => null);
 export const fetchDocumentMetadataSuggestions = mockable(_canonFetchDocumentMetadataSuggestions, () => []);

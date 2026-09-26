@@ -80,7 +80,6 @@ export function buildHomeServices({
       retryJobStage: library.libraryController.retryJobStage,
       cancelJob: library.libraryController.cancelJob,
       deleteDocument: library.libraryController.deleteDocument,
-      clearFavorites: library.libraryController.clearFavorites,
       deleteDocuments: library.libraryController.deleteDocuments,
       deleteCard: library.libraryController.deleteCard,
       openBookDetail: library.libraryController.openBookDetail,

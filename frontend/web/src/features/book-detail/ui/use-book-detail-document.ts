@@ -53,9 +53,6 @@ export function useBookDetailDocument({
     handleSaveEdit: meta.handleSaveEdit,
     handleReadingStatus: meta.handleReadingStatus,
     handleDelete: meta.handleDelete,
-    deleteBlocked: meta.deleteBlocked,
-    clearFavoritesAndDelete: meta.clearFavoritesAndDelete,
-    dismissDeleteBlocked: meta.dismissDeleteBlocked,
     // collections 域
     collections: col.collections,
     collectionsBusy: col.collectionsBusy,

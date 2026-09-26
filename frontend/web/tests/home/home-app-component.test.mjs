@@ -246,7 +246,7 @@ test("HomeApp：契约 id、idle 链、工作流对话框事件契约与交互",
   host.remove();
 });
 
-test("HomeApp：顶部图书馆/合集/收藏/AI 分栏 + 分类管理对话框", async () => {
+test("HomeApp：顶部图书馆/合集/AI 分栏 + 分类管理对话框", async () => {
   const host = dom.window.document.createElement("div");
   host.id = "home-root-categories";
   dom.window.document.body.appendChild(host);
@@ -262,12 +262,10 @@ test("HomeApp：顶部图书馆/合集/收藏/AI 分栏 + 分类管理对话框"
   // ---- 分栏契约:四个 tab 都在,任务入口已移除,默认落在图书馆 ----
   assert.ok(byId("library-top-tab-library"), "契约 id 缺失：#library-top-tab-library");
   assert.ok(byId("library-top-tab-categories"), "契约 id 缺失：#library-top-tab-categories");
-  assert.ok(byId("library-top-tab-favorites"), "契约 id 缺失：#library-top-tab-favorites");
   assert.equal(byId("library-top-tab-tasks"), null, "主页顶栏不应再显示任务 tab");
   assert.ok(byId("library-top-tab-ask"), "契约 id 缺失：#library-top-tab-ask");
   assert.ok(byId("library-view"), "默认应停在图书馆视图");
   assert.equal(byId("categories-view"), null, "默认不挂载合集视图");
-  assert.equal(byId("favorites-view"), null, "默认不挂载收藏视图");
   assert.equal(byId("task-center-view"), null, "默认不挂载任务中心");
   assert.equal(byId("home-ask-view"), null, "默认不挂载 AI 问答视图");
   assert.ok(byId("library-search-input"), "图书馆 tab 下搜索框应可见");
@@ -276,7 +274,6 @@ test("HomeApp：顶部图书馆/合集/收藏/AI 分栏 + 分类管理对话框"
   click(byId("library-top-tab-categories"));
   await waitFor(() => byId("categories-view") !== null, "合集视图挂载");
   assert.equal(byId("library-view"), null, "切到合集后图书馆视图应卸载");
-  assert.equal(byId("favorites-view"), null, "合集 tab 下不挂载收藏视图");
   assert.equal(byId("library-search-input"), null, "合集 tab 下搜索框应隐藏");
   assert.ok(byId("categories-create-btn"), "契约 id 缺失：#categories-create-btn");
 
@@ -291,22 +288,9 @@ test("HomeApp：顶部图书馆/合集/收藏/AI 分栏 + 分类管理对话框"
   click(byId("collection-manage-close-btn"));
   await waitFor(() => byId("collection-manage-dialog") === null, "关闭按钮点击后对话框卸载");
 
-  // ---- 切到收藏:合集卸载,收藏视图挂载,搜索框仍隐藏 ----
-  click(byId("library-top-tab-favorites"));
-  await waitFor(() => byId("favorites-view") !== null, "收藏视图挂载");
-  assert.equal(byId("categories-view"), null, "切到收藏后合集视图应卸载");
-  assert.equal(byId("library-view"), null, "收藏 tab 下图书馆视图应卸载");
-  assert.equal(byId("library-search-input"), null, "收藏 tab 下搜索框应隐藏");
-  // 加载中 / 空态 / 列表 / 错误 四者之一
-  await waitFor(
-    () => byId("favorites-loading") || byId("favorites-empty") || byId("favorites-list") || byId("favorites-error"),
-    "收藏视图应进入 loading/空态/列表/错误之一",
-  );
-
-  // ---- 切到 AI 问答:收藏卸载,AI 视图挂载 ----
+  // ---- 切到 AI 问答:合集卸载,AI 视图挂载 ----
   click(byId("library-top-tab-ask"));
   await waitFor(() => byId("home-ask-view") !== null, "AI 问答视图挂载");
-  assert.equal(byId("favorites-view"), null, "AI tab 下收藏视图应卸载");
   assert.equal(byId("task-center-view"), null, "AI tab 下任务中心应卸载");
   assert.equal(byId("library-view"), null, "AI tab 下图书馆视图应卸载");
   assert.equal(byId("library-search-input"), null, "AI tab 下搜索框应隐藏");
@@ -315,7 +299,6 @@ test("HomeApp：顶部图书馆/合集/收藏/AI 分栏 + 分类管理对话框"
   click(byId("library-top-tab-library"));
   await waitFor(() => byId("library-view") !== null, "切回图书馆");
   assert.equal(byId("categories-view"), null, "切回图书馆后合集视图应卸载");
-  assert.equal(byId("favorites-view"), null, "切回图书馆后收藏视图应卸载");
   assert.equal(byId("home-ask-view"), null, "切回图书馆后 AI 视图应卸载");
   assert.ok(byId("library-search-input"), "切回图书馆后搜索框应恢复");
 

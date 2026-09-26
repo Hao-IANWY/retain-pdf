@@ -33,12 +33,8 @@ const adapters: ReaderAdapters = {
   resolveReaderDownloadName: ext.resolveReaderDownloadName,
   downloadProtectedResource: ext.downloadProtectedResource,
   failDownloadToast: ext.failDownloadToast,
-  // —— favorites ——
   apiPrefix: ext.API_PREFIX,
   fetchDocumentByJobId: ext.fetchDocumentByJobId,
-  createFavorite: ext.createFavorite,
-  fetchFavorites: ext.fetchFavorites,
-  deleteFavorite: ext.deleteFavorite,
   // —— credentials ——
   credentialsPort: ext.defaultCredentialsStatePort,
   // —— AI ——

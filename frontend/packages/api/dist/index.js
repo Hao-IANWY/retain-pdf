@@ -13,7 +13,6 @@ export * from "./agent-operation-model.js";
 export * from "./agent-runtime-settings.js";
 export * from "./documents.js";
 export * from "./collections.js";
-export * from "./favorites.js";
 export * from "./glossaries.js";
 export * from "./conversations.js";
 export * from "./providers.js";

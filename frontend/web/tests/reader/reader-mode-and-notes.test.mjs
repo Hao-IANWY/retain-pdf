@@ -105,11 +105,11 @@ test("加批注不会把你正开着的那个面板顶掉", () => {
   assert.match(app, /setAssistantPanel\(resolveAssistantPanelAfterNote\)/);
 });
 
-test("原来 FAB 菜单里的三样（摘录 / Markdown / AI）一个都没丢", () => {
+test("原来 FAB 菜单里的两样（Markdown / AI）一个都没丢", () => {
   // READER_TOOLS 这张表连同 FAB 一起删了；能证明「没丢」的是它们现在都在
   // 唯一那个启动器的清单里，而不是某个文件里还留着字符串。
   const ids = readerDockTabs(() => true).map((tab) => tab.id);
-  for (const id of ["favorites", "markdown", "ai"]) {
+  for (const id of ["markdown", "ai"]) {
     assert.ok(ids.includes(id), `${id} 不在启动器清单里: ${ids}`);
   }
   // 宿主槽位面板也在同一份清单里 —— 这正是「两个启动器各管一半」消失的证据。

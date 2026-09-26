@@ -2,8 +2,6 @@
 mod backfill;
 #[path = "documents/crud.rs"]
 mod crud;
-#[path = "documents/favorites.rs"]
-mod favorites;
 #[path = "documents/rows.rs"]
 pub(super) mod rows;
 #[path = "documents/search.rs"]

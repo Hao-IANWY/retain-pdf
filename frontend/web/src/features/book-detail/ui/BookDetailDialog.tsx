@@ -240,9 +240,6 @@ export function BookDetailDialog() {
                   error={docState.error}
                   onDelete={docState.handleDelete}
                   deleteTitle={docState.doc?.title || docState.titleText || item.title}
-                  deleteBlockedFavoriteCount={docState.deleteBlocked?.favoriteCount || 0}
-                  onClearFavoritesAndDelete={docState.clearFavoritesAndDelete}
-                  onDismissDeleteBlocked={docState.dismissDeleteBlocked}
                 />
               )}
             />

@@ -5,7 +5,6 @@ export type { ReaderWorkspaceMode, ReaderWorkspaceView } from "./ReaderWorkspace
 export { ReaderAssistantDock } from "./ReaderAssistantDock.js";
 export type { ReaderAssistantPanel } from "./ReaderAssistantDock.js";
 export { ReaderAiSplitResizeHandle } from "./ReaderAiSplitResizeHandle.js";
-export { ReaderFavoritesPanel } from "./ReaderFavoritesPanel.js";
 export { ReaderMarkdownPanel } from "./ReaderMarkdownPanel.js";
 export { ReaderNotesPanel } from "./ReaderNotesPanel.js";
 export type { ReaderNotesPanelProps } from "./ReaderNotesPanel.js";

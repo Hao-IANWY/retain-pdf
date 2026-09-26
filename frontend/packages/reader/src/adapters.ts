@@ -6,8 +6,6 @@ import {
 import type { createReaderDataPort } from "./runtime/data.js";
 import type { createReaderPageConfigPort } from "./runtime/config.js";
 import type {
-  FavoriteApiRecord,
-  ServerFavoriteRaw,
 } from "./shared/types/types.js";
 import type { askLibraryAi } from "@retainpdf/api/ai";
 import type { ReactNode } from "react";
@@ -79,17 +77,15 @@ export type ReaderDownloadAdapters = {
   ) => Promise<unknown>;
   failDownloadToast: (message?: string) => void;
 };
-export type ReaderFavoritesAdapters = {
+/** 文档身份查询。原来这块叫 ReaderFavoritesAdapters —— 收藏删掉之后只剩这两项，
+ * 而它们是「按 jobId 反查文档」这件事，跟收藏无关。 */
+export type ReaderDocumentIdentityAdapters = {
   apiPrefix?: string;
   fetchDocumentByJobId: (apiPrefix: string, jobId: string) => Promise<{
     document_id?: string;
     active_job_id?: string | null;
     active_version_id?: string | null;
   } | null>;
-  // 形状取自包内 shared/types 的已有契约类型，避免 any 掩盖收藏适配漂移。
-  createFavorite: (apiPrefix: string, payload: Record<string, unknown>) => Promise<FavoriteApiRecord>;
-  fetchFavorites: (apiPrefix: string, options?: { documentId?: string }) => Promise<{ favorites?: ServerFavoriteRaw[] }>;
-  deleteFavorite: (apiPrefix: string, favoriteId: string) => Promise<unknown>;
 };
 export type ReaderCredentialsPort = {
   getCredentials?: () => { modelApiKey?: string } | null;
@@ -156,7 +152,7 @@ export type ReaderTerminalAdapters = {
 export type ReaderAdapters = ReaderSessionAdapters
   & ReaderMarkdownAdapters
   & ReaderDownloadAdapters
-  & ReaderFavoritesAdapters
+  & ReaderDocumentIdentityAdapters
   & ReaderCredentialsAdapters
   & ReaderAiAdapters
   & ReaderTerminalAdapters
@@ -194,9 +190,6 @@ export const READER_ADAPTER_KEYS = [
   "failDownloadToast",
   "apiPrefix",
   "fetchDocumentByJobId",
-  "createFavorite",
-  "fetchFavorites",
-  "deleteFavorite",
   "credentialsPort",
   "askDocumentAi",
   "renderReaderTerminal",
@@ -212,9 +205,6 @@ export const READER_REQUIRED_ADAPTER_KEYS = [
   "downloadProtectedResource",
   "failDownloadToast",
   "fetchDocumentByJobId",
-  "createFavorite",
-  "fetchFavorites",
-  "deleteFavorite",
   "credentialsPort",
   "askDocumentAi",
 ] as const satisfies readonly (keyof ReaderAdapters)[];

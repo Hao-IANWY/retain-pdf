@@ -127,15 +127,6 @@ pub fn delete_document(
         .get_document(document_id)
         .map_err(|_| AppError::not_found(format!("document not found: {document_id}")))?;
 
-    // 收藏保护:文档一删,其锚点全断,拒绝无声销毁用户策展内容
-    let favorites = deps.db.favorites_count_for_document(document_id)?;
-    if favorites > 0 {
-        return Err(AppError::document_delete_blocked_by_favorites(
-            document_id,
-            favorites,
-        ));
-    }
-
     // 收集名下所有 job:jobs.document_id 关联的 + 每个的 -ocr 子 job
     let mut job_ids = deps.db.job_ids_for_document(document_id)?;
     for job_id in job_ids.clone() {

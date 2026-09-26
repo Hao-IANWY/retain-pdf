@@ -14,9 +14,6 @@ export function BookDetailManageTab({
   error,
   onDelete,
   deleteTitle = "",
-  deleteBlockedFavoriteCount = 0,
-  onClearFavoritesAndDelete,
-  onDismissDeleteBlocked,
 }) {
   return (
     <div
@@ -38,9 +35,6 @@ export function BookDetailManageTab({
         busy={busy}
         onDelete={onDelete}
         title={deleteTitle}
-        blockedFavoriteCount={deleteBlockedFavoriteCount}
-        onClearFavorites={onClearFavoritesAndDelete}
-        onDismissBlocked={onDismissDeleteBlocked}
       />
     </div>
   );

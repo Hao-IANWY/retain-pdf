@@ -31,7 +31,6 @@ export const READER_BASE_PANEL_IDS = [
   "markdown",
   "ai",
   "notes",
-  "favorites",
 ] as const;
 
 /** 宿主槽位面板：包决定它在 dock 里的位置和生命周期，**内容由宿主注入**。

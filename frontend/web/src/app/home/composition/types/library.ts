@@ -46,7 +46,6 @@ export type LibraryActions = RecentJobActions & {
   retryJobStage: LibraryController["retryJobStage"];
   cancelJob: LibraryController["cancelJob"];
   deleteDocument: LibraryController["deleteDocument"];
-  clearFavorites: LibraryController["clearFavorites"];
   /** 选择集可能是 unknown[]（view state），参数放宽 */
   deleteDocuments: (
     documentIds?: Array<string | null | undefined | unknown>,

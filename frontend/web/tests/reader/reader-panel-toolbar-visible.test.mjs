@@ -2,7 +2,7 @@
  *
  * ## 起因：和圆钮同型的第二起
  *
- * 批注 / 摘录 从浮窗搬进 dock 之后，class 从
+ * 批注 从浮窗搬进 dock 之后，class 从
  * `reader-notes-panel--float` 变成 `--workspace`，于是撞上 float-markdown.css
  * 里一条本来命不中的规则：
  *
@@ -28,7 +28,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { JSDOM } from "jsdom";
 
 import { ReaderNotesPanel } from "../../../packages/reader/src/components/react-pdf/ReaderNotesPanel.tsx";
-import { ReaderFavoritesPanel } from "../../../packages/reader/src/components/react-pdf/ReaderFavoritesPanel.tsx";
 import { hidingRulesFor } from "./helpers/reader-css.mjs";
 
 const noop = () => {};
@@ -56,17 +55,6 @@ const CASES = [
       onUpdateNote: noop,
       onRemove: noop,
       onExport: async () => true,
-    }),
-  },
-  {
-    name: "摘录面板的「刷新」",
-    label: "刷新",
-    node: () => createElement(ReaderFavoritesPanel, {
-      open: true,
-      jobId: "job-1",
-      documentId: "doc-1",
-      onClose: noop,
-      onJumpPage: noop,
     }),
   },
 ];

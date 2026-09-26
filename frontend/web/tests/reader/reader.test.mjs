@@ -267,25 +267,6 @@ test("reader translated region right click keeps selection drag from stealing th
   global.window = previousWindow;
 });
 
-test("reader page exposes ai/favorites/download entries, keeps paused tools hidden", () => {
-  // legacy 已删除（f0803f2 后仅 react-pdf），改扫新世界 @retainpdf/reader 组件
-  const jsxSources = [
-    "../../../../frontend/packages/reader/src/components/react-pdf/ReaderFavoritesPanel.tsx",
-    "../../../../frontend/packages/reader/src/components/react-pdf/ReaderAiPanel.tsx",
-    "../../../../frontend/packages/reader/src/components/react-pdf/ReaderDownloadActions.tsx",
-  ].map((file) => {
-    try { return readFileSync(new URL(file, import.meta.url), "utf8"); } catch { return ""; }
-  }).join("\n");
-
-  // 新引擎：favorites/ai 是 dock 的 tab，下载在顶栏；都不经 legacy SideDrawers。
-  assert.match(jsxSources, /ReaderFavoritesPanel|reader-favorites/);
-  assert.match(jsxSources, /ReaderAiPanel|reader-ai/);
-  assert.match(jsxSources, /ReaderDownloadActions|reader-download-action/);
-
-  const markup = readFileSync(new URL("../../reader.html", import.meta.url), "utf8");
-  assert.match(markup, /id="reader-root"/);
-  assert.match(markup, /dist\/reader\.bundle\.js/);
-});
 
 test("reader download actions resolve artifact urls and disabled reasons", () => {
   const manifest = {

@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use rusqlite::params;
 
 use super::*;
-use crate::models::api::{FavoriteRecord, FtsBlockRow};
+use crate::models::api::FtsBlockRow;
 use crate::models::domain::{now_iso, JobStatusKind, UploadRecord, WorkflowKind};
 
 struct TestDbFs {
@@ -54,25 +54,6 @@ fn upload_with_hash(upload_id: &str, hash: &str) -> UploadRecord {
     }
 }
 
-fn favorite_for(document_id: &str, job_id: &str, favorite_id: &str) -> FavoriteRecord {
-    FavoriteRecord {
-        favorite_id: favorite_id.to_string(),
-        document_id: document_id.to_string(),
-        job_id: job_id.to_string(),
-        page_idx: 4,
-        block_id: "p005-b0008".to_string(),
-        char_start: None,
-        char_end: None,
-        kind: "sentence".to_string(),
-        quote_text: "quoted source".to_string(),
-        translated_quote_text: "引文快照".to_string(),
-        note: String::new(),
-        asset_id: String::new(),
-        rect_json: String::new(),
-        created_at: now_iso(),
-        updated_at: now_iso(),
-    }
-}
 
 fn insert_succeeded_job(
     db: &Db,
@@ -256,33 +237,6 @@ fn backfill_links_artifact_reuse_job_and_refreshes_active_job() {
         document.active_job_id.as_deref(),
         Some("job-translation-reuse")
     );
-}
-
-#[test]
-fn document_delete_cascades_favorites() {
-    let fs = TestDbFs::new("cascade");
-    let db = fs.db();
-    db.init().expect("init");
-    let hash = sha256_hex(b"cascade doc");
-    db.upsert_document_from_upload(&upload_with_hash("up-1", &hash))
-        .expect("upsert");
-    insert_succeeded_job(
-        &db,
-        &hash,
-        "job-1",
-        WorkflowKind::Book,
-        "2026-01-01T00:00:00Z",
-    );
-    db.save_favorite(&favorite_for(&hash, "job-1", "fav-1"))
-        .expect("save favorite");
-    assert_eq!(db.favorites_referencing_job("job-1").expect("count"), 1);
-    let conn = db.connect().expect("connect");
-    conn.execute(
-        "DELETE FROM documents WHERE document_id = ?1",
-        params![hash],
-    )
-    .expect("delete document");
-    assert_eq!(db.list_favorites(None).expect("list").len(), 0);
 }
 
 #[test]

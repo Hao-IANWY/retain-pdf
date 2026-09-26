@@ -13,10 +13,6 @@ pub(super) fn routes() -> Router<AppState> {
             get(library::get_book).delete(library::delete_book),
         )
         .route(
-            "/api/v1/library/books/:job_id/favorites",
-            axum::routing::delete(library_data::clear_book_favorites_route),
-        )
-        .route(
             "/api/v1/library/books/:job_id/cover",
             get(library::download_book_cover),
         )

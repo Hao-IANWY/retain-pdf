@@ -1,6 +1,6 @@
 import { s as a } from "./config-CgaWliJ_.js";
 import { s as t, r as s } from "./answer-enhance-D8zK9znw.js";
-import { h as A, l as P, n as D } from "./markdown-payload-kK3ewW_I.js";
+import { h as P, l as v, n as D } from "./markdown-payload-kK3ewW_I.js";
 const l = [
   "isMockMode",
   "resolveResourceUrl",
@@ -27,9 +27,6 @@ const l = [
   "failDownloadToast",
   "apiPrefix",
   "fetchDocumentByJobId",
-  "createFavorite",
-  "fetchFavorites",
-  "deleteFavorite",
   "credentialsPort",
   "askDocumentAi",
   "renderReaderTerminal",
@@ -42,9 +39,6 @@ const l = [
   "downloadProtectedResource",
   "failDownloadToast",
   "fetchDocumentByJobId",
-  "createFavorite",
-  "fetchFavorites",
-  "deleteFavorite",
   "credentialsPort",
   "askDocumentAi"
 ];
@@ -67,8 +61,8 @@ export {
   l as READER_ADAPTER_KEYS,
   c as READER_REQUIRED_ADAPTER_KEYS,
   R as getReaderAdapters,
-  A as hasMarkdownContent,
-  P as loadMarkdownPayloadWithFallback,
+  P as hasMarkdownContent,
+  v as loadMarkdownPayloadWithFallback,
   D as normalizeMarkdownPayload,
   f as requireAdapter,
   i as setReaderAdapters

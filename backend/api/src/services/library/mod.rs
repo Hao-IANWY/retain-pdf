@@ -9,7 +9,6 @@ mod books;
 mod collections;
 mod conversations;
 mod documents;
-mod favorites;
 mod media;
 mod metadata_suggestions;
 mod ocr;
@@ -32,10 +31,6 @@ pub use conversations::{
     list_conversations, patch_conversation,
 };
 pub use documents::delete_document;
-pub use favorites::{
-    clear_favorites_for_document, clear_favorites_for_job, create_favorite, delete_favorite,
-    list_favorites, patch_favorite,
-};
 pub use media::{document_cover, document_source_pdf, document_thumbnail, DocumentFileDownload};
 pub use metadata_suggestions::{
     apply_metadata_suggestion, create_metadata_suggestion, list_metadata_suggestions,

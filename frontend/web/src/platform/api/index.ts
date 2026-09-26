@@ -17,7 +17,6 @@ export * from "./domains/jobs-actions.js";
 export * from "./domains/jobs-submit.js";
 export * from "./domains/documents.js";
 export * from "./domains/collections.js";
-export * from "./domains/favorites.js";
 export * from "./domains/providers.js";
 export * from "./domains/glossaries.js";
 export * from "./domains/translation-debug.js";

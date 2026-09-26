@@ -27,7 +27,7 @@ function blockedFavoritesError(count = 2, path = "/api/v1/documents/doc-b/favori
   });
 }
 
-test("错误文案：凭据缺失、OCR 复用失败、结构化收藏 409", () => {
+test("错误文案：凭据缺失、OCR 复用失败", () => {
   assert.match(friendlyTranslateError(new Error("paddle_token is required")), /配置 OCR/);
   assert.match(
     friendlyTranslateError({ errorCode: "OCR_PAGE_COVERAGE_MISMATCH" }),
@@ -39,7 +39,6 @@ test("错误文案：凭据缺失、OCR 复用失败、结构化收藏 409", () 
   );
   assert.equal(friendlyTranslateError(""), "发起翻译失败，请稍后重试。");
 
-  assert.match(friendlyDocumentDeleteError(blockedFavoritesError(3)), /3 条收藏/);
   assert.equal(friendlyDocumentDeleteError(new Error("boom")), "boom");
 });
 
@@ -67,48 +66,6 @@ test("提交载荷：凭据基座 + overrides 叠加；复用 OCR 时删掉 ocr 
   assert.equal(ocr.ocr.page_ranges, "5-6");
 });
 
-test("删除动作：成功乐观移除 + reload；收藏挡住结构化透传；批量区分 blocked/failed", async () => {
-  const removed = [];
-  const calls = [];
-  const actions = createDocumentDeleteActions({
-    reload: () => calls.push(["reload"]),
-    removeLibraryDocuments: (ids) => removed.push(...ids),
-    deleteDocumentApi: async (prefix, id) => calls.push(["delete", prefix, id]),
-    clearFavoritesApi: async (prefix, path) => {
-      calls.push(["clear", prefix, path]);
-      return 5;
-    },
-  });
-
-  await actions.deleteDocument("doc-1");
-  assert.deepEqual(removed, ["doc-1"]);
-  assert.equal(await actions.clearFavorites("/api/v1/documents/x/favorites"), 5);
-  assert.equal(await actions.clearFavorites(""), 0);
-
-  const blocked = blockedFavoritesError();
-  const onlyBlocked = createDocumentDeleteActions({
-    reload() {},
-    deleteDocumentApi: async () => {
-      throw blocked;
-    },
-  });
-  await assert.rejects(() => onlyBlocked.deleteDocument("doc-2"), (error) => error === blocked);
-
-  const batch = createDocumentDeleteActions({
-    reload() {},
-    removeLibraryDocuments: (ids) => removed.push(...ids),
-    deleteDocumentApi: async (_prefix, id) => {
-      if (id === "doc-b") throw blocked;
-      if (id === "doc-c") throw new Error("boom");
-    },
-  });
-  const result = await batch.deleteDocuments(["doc-a", "doc-b", "doc-c"]);
-  assert.equal(result.confirmed, 1);
-  assert.equal(result.failed, 1);
-  assert.equal(result.blocked.length, 1);
-  assert.equal(result.blocked[0].documentId, "doc-b");
-  assert.equal(result.blocked[0].clearFavoritesPath, blocked.clearFavoritesPath);
-});
 
 test("任务动作：cancel 按 workflow 路由；retry 带 document_id 并 promote", async () => {
   const fakeStore = {

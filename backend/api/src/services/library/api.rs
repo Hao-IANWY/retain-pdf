@@ -28,12 +28,12 @@ use std::sync::Arc;
 
 use super::{
     add_collection_documents, append_message, apply_metadata_suggestion,
-    clear_favorites_for_document, clear_favorites_for_job, create_collection, create_conversation,
-    create_favorite, create_metadata_suggestion, delete_collection, delete_conversation,
-    delete_document, delete_favorite, delete_library_book, delete_library_books, document_cover,
+    create_collection, create_conversation,
+    create_metadata_suggestion, delete_collection, delete_conversation,
+    delete_document, delete_library_book, delete_library_books, document_cover,
     document_source_pdf, document_thumbnail, get_conversation, get_library_book, list_collections,
-    list_conversations, list_favorites, list_library_books, list_metadata_suggestions, load_asset,
-    ocr_document, patch_collection, patch_conversation, patch_favorite, remove_collection_document,
+    list_conversations, list_library_books, list_metadata_suggestions, load_asset,
+    ocr_document, patch_collection, patch_conversation, remove_collection_document,
     search_blocks, store_asset, translate_document, AssetDownload, DocumentFileDownload,
     LibraryDeps,
 };
@@ -155,50 +155,6 @@ pub async fn ocr_document_view(
     ocr_document(deps, jobs, document_id, request, base_url).await
 }
 
-// --- favorites ---
-
-pub fn create_favorite_view(
-    deps: &LibraryDeps<'_>,
-    payload: CreateFavoriteInput,
-) -> Result<FavoriteRecord, AppError> {
-    create_favorite(deps, payload)
-}
-
-pub fn list_favorites_view(
-    deps: &LibraryDeps<'_>,
-    query: &ListFavoritesQuery,
-) -> Result<FavoriteListView, AppError> {
-    list_favorites(deps, query)
-}
-
-pub fn patch_favorite_view(
-    deps: &LibraryDeps<'_>,
-    favorite_id: &str,
-    payload: &PatchFavoriteInput,
-) -> Result<FavoriteMutationResult, AppError> {
-    patch_favorite(deps, favorite_id, payload)
-}
-
-pub fn delete_favorite_view(
-    deps: &LibraryDeps<'_>,
-    favorite_id: &str,
-) -> Result<FavoriteMutationResult, AppError> {
-    delete_favorite(deps, favorite_id)
-}
-
-pub fn clear_favorites_for_document_view(
-    deps: &LibraryDeps<'_>,
-    document_id: &str,
-) -> Result<FavoritesClearedResult, AppError> {
-    clear_favorites_for_document(deps, document_id)
-}
-
-pub fn clear_favorites_for_job_view(
-    deps: &LibraryDeps<'_>,
-    job_id: &str,
-) -> Result<FavoritesClearedResult, AppError> {
-    clear_favorites_for_job(deps, job_id)
-}
 
 // --- search ---
 

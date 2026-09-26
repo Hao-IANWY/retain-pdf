@@ -7,7 +7,6 @@ import {
   withMockDocumentMediaUrls,
 } from "./document-seed.js";
 import { collectionMembership, removeDocumentFromAllCollections } from "./collections.js";
-import { countMockFavoritesForDocument } from "./favorites.js";
 import {
   buildLiveMockJobPayload,
   isLiveMockJobActive,
@@ -69,17 +68,7 @@ export function deleteMockDocument(documentId: string): {
   if (index < 0) {
     throw new Error("未找到该文档。(404)");
   }
-  const favoriteCount = countMockFavoritesForDocument(documentId);
-  if (favoriteCount > 0) {
-    const error: HttpStatusError = new Error(
-      `该文档有 ${favoriteCount} 条收藏，请先删除收藏后再删除文档。(409)`,
-    );
-    error.status = 409;
-    error.favoriteCount = favoriteCount;
-    error.favoriteScope = "document";
-    error.clearFavoritesPath = `/api/v1/documents/${documentId}/favorites`;
-    throw error;
-  }
+
   list.splice(index, 1);
   removeDocumentFromAllCollections(documentId);
   return { deleted: true, document_id: documentId, removed_paths: [] };

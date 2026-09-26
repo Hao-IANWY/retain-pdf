@@ -39,7 +39,6 @@ const SPECS = {
   notes: { label: "批注", short: "注", Icon: StickyNote, needsJob: false },
   // 手写批注和 agent 标的批注不合并：前者可改可删可导出，后者是 agent 重写整份
   // 摘录走 documentId 也能读，没有 job 一样有内容。
-  favorites: { label: "摘录", short: "藏", Icon: Bookmark, needsJob: false },
 } satisfies Record<ReaderBasePanelId, Omit<ReaderBasePanelSpec, "id">>;
 
 /** 顺序来自 id 清单，不是这张表的字面量顺序 —— 清单才是真源。 */

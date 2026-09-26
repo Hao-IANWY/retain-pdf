@@ -228,7 +228,6 @@ export type LibraryController = {
    * DELETE clear_favorites_path（DELETE_BLOCKED_BY_FAVORITES 的
    * error.details 里给好的路径），返回实际删除的收藏条数。
    */
-  clearFavorites: (clearFavoritesPath?: string | null) => Promise<number>;
   deleteDocuments: (
     documentIds?: Array<string | null | undefined>,
   ) => Promise<DeleteDocumentsResult>;

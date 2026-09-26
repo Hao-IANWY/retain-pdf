@@ -1,10 +1,5 @@
 // 文档域的友好错误文案（纯函数，无副作用）。
 
-import {
-  blockedFavoriteCount,
-  isDeleteBlockedByFavorites,
-} from "./delete-blocked-favorites.js";
-
 export type ErrorLike = {
   message?: string;
   status?: number;
@@ -40,13 +35,5 @@ export function friendlyTranslateError(error: ErrorLike, { reusingOcr = false } 
 export function friendlyDocumentDeleteError(error: ErrorLike): string {
   const message = typeof error === "string" ? error : `${error?.message || error || ""}`;
   const status = typeof error === "object" && error ? error.status : undefined;
-  if (isDeleteBlockedByFavorites(error) || status === 409 || message.includes("(409)")) {
-    // 结构化字段优先；message 正则只作为旧错误源的兜底。
-    const structured = blockedFavoriteCount(error);
-    const count = structured > 0 ? structured : Number(message.match(/\d+/)?.[0]);
-    return Number.isFinite(count) && count > 0
-      ? `该文档有 ${count} 条收藏，请先删除收藏后再删除文档。`
-      : "该文档存在收藏引用，请先删除相关收藏后再删除文档。";
-  }
   return message || "删除文档失败";
 }

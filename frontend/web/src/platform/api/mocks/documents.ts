@@ -1,5 +1,4 @@
 import {
-  clearMockFavoritesForDocument,
   deleteMockDocument,
   getMockDocument,
   getMockDocumentByJobId,
@@ -94,14 +93,6 @@ export async function deleteDocument(apiPrefix, documentId, { force = false } = 
 
 // DELETE clear_favorites_path（后端在 DELETE_BLOCKED_BY_FAVORITES.details 里给的
 // 路径；文档级/run 级共用）。返回实际删除的收藏条数。
-export async function clearFavorites(apiPrefix, clearFavoritesPath) {
-  void apiPrefix;
-  const raw = `${clearFavoritesPath || ""}`.trim();
-  if (!raw) return 0;
-  // mock 只实现了文档级清空；run 级路径同样解析到所属文档。
-  const match = raw.match(/\/documents\/([^/]+)\/favorites$/);
-  return match ? clearMockFavoritesForDocument(decodeURIComponent(match[1])) : 0;
-}
 
 // 对馆藏文档发起"以后再翻":复用文档已存的 upload 起 book 翻译 job。
 // 后端 translate_document 会注入该文档的 upload_id 并把 workflow 归一到 book/translate,
