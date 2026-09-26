@@ -1,6 +1,6 @@
 import { r as J, l as C, h as $ } from "../markdown-payload-kK3ewW_I.js";
 import { d as T } from "../pdf-document-config-DOSsufI-.js";
-import { e as Re, f as we, a as me, b as he, i as _e, n as Ue, c as ke, p as ve, r as ge, d as Me, g as Ee, h as De, j as Le } from "../reader-regions-DsePY7B_.js";
+import { e as Re, f as we, a as me, b as he, i as _e, n as ke, c as Ue, p as ve, r as ge, d as Me, g as Ee, h as De, j as Le, k as Ae } from "../reader-regions-DJ7L9Ej-.js";
 const G = "/api/v1", S = 250;
 function q(e, t) {
   return typeof globalThis.fetch == "function" ? globalThis.fetch(e, t) : Promise.reject(new Error(`fetchProtected not injected for ${e}`));
@@ -39,7 +39,7 @@ function I({
   fetchMarkdownRange: o = null,
   loadRegions: f = V,
   loadMetadata: p = x,
-  fetchProtectedResource: k = q,
+  fetchProtectedResource: U = q,
   liveTranslation: h = null
 } = {}) {
   const R = /* @__PURE__ */ new Map(), _ = /* @__PURE__ */ new Map();
@@ -134,7 +134,7 @@ function I({
   }
   return Object.freeze({
     apiPrefix: e,
-    fetchProtected: k,
+    fetchProtected: U,
     loadMarkdownPayload: H,
     loadMarkdownSource: K,
     loadMarkdownRange: N,
@@ -151,7 +151,7 @@ function M(e = "") {
   return `${e ?? ""}`.trim() ? `${e}`.trim() : "";
 }
 const P = 512 * 1024;
-let U = null;
+let k = null;
 function L(e = M) {
   return {
     moduleUrl: e("build/pdf.mjs"),
@@ -164,9 +164,9 @@ async function b({ resolvePdfjsVendorUrl: e = M } = {}) {
   const { moduleUrl: t, workerUrl: u } = L(e);
   if (!t)
     throw new Error("resolvePdfjsVendorUrl not injected");
-  return U || (U = import(t).then((r) => (r.GlobalWorkerOptions.workerSrc = u, r)).catch((r) => {
-    throw U = null, r;
-  })), U;
+  return k || (k = import(t).then((r) => (r.GlobalWorkerOptions.workerSrc = u, r)).catch((r) => {
+    throw k = null, r;
+  })), k;
 }
 function j(e, { resolveResourceUrl: t = B } = {}) {
   return t((e == null ? void 0 : e.resource_url) || (e == null ? void 0 : e.resource_path) || "");
@@ -204,7 +204,7 @@ async function le({
     return null;
   const o = await b({ resolvePdfjsVendorUrl: s }), { cmapUrl: f, standardFontDataUrl: p } = L(s);
   if (l.startsWith("mock://") && typeof u == "function") {
-    const k = await u(l), h = new Uint8Array(await k.arrayBuffer());
+    const U = await u(l), h = new Uint8Array(await U.arrayBuffer());
     return o.getDocument({
       data: h,
       cMapUrl: f,
@@ -215,7 +215,7 @@ async function le({
   return o.getDocument(ee({ url: l, configPort: t, resolvePdfjsVendorUrl: s })).promise;
 }
 function oe() {
-  U = null;
+  k = null;
 }
 function E(e) {
   return `${e ?? ""}`.trim();
@@ -276,16 +276,17 @@ export {
   he as findReaderRegionByCitation,
   _e as isStructuredReaderRegion,
   le as loadPdfDocument,
-  Ue as normalizeReaderMetadata,
-  ke as normalizeReaderRegions,
+  ke as normalizeReaderMetadata,
+  Ue as normalizeReaderRegions,
   ve as projectReaderRegion,
   ge as readerRegionContent,
   Me as readerRegionKind,
   Ee as readerRegionKindForRegion,
-  De as regionBoxForPane,
+  De as readerSelectionPrompt,
+  Le as regionBoxForPane,
   j as resolveReaderArtifactUrl,
   ce as resolveReaderJobId,
-  Le as resolveReaderRegionHighlight,
+  Ae as resolveReaderRegionHighlight,
   de as resolveReaderSourcePdf,
   ie as resolveReaderTranslatedPdfUrl
 };

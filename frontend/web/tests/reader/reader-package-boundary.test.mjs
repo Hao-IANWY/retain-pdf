@@ -232,31 +232,10 @@ test("Reader live translation implementation depends on package contracts, not A
   assert.deepEqual(offenders, []);
 });
 
-test("Reader ask runtime uses the dedicated Ask/Chat port", () => {
-  const file = join(READER_SOURCE_ROOT, "components/react-pdf/assistant/use-reader-ask-runtime.ts");
-  const source = readFileSync(file, "utf8");
-  assert.match(source, /readerAskChatPort/);
-  assert.doesNotMatch(source, /@retainpdf\/api\/ai/);
-});
-
-test("Reader conversation shell uses the dedicated conversation port", () => {
-  const files = [
-    join(READER_SOURCE_ROOT, "components/react-pdf/assistant/use-reader-conversation.ts"),
-    join(READER_SOURCE_ROOT, "components/react-pdf/assistant/use-reader-session-commands.ts"),
-  ];
-  const offenders = files.flatMap((file) => importSpecifiers(readFileSync(file, "utf8"))
-    .filter((specifier) => specifier === "@retainpdf/api/conversations")
-    .map((specifier) => `${relative(REPO_ROOT, file)} -> ${specifier}`));
-  assert.deepEqual(offenders, []);
-});
-
-test("Reader operation UI uses the dedicated AI operation port", () => {
-  const files = sourceFilesUnder(join(READER_SOURCE_ROOT, "components/react-pdf/assistant"));
-  const offenders = files.flatMap((file) => importSpecifiers(readFileSync(file, "utf8"))
-    .filter((specifier) => specifier === "@retainpdf/api/document-operations" || specifier === "@retainpdf/api/agent-runtime-settings")
-    .map((specifier) => `${relative(REPO_ROOT, file)} -> ${specifier}`));
-  assert.deepEqual(offenders, []);
-});
+// 这里曾有三条守 AI 问答面板的端口边界（ask / conversation / operation）。那个
+// 面板整个删了，三条也跟着走。留个记号是因为第三条当时**是空过的**：它遍历
+// components/react-pdf/assistant 目录找越界 import，目录删掉之后 sourceFilesUnder
+// 返回空数组，assert.deepEqual([], []) 恒真 —— 功能没了它照样绿。
 
 test("session hooks consume the dedicated SessionDataPort accessor", () => {
   for (const relativePath of [

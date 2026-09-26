@@ -63,7 +63,9 @@ export function resolveInitialAssistantPanel(
     return saved.assistantPanel;
   }
   // 旧的「任意两栏」布局的一次性迁移。
-  if (saved?.splitLayout?.left === "ai" || saved?.splitLayout?.right === "ai") return "ai";
+  // 曾经有一条把 "ai" 迁过来的分支，AI 问答面板删掉之后它无处可去 —— 存着
+  // 旧布局的人落回下面的 markdown 判断，再不中就是不开面板。比迁到终端好：
+  // 恢复出一个用户没要过的 agent 会话比不恢复更意外。
   if (saved?.splitLayout?.left === "markdown" || saved?.splitLayout?.right === "markdown") {
     return "markdown";
   }

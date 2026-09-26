@@ -16,9 +16,6 @@ const adapters: ReaderAdapters = {
   liveTranslation: ext.liveTranslationPort,
   pdf: ext.pdfPort,
   sessionData: ext.sessionDataPort,
-  aiOperations: ext.aiOperationsPort,
-  conversations: ext.conversationPort,
-  askChat: ext.askChatPort,
   defaultReaderPageConfigPort: ext.defaultReaderPageConfigPort,
   resolveReaderAnchor: ext.resolveReaderAnchor,
   resolveReaderDocumentId: ext.resolveReaderDocumentId,
@@ -37,11 +34,8 @@ const adapters: ReaderAdapters = {
   fetchDocumentByJobId: ext.fetchDocumentByJobId,
   // —— credentials ——
   credentialsPort: ext.defaultCredentialsStatePort,
-  // —— AI ——
-  askDocumentAi: ext.askLibraryAi,
-  // —— terminal ——
+  // —— AI（阅读页唯一的一扇门：终端里的 agent）——
   renderReaderTerminal: ext.renderReaderTerminal,
-  renderReaderReadingMap: ext.renderReaderReadingMap,
 };
 setReaderAdapters(adapters);
 export { adapters as retainPdfReaderAdapters };

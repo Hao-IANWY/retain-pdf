@@ -105,15 +105,17 @@ test("加批注不会把你正开着的那个面板顶掉", () => {
   assert.match(app, /setAssistantPanel\(resolveAssistantPanelAfterNote\)/);
 });
 
-test("原来 FAB 菜单里的两样（Markdown / AI）一个都没丢", () => {
+test("原来 FAB 菜单里的东西一个都没丢", () => {
   // READER_TOOLS 这张表连同 FAB 一起删了；能证明「没丢」的是它们现在都在
   // 唯一那个启动器的清单里，而不是某个文件里还留着字符串。
+  //
+  // 当年那份菜单里有 Markdown 和 AI 问答两样。AI 问答面板后来整个删了（阅读页
+  // 只留一扇 AI 的门，就是终端里的 agent），所以这里只能要求 Markdown ——
+  // 把已经删掉的功能写进「没丢」的清单，守的是一个不存在的东西。
   const ids = readerDockTabs(() => true).map((tab) => tab.id);
-  for (const id of ["markdown", "ai"]) {
-    assert.ok(ids.includes(id), `${id} 不在启动器清单里: ${ids}`);
-  }
+  assert.ok(ids.includes("markdown"), `markdown 不在启动器清单里: ${ids}`);
   // 宿主槽位面板也在同一份清单里 —— 这正是「两个启动器各管一半」消失的证据。
-  assert.ok(READER_HOST_PANEL_IDS.length >= 2, `宿主槽位面板没找全: ${READER_HOST_PANEL_IDS}`);
+  assert.ok(READER_HOST_PANEL_IDS.length >= 1, `宿主槽位面板没找全: ${READER_HOST_PANEL_IDS}`);
   for (const id of READER_HOST_PANEL_IDS) {
     assert.ok(ids.includes(id), `${id} 不在启动器清单里: ${ids}`);
   }

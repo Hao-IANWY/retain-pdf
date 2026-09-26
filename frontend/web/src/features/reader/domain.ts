@@ -50,7 +50,6 @@ export {
   trimSessions,
   visiblePathFromSnapshot,
 } from "./domain/host/ai.js";
-export { aiOperationsPort, askChatPort, conversationPort } from "./domain/host/ai.js";
 
 export type {
   AiCitationLike,

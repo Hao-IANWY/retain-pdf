@@ -19,9 +19,9 @@
  */
 @import "@xterm/xterm/css/xterm.css" layer(pages);
 
-/* tldraw 的画布样式**不在这里** —— 见 entries/reader-canvas.css。
- * 它 98 KB，而画布是多数会话不会打开的面板；JS 已经懒加载，样式也得懒。
- * 注入时机在 domain/lazy-stylesheet.ts。
+/* 这里曾经特意**不放** tldraw 的样式：它 98 KB，画布是多数会话不会打开的面板，
+ * 所以 JS 和 CSS 都做了懒加载（domain/lazy-stylesheet.ts + entries/reader-canvas.css）。
+ * 画布随「阅读页只留一扇 AI 的门」整个删了，那套懒加载机制也跟着没了。
  *
  * xterm.css 留在上面没拆：只有 6 KB，不值得再建一套机制。 */
 
@@ -146,55 +146,6 @@
     opacity: 0.7;
   }
 
-  /* 阅读地图：列表 / 画布两个视图共用一个面板。 */
-  .reader-reading-map {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    min-height: 0;
-  }
-
-  .reader-reading-map-views {
-    display: flex;
-    gap: 4px;
-    padding: 0 2px 6px;
-    flex: 0 0 auto;
-  }
-
-  .reader-reading-map-view {
-    font-size: 11.5px;
-    line-height: 1.5;
-    padding: 3px 10px;
-    border-radius: 6px;
-    cursor: pointer;
-    color: var(--ink);
-    background: transparent;
-    border: 1px solid color-mix(in srgb, var(--ink) 14%, transparent);
-  }
-
-  .reader-reading-map-view[aria-pressed="true"] {
-    background: color-mix(in srgb, var(--accent) 24%, transparent);
-    border-color: color-mix(in srgb, var(--accent) 55%, transparent);
-  }
-
-  .reader-reading-map-body {
-    display: flex;
-    flex-direction: column;
-    flex: 1 1 auto;
-    min-height: 0;
-  }
-
-  /* 非当前视图挪到屏幕外而不是 display:none —— tldraw 量到 0 尺寸会画不出来。
-     和终端标签同一套手法。 */
-  .reader-reading-map-body[data-hidden] {
-    position: absolute;
-    left: -200vw;
-    top: 0;
-    width: 60vw;
-    height: 50vh;
-    pointer-events: none;
-  }
-
   /* 标签条：同时开几条终端。 */
   .reader-terminal-tabs {
     display: flex;
@@ -285,92 +236,6 @@
     overflow: hidden;
     border-radius: 8px;
     border: 1px solid var(--line);
-  }
-
-  /* —— 阅读路径面板 —— */
-  .reader-reading-path {
-    padding: 0.75rem;
-    overflow-y: auto;
-    max-height: 100%;
-  }
-
-  .reader-reading-path-note {
-    color: var(--muted);
-    font-size: 0.85rem;
-    line-height: 1.6;
-  }
-
-  .reader-reading-path-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 0.4rem;
-  }
-
-  .reader-reading-path-step {
-    display: flex;
-    gap: 0.6rem;
-    width: 100%;
-    text-align: start;
-    padding: 0.55rem 0.6rem;
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    background: var(--paper);
-    color: var(--ink);
-    cursor: pointer;
-  }
-
-  .reader-reading-path-step:hover {
-    border-color: var(--accent);
-  }
-
-  .reader-reading-path-order {
-    flex: 0 0 1.4rem;
-    height: 1.4rem;
-    border-radius: 999px;
-    background: var(--accent-weak, var(--line));
-    color: var(--ink);
-    font-size: 0.75rem;
-    display: grid;
-    place-items: center;
-  }
-
-  .reader-reading-path-body {
-    display: flex;
-    flex-direction: column;
-    gap: 0.15rem;
-    min-width: 0;
-  }
-
-  .reader-reading-path-why {
-    font-size: 0.85rem;
-    line-height: 1.5;
-  }
-
-  .reader-reading-path-anchor {
-    font-size: 0.72rem;
-    color: var(--muted);
-    font-family: var(--font-mono);
-  }
-
-  /* tldraw 需要一个有确定尺寸的定位容器，否则画布高度算成 0。 */
-  .reader-reading-canvas {
-    position: relative;
-    width: 100%;
-    height: 100%;
-    min-height: 0;
-  }
-
-  #reader-reading-canvas-panel {
-    display: flex;
-    flex-direction: column;
-  }
-
-  #reader-reading-canvas-panel > :last-child {
-    flex: 1 1 auto;
-    min-height: 0;
   }
 
   /* 壳默认按内容撑高；终端要占满可用高度。 */

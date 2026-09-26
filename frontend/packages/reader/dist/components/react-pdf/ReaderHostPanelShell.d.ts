@@ -15,15 +15,14 @@
 import type { ReactNode } from "react";
 import type { ReaderHostPanelSpec } from "./reader-host-panels.js";
 export type ReaderHostPanelContext = {
-    jobId: string;
     /** 换文档就换终端会话；同一文档来回切 tab 接回同一个。 */
     sessionKey: string;
-    /** 跳转留在包里：锚点怎么变成翻页+高亮要看当前分栏和模式，宿主自己实现会和
-     * 这些状态打架。 */
-    onJump: (anchor: {
-        page_idx?: number;
-        block_id?: string;
-    }) => void;
+    /** 从选区问 AI 时要送进终端的那段文字。token 自增表示「这是新的一次注入」——
+     * 不能拿文本判重，连着两次选同一段也得送两次。 */
+    pendingInput: {
+        text: string;
+        token: number;
+    } | null;
     onClose: () => void;
 };
 export declare function ReaderHostPanelShell({ panel, active, context, }: {

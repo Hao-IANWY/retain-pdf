@@ -184,10 +184,10 @@ test("assistant tools use a visible right rail and a unified dock header", () =>
   }));
   assert.match(rail, /reader-assistant-rail/);
   assert.match(rail, /aria-label="打开Markdown"/);
-  assert.match(rail, /aria-label="打开AI 问答"/);
+  assert.match(rail, /aria-label="打开批注"/);
 
   const dock = renderToStaticMarkup(createElement(ReaderAssistantDock, {
-    active: "ai",
+    active: "notes",
     onSelect() {},
     onClose() {},
   }));
@@ -202,11 +202,13 @@ test("assistant state restores directly and migrates the former split preference
     assistantPanel: "markdown",
     updatedAt: 1,
   }), "markdown");
+  // 存着旧两栏布局、右栏是 AI 的人：那个面板已经不存在了，所以不开任何面板。
+  // 迁到终端更糟 —— 恢复出一个用户没要过的 agent 会话。
   assert.equal(resolveInitialAssistantPanel({
     schema: "retainpdf_reader_view_v1",
     splitLayout: { left: "source", right: "ai" },
     updatedAt: 1,
-  }), "ai");
+  }), null);
   assert.equal(resolveInitialAssistantPanel({
     schema: "retainpdf_reader_view_v1",
     splitLayout: { left: "source", right: "translated" },
@@ -242,7 +244,7 @@ test("reader view state persists page fraction, zoom and assistant panel without
   saveReaderViewState(scope, { anchor: { page: 7, fraction: 0.42 } }, storage);
   saveReaderViewState(scope, {
     zoom: 0.65,
-    assistantPanel: "ai",
+    assistantPanel: "markdown",
     splitLayout: null,
   }, storage);
   assert.deepEqual(loadReaderViewState(scope, storage), {
@@ -250,7 +252,7 @@ test("reader view state persists page fraction, zoom and assistant panel without
     anchor: { page: 7, fraction: 0.42 },
     zoom: 0.65,
     splitLayout: null,
-    assistantPanel: "ai",
+    assistantPanel: "markdown",
     updatedAt: loadReaderViewState(scope, storage).updatedAt,
   });
   assert.equal(readerViewStateScope({ jobId: "job-2" }), "job:job-2");
@@ -287,13 +289,12 @@ test("assistant dock keeps the PDF mounted and owns Markdown or AI independently
   assert.match(source, /is-workspace-\$\{workspaceView\}/);
   assert.match(source, /<ReaderCompareGrid/);
   assert.match(source, /<ReaderAssistantDock\s+active=\{assistantPanel\}/);
-  assert.match(source, /assistantOpen \? <ReaderAiSplitResizeHandle \/>/);
+  assert.match(source, /assistantOpen \? <ReaderAssistantSplitResizeHandle \/>/);
   assert.match(source, /markdownSplit=\{markdownSlot\.open\}/);
   assert.match(source, /assistantSplit=\{assistantOpen\}/);
   assert.match(source, /modeControls=\{null\}/);
   assert.doesNotMatch(source, /<ReaderPaneSelector/);
   assert.doesNotMatch(source, /setAssistantPanel\(next\)[\s\S]{0,120}setModeKeepingPage/);
-  assert.doesNotMatch(source, /tools\.close\("ai"\)/);
 });
 
 test("Markdown split turns PDF compare into source PDF + Markdown", () => {

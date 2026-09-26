@@ -32,8 +32,8 @@ export const stripComments = (css) => css.replace(/\/\*[\s\S]*?\*\//g, "");
 
 /** 会进到阅读页那张渲染树上的每一份 CSS。
  *
- * 包的 styles/ 全量 + 宿主那两个 reader 入口（reader.css 里是 fx 终端 / 阅读路径
- * 的宿主专有样式，reader-canvas.css 是懒注入的画布样式）。宿主入口不能漏 ——
+ * 包的 styles/ 全量 + 宿主的 reader 入口（reader.css 里是 fx 终端那块宿主专有
+ * 样式）。曾经还有懒注入的 reader-canvas.css，随画布一起删了。宿主入口不能漏 ——
  * 它和包的 styles 一起编译进同一份 dist/css/reader.css，浏览器看不出区别。
  */
 export function readerStyleSources() {

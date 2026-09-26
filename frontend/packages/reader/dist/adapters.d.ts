@@ -1,13 +1,9 @@
 import type { createReaderDataPort } from "./runtime/data.js";
 import type { createReaderPageConfigPort } from "./runtime/config.js";
-import type { askLibraryAi } from "@retainpdf/api/ai";
 import type { ReactNode } from "react";
 import type { ReaderLiveTranslationPort } from "./contracts/live-translation.js";
 import type { ReaderPdfPort } from "./contracts/pdf.js";
 import type { ReaderSessionDataPort } from "./contracts/session.js";
-import type { ReaderAgentOperationPort } from "./contracts/ai-operations.js";
-import type { ReaderConversationPort } from "./contracts/conversations.js";
-import type { ReaderAskPort } from "./contracts/ai-chat.js";
 export { hasMarkdownContent, loadMarkdownPayloadWithFallback, normalizeMarkdownPayload, } from "./shared/data/markdown-payload.js";
 export type ReaderSessionAdapters = {
     isMockMode?: () => boolean;
@@ -28,12 +24,6 @@ export type ReaderSessionAdapters = {
     pdf?: ReaderPdfPort;
     /** Optional during migration; legacy data/runtime fields remain supported. */
     sessionData?: ReaderSessionDataPort;
-    /** Optional during migration; assistant operation UI uses an unavailable fallback. */
-    aiOperations?: ReaderAgentOperationPort;
-    /** Optional during migration; legacy conversation exports remain available. */
-    conversations?: ReaderConversationPort;
-    /** Optional during migration; assistant displays the existing unavailable state without it. */
-    askChat?: ReaderAskPort;
 };
 export type ReaderMarkdownAdapters = {
     resolveMarkdownAssetUrl: (imagesBaseUrl: unknown, relativePath: unknown) => string;
@@ -72,38 +62,21 @@ export type ReaderCredentialsPort = {
 export type ReaderCredentialsAdapters = {
     credentialsPort: ReaderCredentialsPort;
 };
-export type ReaderAiAdapters = {
-    /** Canonical /ai/ask client supplied by the host (SSE + credentials). */
-    askDocumentAi: (options: Parameters<typeof askLibraryAi>[0]) => ReturnType<typeof askLibraryAi>;
-};
 /** 宿主往辅助面板里塞一块自己的 UI 时拿到的东西。 */
 export type ReaderTerminalSlotProps = {
     open: boolean;
     /** 同一个 key 接回同一份终端会话。用 jobId，换文档就换终端。 */
     sessionKey: string;
-    onClose: () => void;
-};
-/** 宿主渲染阅读路径面板时拿到的东西。
- *
- * `onJump` 是包给的：锚点怎么变成翻页+高亮是阅读器的事，宿主只管在用户点某一步
- * 时把锚点递回来。宿主自己去实现跳转会和包的分栏/模式状态打架。
- */
-export type ReaderReadingPathSlotProps = {
-    open: boolean;
-    jobId: string;
-    onJump: (anchor: {
-        page_idx?: number;
-        block_id?: string;
-    }) => void;
-    onClose: () => void;
-};
-export type ReaderReadingMapAdapters = {
-    /** 阅读路径面板由宿主渲染 —— 数据来自 RetainPDF 的 API，包不认识那个端点。
+    /** 「从选区问 AI」要送进终端的那段文字。
      *
-     * 和终端槽位同一个道理：包决定它在 dock 里的位置和生命周期，内容宿主给。
-     * 不提供 = 这个 tab 不出现。
-     */
-    renderReaderReadingMap?: (props: ReaderReadingPathSlotProps) => ReactNode;
+     * 宿主只在 token 变了时注入一次，且**不替用户回车** —— 由页面选区拼出来的
+     * 一条命令直接开跑太意外了，得让人先看见自己要问什么。
+     * token 而不是文本判重：连着两次选同一段，两次都该送。 */
+    pendingInput: {
+        text: string;
+        token: number;
+    } | null;
+    onClose: () => void;
 };
 export type ReaderTerminalAdapters = {
     /** 终端面板由**宿主**渲染。
@@ -117,15 +90,15 @@ export type ReaderTerminalAdapters = {
      */
     renderReaderTerminal?: (props: ReaderTerminalSlotProps) => ReactNode;
 };
-export type ReaderAdapters = ReaderSessionAdapters & ReaderMarkdownAdapters & ReaderDownloadAdapters & ReaderDocumentIdentityAdapters & ReaderCredentialsAdapters & ReaderAiAdapters & ReaderTerminalAdapters & ReaderReadingMapAdapters;
+export type ReaderAdapters = ReaderSessionAdapters & ReaderMarkdownAdapters & ReaderDownloadAdapters & ReaderDocumentIdentityAdapters & ReaderCredentialsAdapters & ReaderTerminalAdapters;
 /**
  * ReaderAdapters 声明键的运行时镜像（TS 类型在运行时被擦除）。
  * 注册层与门禁测试共用，避免手工复制字段集漂移；`satisfies` 保证不引入拼错键。
  * 完整性由紧随其后的编译期断言守护。
  */
-export declare const READER_ADAPTER_KEYS: readonly ["isMockMode", "resolveResourceUrl", "fetchProtected", "resolvePdfjsVendorUrl", "defaultReaderDataPort", "defaultReaderPageConfigPort", "resolveReaderAnchor", "resolveReaderDocumentId", "resolveReaderJobId", "resolveReaderArtifactUrl", "resolveReaderSourcePdf", "resolveReaderTranslatedPdfUrl", "liveTranslation", "pdf", "sessionData", "aiOperations", "conversations", "askChat", "resolveMarkdownAssetUrl", "resolveReaderDownloadUrls", "resolveReaderDownloadName", "downloadProtectedResource", "failDownloadToast", "apiPrefix", "fetchDocumentByJobId", "credentialsPort", "askDocumentAi", "renderReaderTerminal", "renderReaderReadingMap"];
+export declare const READER_ADAPTER_KEYS: readonly ["isMockMode", "resolveResourceUrl", "fetchProtected", "resolvePdfjsVendorUrl", "defaultReaderDataPort", "defaultReaderPageConfigPort", "resolveReaderAnchor", "resolveReaderDocumentId", "resolveReaderJobId", "resolveReaderArtifactUrl", "resolveReaderSourcePdf", "resolveReaderTranslatedPdfUrl", "liveTranslation", "pdf", "sessionData", "resolveMarkdownAssetUrl", "resolveReaderDownloadUrls", "resolveReaderDownloadName", "downloadProtectedResource", "failDownloadToast", "apiPrefix", "fetchDocumentByJobId", "credentialsPort", "renderReaderTerminal"];
 /** 必填（非 `?`）适配键子集，供门禁断言最小注入面。 */
-export declare const READER_REQUIRED_ADAPTER_KEYS: readonly ["resolveMarkdownAssetUrl", "resolveReaderDownloadUrls", "resolveReaderDownloadName", "downloadProtectedResource", "failDownloadToast", "fetchDocumentByJobId", "credentialsPort", "askDocumentAi"];
+export declare const READER_REQUIRED_ADAPTER_KEYS: readonly ["resolveMarkdownAssetUrl", "resolveReaderDownloadUrls", "resolveReaderDownloadName", "downloadProtectedResource", "failDownloadToast", "fetchDocumentByJobId", "credentialsPort"];
 export declare function setReaderAdapters(a: ReaderAdapters | null): void;
 export declare function getReaderAdapters(): ReaderAdapters | null;
 export declare function requireAdapter<T extends keyof ReaderAdapters>(key: T): NonNullable<ReaderAdapters[T]>;

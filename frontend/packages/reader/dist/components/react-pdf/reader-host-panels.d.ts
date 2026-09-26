@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import type { ReaderAdapters, ReaderReadingPathSlotProps, ReaderTerminalSlotProps } from "../../adapters.js";
+import type { ReaderAdapters, ReaderTerminalSlotProps } from "../../adapters.js";
 import { type ReaderHostPanelId } from "../../shared/types/reader-assistant-panels.js";
 /** 收 props 形状为 P 的那些适配键。
  *
@@ -29,9 +29,6 @@ type ReaderHostPanelBase = {
  * 第一版在这儿用 `as never` 硬转，等于把类型检查关掉，而这个功能上一次白屏
  * 正是这么来的。 */
 export type ReaderHostPanelSpec = ReaderHostPanelBase & ({
-    slot: "document";
-    adapterKey: AdapterKeysTaking<ReaderReadingPathSlotProps>;
-} | {
     slot: "terminal";
     adapterKey: AdapterKeysTaking<ReaderTerminalSlotProps>;
 });

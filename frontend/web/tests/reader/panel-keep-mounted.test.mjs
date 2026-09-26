@@ -58,16 +58,20 @@ test("藏起来的面板不参与 Tab、不被读屏念出来", () => {
   assert.match(shell, /aria-hidden=\{!open \? true : undefined\}/);
 });
 
-test("两个宿主面板都是 keepMounted 的，各有各的理由", () => {
-  // 只在「卸载会丢掉不可重建的状态」时才开：终端 = 杀 PTY，阅读地图 = 里面
-  // 的画布会让 tldraw 整个重建（闪一下，且丢掉平移缩放）。
+test("宿主面板的 keepMounted 都得说得出理由", () => {
+  // keepMounted 只在「卸载会丢掉不可重建的状态」时才开 —— 它的代价是面板永远
+  // 占着内存和 DOM。所以这条要求每一个开了它的面板都在这张表里有一条理由；
+  // 新增面板顺手打开 keepMounted 会让它红。
   //
-  // 阅读地图的列表那半本来不需要常驻，但它很轻 —— 不值得为它把一个面板拆成
-  // 两种生命周期，那正是合并之前的样子。
+  // 曾经还有阅读地图（卸载 = tldraw 整个重建，闪一下并丢掉平移缩放），它随
+  // 「阅读页只留一扇 AI 的门」一起删了。
+  const reasons = { terminal: "卸载 = 关 WebSocket = 杀掉 fx 的 PTY 子进程" };
+  for (const panel of READER_HOST_PANELS) {
+    if (!panel.keepMounted) continue;
+    assert.ok(reasons[panel.id], `${panel.id} 开了 keepMounted 却没写明理由`);
+  }
   const by = Object.fromEntries(READER_HOST_PANELS.map((p) => [p.id, p.keepMounted]));
   assert.equal(by.terminal, true, "终端被卸载 = 杀掉 fx 会话");
-  assert.equal(by["reading-map"], true, "画布被卸载 = tldraw 整个重建，会闪");
-  assert.equal(Object.keys(by).length, 2, "宿主面板数变了，这条断言要跟着看一遍");
 });
 
 test("终端自己那层的 hidden 仍在 —— 两层配合，不是二选一", () => {

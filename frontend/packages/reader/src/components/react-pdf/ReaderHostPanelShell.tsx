@@ -20,12 +20,11 @@ import { ReaderPanelShell } from "./ReaderPanelShell.js";
 import type { ReaderHostPanelSpec } from "./reader-host-panels.js";
 
 export type ReaderHostPanelContext = {
-  jobId: string;
   /** 换文档就换终端会话；同一文档来回切 tab 接回同一个。 */
   sessionKey: string;
-  /** 跳转留在包里：锚点怎么变成翻页+高亮要看当前分栏和模式，宿主自己实现会和
-   * 这些状态打架。 */
-  onJump: (anchor: { page_idx?: number; block_id?: string }) => void;
+  /** 从选区问 AI 时要送进终端的那段文字。token 自增表示「这是新的一次注入」——
+   * 不能拿文本判重，连着两次选同一段也得送两次。 */
+  pendingInput: { text: string; token: number } | null;
   onClose: () => void;
 };
 
@@ -44,25 +43,22 @@ export function ReaderHostPanelShell({
   const mounted = panel.keepMounted ? latched : open;
   if (!mounted) return null;
 
-  // props 按 slot 的形状给，不按面板逐个给 —— 再加一个「文档类」面板时这里
-  // 一行都不用改。
+  // props 按 slot 的形状给，不按面板逐个给。
+  //
+  // 曾经这里是个三元，另一半给「文档类」槽位（阅读路径 / 画布）。那两个面板
+  // 随「阅读页只留一扇 AI 的门」一起删了，slot 联合塌成一个成员，那一半成了
+  // 死支。留着会让人以为还支持第二种形状。
   //
   // 靠 slot 收窄，**不用 cast**：`adapters[panel.adapterKey]` 在 adapterKey 是
   // 宽联合时会塌成一个谁也满足不了的调用签名，第一版为此写了 `as never`，
   // 等于把类型检查关掉 —— 这个功能上一次白屏正是这么来的。
   const adapters = getReaderAdapters();
-  const content = panel.slot === "terminal"
-    ? adapters?.[panel.adapterKey]?.({
-        open,
-        sessionKey: context.sessionKey,
-        onClose: context.onClose,
-      })
-    : adapters?.[panel.adapterKey]?.({
-        open,
-        jobId: context.jobId,
-        onJump: context.onJump,
-        onClose: context.onClose,
-      });
+  const content = adapters?.[panel.adapterKey]?.({
+    open,
+    sessionKey: context.sessionKey,
+    pendingInput: context.pendingInput,
+    onClose: context.onClose,
+  });
   // 宿主没注册渲染器 = 这个面板根本不该存在（dock 也不会给它 tab）。
   if (content === undefined || content === null) return null;
 

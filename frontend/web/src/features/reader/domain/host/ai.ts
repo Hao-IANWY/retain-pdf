@@ -1,29 +1,18 @@
-/** RetainPDF host bindings for the package-owned Reader AI runtime. */
+/** AI 运行时的宿主绑定。
+ *
+ * 这个文件曾经还装着阅读器 AI 问答面板的三个端口（askChat / conversations /
+ * aiOperations）。那个面板删掉了 —— 阅读页现在只有一扇 AI 的门，就是终端里的
+ * agent。剩下的两件事是**首页的「问」也要用**的：
+ *
+ * - setReaderAiConfigAdapters / setAnswerEnhanceAdapters：把凭据、模型默认值、
+ *   受保护图片的取法注册给 reader 包里的 AI 运行时
+ * - `export *`：把那套运行时转出去给 features/ask 和 features/credentials
+ *
+ * 它还住在 features/reader/ 下面是历史位置 —— 首页伸手进阅读器的 domain 拿
+ * 东西，本来就该挪，但那是另一件事。
+ */
 import { resolveResourceUrl } from "@retainpdf/domain/job";
-import type { ReaderAgentOperationPort, ReaderConversationPort, ReaderAskPort } from "@retainpdf/reader/contracts";
-import {
-  appendConversationMessage,
-  createConversation,
-  deleteConversation,
-  forkConversationFromPath,
-  getConversation,
-  listConversations,
-  patchConversation,
-} from "@/platform/api/index.js";
-import {
-  cancelAgentOperation,
-  commitAgentOperation,
-  fetchAgentOperationCandidate,
-  fetchAgentRuntimeConfig,
-  getAgentOperation,
-  listAgentOperations,
-  retryAgentOperation,
-  runAgentOperation,
-} from "@/platform/api/index.js";
 import * as readerAi from "@retainpdf/reader/runtime/ai";
-import { askLibraryAi } from "@/platform/api/index.js";
-import { fetchDocumentByJobId } from "@/platform/api/index.js";
-import { API_PREFIX } from "@/platform/config/api-constants.js";
 import {
   defaultModelBaseUrl,
   defaultModelName,
@@ -35,35 +24,7 @@ import {
 import {
   getDefaultCredentialsStatePort,
 } from "@/platform/contracts/credentials-contract.js";
-import { defaultReaderDataPort, fetchProtected } from "./data.js";
-
-export const askChatPort: ReaderAskPort = {
-  createRemoteAnswerer: ({ jobId, documentId = "" }) => createReaderAskAnswerer({ jobId, documentId }),
-  createLocalAnswerer: () => readerAi.createReaderMarkdownAnswerer({
-    loadMarkdownPayload: defaultReaderDataPort.loadMarkdownPayload,
-  }),
-};
-
-export const conversationPort: ReaderConversationPort = {
-  create: createConversation,
-  list: listConversations,
-  get: getConversation,
-  delete: deleteConversation,
-  patch: patchConversation,
-  appendMessage: appendConversationMessage,
-  forkFromPath: forkConversationFromPath,
-};
-
-export const aiOperationsPort: ReaderAgentOperationPort = {
-  list: (conversationId, options) => listAgentOperations({ conversationId, limit: 50, signal: options?.signal }),
-  get: (operationId, options) => getAgentOperation(operationId, { signal: options?.signal }),
-  run: (operationId, input, options) => runAgentOperation(operationId, input, { signal: options?.signal }),
-  cancel: (operationId, input, options) => cancelAgentOperation(operationId, input, { signal: options?.signal }),
-  commit: (operationId, input, options) => commitAgentOperation(operationId, input, { signal: options?.signal }),
-  retry: (operationId, input, options) => retryAgentOperation(operationId, input, { signal: options?.signal }),
-  fetchCandidate: (operationId, options) => fetchAgentOperationCandidate(operationId, { signal: options?.signal }),
-  fetchRuntimeConfig: (options) => fetchAgentRuntimeConfig({ fetchImpl: fetch, apiPrefix: API_PREFIX }),
-};
+import { fetchProtected } from "./data.js";
 
 // 注册点参数类型直接取自 reader 包公开工厂签名，避免 any 掩盖契约漂移。
 type ReaderAiConfigAdapters = NonNullable<
@@ -71,9 +32,6 @@ type ReaderAiConfigAdapters = NonNullable<
 >;
 type AnswerEnhanceAdapters = NonNullable<
   Parameters<typeof readerAi.setAnswerEnhanceAdapters>[0]
->;
-type ReaderAskAnswererOptions = NonNullable<
-  Parameters<typeof readerAi.createReaderAskAnswerer>[0]
 >;
 
 readerAi.setReaderAiConfigAdapters({
@@ -93,12 +51,3 @@ readerAi.setAnswerEnhanceAdapters({
 } satisfies AnswerEnhanceAdapters);
 
 export * from "@retainpdf/reader/runtime/ai";
-
-export const createReaderAskAnswerer = (options: ReaderAskAnswererOptions = {}) =>
-  readerAi.createReaderAskAnswerer({
-    apiPrefix: API_PREFIX,
-    ask: askLibraryAi,
-    documentByJobId: fetchDocumentByJobId,
-    llmConfig: readerAi.resolveReaderAiConfig,
-    ...options,
-  });

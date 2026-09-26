@@ -20,15 +20,11 @@ import type { createReaderDataPort } from "./runtime/data.js";
 import type { createReaderPageConfigPort } from "./runtime/config.js";
 import type { ReaderPdfPort } from "./contracts/pdf.js";
 import type { ReaderSessionDataPort } from "./contracts/session.js";
-import type { ReaderAgentOperationPort } from "./contracts/ai-operations.js";
-import type { ReaderConversationPort } from "./contracts/conversations.js";
-import type { ReaderAskPort } from "./contracts/ai-chat.js";
 import {
   resolveReaderDownloadName as defaultResolveReaderDownloadName,
   resolveReaderDownloadUrls as defaultResolveReaderDownloadUrls,
 } from "./shared/state/downloads/resolve.js";
 import {
-  createReaderAskAnswerer as createSharedReaderAskAnswerer,
 } from "./shared/ai/ask-answerer.js";
 
 // —— config / mock / messaging ——
@@ -97,9 +93,6 @@ export const readerSessionDataPort = (): ReaderSessionDataPort => {
     resolveReaderArtifactUrl: (item) => adapters.resolveReaderArtifactUrl?.(item) ?? "",
   };
 };
-export const readerAgentOperationPort = (): ReaderAgentOperationPort | null => getReaderAdapters()?.aiOperations ?? null;
-export const readerConversationPort = (): ReaderConversationPort | null => getReaderAdapters()?.conversations ?? null;
-export const readerAskChatPort = (): ReaderAskPort | null => getReaderAdapters()?.askChat ?? null;
 
 export const resolveReaderAnchor = (...a: any[]) => getReaderAdapters()?.resolveReaderAnchor?.(...a) ?? null;
 export const resolveReaderDocumentId = (): string => getReaderAdapters()?.resolveReaderDocumentId?.() ?? "";
@@ -140,15 +133,6 @@ export { parseMarkdownWithMath } from "./shared/content/markdown-math.js";
 // —— AI ——
 // Factory 在 package 边界内消费宿主 adapter，调用方只需传 jobId。
 // 旧实现直接 re-export shared factory，导致默认 ask/documentByJobId 空实现。
-export const createReaderAskAnswerer = (options: Record<string, unknown> = {}) => {
-  const adapters = getReaderAdapters();
-  return createSharedReaderAskAnswerer({
-    apiPrefix: adapters?.apiPrefix || "/api/v1",
-    ask: adapters?.askDocumentAi,
-    documentByJobId: adapters?.fetchDocumentByJobId,
-    ...options,
-  });
-};
 export { createReaderMarkdownAnswerer } from "./shared/ai/markdown-answerer.js";
 export {
   hydrateProtectedImages,

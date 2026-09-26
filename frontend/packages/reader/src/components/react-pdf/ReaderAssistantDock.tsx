@@ -13,7 +13,7 @@
  *
  * ## 8 个 tab 放不下怎么办
  *
- * dock 最窄 30vw（reader-ai-split-constraints.ts），1280 的屏上只有 384px，
+ * dock 最窄 30vw（reader-assistant-split-constraints.ts），1280 的屏上只有 384px，
  * 8 个中文 tab 一行肯定放不下。**降级在 CSS 里**（assistant-dock.css）：tab 条
  * 可横向滚动、min-width: 0 能被压缩、窄到一定程度只留图标（label 有 title 兜
  * 底）。不用 JS 量宽度 —— 量宽度要监听 resize、要处理首帧为 0，而这里没有任何

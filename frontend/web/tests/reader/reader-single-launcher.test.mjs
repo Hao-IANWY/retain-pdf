@@ -17,7 +17,7 @@
  *
  * ## 所以这份文件守的是「可达性」，不是「代码长什么样」
  *
- * - 5 个面板每一个都在唯一那个启动器的清单里（从 id 真源 map 出来对账，
+ * - 每个面板都在唯一那个启动器的清单里（从 id 真源 map 出来对账，
  *   不手抄一份清单：手抄的那份漏一个也没人知道）；
  * - 三路下载仍然可达；
  * - **没有任何 CSS 规则会把这个启动器整体隐藏** —— 这正是圆钮栽的地方。
@@ -60,7 +60,7 @@ const readStyle = (name) => stripComments(readFileSync(
 
 // ------------------------------------------------------------------ 清单对账
 
-test("5 个面板每一个都在唯一那个启动器的清单里", () => {
+test("每个面板都在唯一那个启动器的清单里", () => {
   // 从 id 真源 map 出来比，不在这里抄第二份清单 —— 抄的那份漏一个的表现是
   // 「那个面板再也打不开」，而这条测试照样绿。
   const ids = readerDockTabs(() => true).map((tab) => tab.id);
@@ -68,7 +68,9 @@ test("5 个面板每一个都在唯一那个启动器的清单里", () => {
   assert.deepEqual([...ids].sort(), [...READER_ASSISTANT_PANEL_IDS].sort());
   // 顺序也来自真源：dock 里 tab 的先后就是这份清单的先后。
   assert.deepEqual(ids, [...READER_ASSISTANT_PANEL_IDS]);
-  assert.ok(ids.length >= 5, `只有 ${ids.length} 个面板，八成漏登记了`);
+  // 下限而不是等号：加面板不该让这条红。3 = markdown / 批注 / AI(终端)，
+  // 是「阅读页只留一扇 AI 的门」之后的数目。
+  assert.ok(ids.length >= 3, `只有 ${ids.length} 个面板，八成漏登记了`);
 });
 
 test("每个面板都有标签和图标 —— 少一样那个 tab 要么空白要么崩", () => {
@@ -131,7 +133,9 @@ test("懒加载面板的挂载闸守的就是它自己那个面板", () => {
   // "markdown"，那条绑定被 Markdown 面板自己满足了，全套 2049 条全绿（复查实测）。
   const names = new Set(panelSlots().map((slot) => slot.name));
   const latched = [...APP.matchAll(/\{(\w+)\.mounted \? ([\s\S]*?) : null\}/g)];
-  assert.ok(latched.length >= 2, `只找到 ${latched.length} 个挂载闸，正则八成没匹配上`);
+  // AI 问答面板删掉之后只剩 Markdown 一个懒加载面板。下限保持 1：这条守的是
+  // 「闸和面板不能接错人」，不是「有几个闸」。
+  assert.ok(latched.length >= 1, `只找到 ${latched.length} 个挂载闸，正则八成没匹配上`);
   for (const [, name, jsx] of latched) {
     assert.ok(names.has(name), `挂载闸用了没声明过的插槽 ${name}`);
     assert.ok(
@@ -185,8 +189,9 @@ test("启动器的两种形态都真的渲染出可点的东西", () => {
   const dock = renderToStaticMarkup(
     createElement(ReaderAssistantDock, { active: "notes", onSelect() {}, onClose() {} }),
   );
-  // 宿主适配器没注册时只有 3 个 base 面板，但它们必须一个不少地画出来。
-  for (const id of ["markdown", "ai", "notes"]) {
+  // 宿主适配器没注册时只有 base 面板，但它们必须一个不少地画出来。
+  // 从真源取，不在这里抄 —— 抄的那份漏一个，这条照样绿。
+  for (const id of READER_BASE_PANEL_IDS) {
     const label = readerDockTabs(() => false).find((tab) => tab.id === id)?.label;
     assert.ok(rail.includes(`打开${label}`), `竖条上没有${label}`);
     assert.ok(dock.includes(`>${label}<`), `tab 条上没有${label}`);
@@ -220,7 +225,7 @@ test("三路下载仍然可达，而且不在启动器里 —— 它不该和面
 // ------------------------------------------------------------ tab 放不下的降级
 
 test("8 个 tab 放不下时有降级，而不是溢出", () => {
-  // dock 最窄 30vw（reader-ai-split-constraints.ts），1280 的屏上 384px；
+  // dock 最窄 30vw（reader-assistant-split-constraints.ts），1280 的屏上 384px；
   // 8 个中文 tab 一行要 ~560px。不处理的话要么撑破 header 把关闭按钮挤出去，
   // 要么横向溢出到看不见。
   const css = readStyle("assistant-dock.css");

@@ -51,7 +51,7 @@ type PanelProps = ReaderTerminalSlotProps & {
   apiKey: string;
 };
 
-function ReaderTerminalPanel({ open, sessionKey, baseUrl, apiKey }: PanelProps) {
+function ReaderTerminalPanel({ open, sessionKey, pendingInput, baseUrl, apiKey }: PanelProps) {
   // 可以同时开几条。后端一直支持并行（busy_session_ids 会让第二条挑一个没被
   // 占用的 fx 会话），卡点一直在这里 —— 只有一个 <FxTerminal>。
   // 摆好的工作台要活过刷新：开了几条、每条盯着哪个作用域，都从上次读回来。
@@ -72,6 +72,23 @@ function ReaderTerminalPanel({ open, sessionKey, baseUrl, apiKey }: PanelProps) 
     [tabs.activeId],
   );
   const sendToActive = useRef<(data: string) => void>(() => {});
+
+  // 「从选区问 AI」把选中的那段送进当前这条终端。
+  //
+  // 三件事是刻意的：
+  // - **不回车**。由页面选区拼出来的一条命令直接开跑太意外，得让人先看见。
+  // - **认 token 不认文本**。连着两次选同一段，两次都该送；拿文本判重第二次
+  //   会被吞掉，而且看不出为什么。
+  // - **面板没开时不送**。没开时 sendToActive 还指着那个空函数，送了会静默
+  //   丢掉；包那边在设 pendingInput 的同时会把面板切过来，这里等它开。
+  const sentTokenRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!open || !pendingInput || !pendingInput.text) return;
+    if (sentTokenRef.current === pendingInput.token) return;
+    sentTokenRef.current = pendingInput.token;
+    sendToActive.current(pendingInput.text);
+    focusActive();
+  }, [focusActive, open, pendingInput]);
 
   const themeId = useThemeId();
   return (

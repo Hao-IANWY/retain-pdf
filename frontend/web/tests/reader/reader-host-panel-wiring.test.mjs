@@ -42,9 +42,8 @@ for (const panel of READER_HOST_PANELS) {
 setReaderAdapters(adapters);
 
 const context = {
-  jobId: "job-1",
   sessionKey: "session-1",
-  onJump() {},
+  pendingInput: null,
   onClose() {},
 };
 
@@ -52,8 +51,10 @@ const renderShell = (panel, active) => renderToStaticMarkup(
   createElement(ReaderHostPanelShell, { panel, active, context }),
 );
 
-test("三个宿主槽位面板都真的接到了假渲染器 —— 否则下面两条永远绿", () => {
-  assert.ok(READER_HOST_PANELS.length >= 2, `只登记了 ${READER_HOST_PANELS.length} 个槽位面板`);
+test("宿主槽位面板都真的接到了假渲染器 —— 否则下面两条永远绿", () => {
+  // 下限 1：阅读地图删掉之后只剩终端一个槽位面板。这条守的是「壳真的把内容
+  // 渲染出来了」，不是「有几个」。
+  assert.ok(READER_HOST_PANELS.length >= 1, `只登记了 ${READER_HOST_PANELS.length} 个槽位面板`);
   for (const panel of READER_HOST_PANELS) {
     assert.match(
       renderShell(panel, panel.id),

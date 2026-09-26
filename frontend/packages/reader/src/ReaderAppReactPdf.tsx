@@ -3,7 +3,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import { useReaderReactController } from "./hooks/use-reader-react-controller.js";
 import { useReaderKeyboard } from "./hooks/use-reader-keyboard.js";
 import {
-  ReaderAiSplitResizeHandle,
+  ReaderAssistantSplitResizeHandle,
   ReaderAssistantDock,
   ReaderCloseHome,
   ReaderWorkspaceTabs,
@@ -24,6 +24,7 @@ import {
   loadReaderViewState,
   saveReaderViewState,
 } from "./shared/state/reader-view-state.js";
+import { readerSelectionPrompt } from "./shared/data/reader-regions.js";
 import type { ReaderSelection } from "./shared/data/reader-regions.js";
 import type { ReaderSelectionNoteInput } from "./components/react-pdf/ReaderSelectionToolbar.js";
 import {
@@ -33,7 +34,6 @@ import {
 } from "./components/react-pdf/reader-context.js";
 
 const ReaderMarkdownPanel = lazy(() => import("./components/react-pdf/ReaderMarkdownPanel.js").then((m) => ({ default: m.ReaderMarkdownPanel })));
-const ReaderAiPanel = lazy(() => import("./components/react-pdf/ReaderAiPanel.js").then((m) => ({ default: m.ReaderAiPanel })));
 
 import { useReaderPanelSlot } from "./components/react-pdf/use-reader-panel-slot.js";
 import { ReaderHostPanelShell } from "./components/react-pdf/ReaderHostPanelShell.js";
@@ -178,7 +178,10 @@ export function ReaderAppReactPdf() {
   const assistantPanel = assistant.panel;
   const setAssistantPanel = assistant.setPanel;
   const [assistantPdfPane, setAssistantPdfPane] = useState<"source" | "translated" | null>(null);
-  const [aiSelectionContext, setAiSelectionContext] = useState<ReaderSelection | null>(null);
+  // 选区要送进终端的那段文字。token 每次自增，宿主据此判断「这是新的一次注入」
+  // —— 不能拿文本本身判重，连着两次选同一段也得送两次。
+  const [terminalPrefill, setTerminalPrefill] =
+    useState<{ text: string; token: number } | null>(null);
   const [liveTranslationVisible, setLiveTranslationVisible] = useState(false);
   const modeScopeRef = useRef<string | null>(null);
 
@@ -232,7 +235,7 @@ export function ReaderAppReactPdf() {
   // 的自动叠加 bug」直接矛盾，删掉才是那段注释说的行为。
   // 需要自动打开的那一处走 resolveLiveTranslationVisibleOnWorkspaceChange。
   useEffect(() => {
-    setAiSelectionContext(null);
+    setTerminalPrefill(null);
     setLiveTranslationVisible(false);
   }, [c.viewStateKey]);
 
@@ -266,7 +269,6 @@ export function ReaderAppReactPdf() {
   // 原来是「闸一遍、open 一遍」，两处各自合法，抄改时把闸上那个写成别的面板
   // 整套测试全绿而摘录永远打不开。见 use-reader-panel-slot.ts。
   const markdownSlot = useReaderPanelSlot(assistantPanel, "markdown");
-  const aiSlot = useReaderPanelSlot(assistantPanel, "ai");
   const notesSlot = useReaderPanelSlot(assistantPanel, "notes");
   // 槽位面板（阅读路径 / 画布 / 终端）的挂载、适配器查找和壳都在
   // ReaderHostPanelShell 里，按 READER_HOST_PANELS 逐个渲染 —— 见下面那段 map。
@@ -286,15 +288,8 @@ export function ReaderAppReactPdf() {
   const closeAssistant = useCallback(() => {
     setAssistantPanel(null);
     setAssistantPdfPane(null);
-    setAiSelectionContext(null);
+    setTerminalPrefill(null);
   }, []);
-  const jumpCitation = useCallback((citation: { page_idx?: number; page?: number; block_id?: string; image_url?: string; snippet?: string; } | number) => {
-    const visiblePane = visiblePdfMode === "translated" ? "translated" : "source";
-    c.jumpToAnchor(citation, visiblePane);
-  }, [c.jumpToAnchor, visiblePdfMode]);
-  const refreshCommittedDocument = useCallback((input: { documentId: string; revision: string }) => {
-    session.refreshCommittedDocument(input);
-  }, [session.refreshCommittedDocument]);
   const changeWorkspace = useCallback((next: ReaderWorkspaceMode) => {
     setAssistantPdfPane(null);
     // A running translation can provide the compare workspace before the
@@ -326,28 +321,27 @@ export function ReaderAppReactPdf() {
 
   const selectAssistant = useCallback((next: ReaderAssistantPanel) => {
     setAssistantPanel(next);
-    if (next !== "ai") setAiSelectionContext(null);
   }, []);
 
-  // AI 批注：标记画在每页上，正文在弹窗里。轮询是必须的 —— agent 是在你读的
-  // 时候写的，一次性加载会让「标完了要刷新才看得见」重演（画布那次的 bug）。
-  // 换文档时把打开的批注关掉：它锚在上一本书的块上。
-  useEffect(() => {
-  }, [session.jobId]);
-
   const hostPanelContext = useMemo(() => ({
-    jobId: session.jobId,
     sessionKey: session.jobId || session.documentId || "reader",
-    onJump: jumpCitation,
+    pendingInput: terminalPrefill,
     onClose: closeAssistant,
-  }), [closeAssistant, jumpCitation, session.documentId, session.jobId]);
+  }), [closeAssistant, session.documentId, session.jobId, terminalPrefill]);
 
+  /** 从选区问 AI —— 现在唯一的 AI 入口是终端里的 agent。
+   *
+   * 送进去但**不回车**：让 agent 直接跑一条由页面选区拼出来的命令太意外了，
+   * 用户得先看见自己要问什么。栏锁照旧（从译文栏选的就把译文栏锁住），否则
+   * 助手分栏会把你正看的那栏挤掉。
+   */
   const askSelectedRegion = useCallback((selection: ReaderSelection) => {
     const pdf = selection.pane === "translated" && !sourceViewOnly
       ? "translated"
       : "source";
-    setAiSelectionContext(selection);
-    setAssistantPanel("ai");
+    const prompt = readerSelectionPrompt(selection);
+    setTerminalPrefill((prev) => ({ text: prompt, token: (prev?.token ?? 0) + 1 }));
+    setAssistantPanel("terminal");
     setAssistantPdfPane(pdf);
     c.clearSelection();
   }, [c.clearSelection, sourceViewOnly]);
@@ -436,7 +430,7 @@ export function ReaderAppReactPdf() {
           active={assistantPanel}
           badges={{ notes: annotations.count }}
         />
-        {assistantOpen ? <ReaderAiSplitResizeHandle /> : null}
+        {assistantOpen ? <ReaderAssistantSplitResizeHandle /> : null}
         <ReaderCompareGrid paneComposition={paneComposition} markdownSplit={markdownSlot.open} assistantSplit={assistantOpen} liveTranslation={c.liveTranslation} sourcePaneAction={sourcePaneAction} />
         {c.showHud ? (
           <ReaderZoomHud
@@ -454,7 +448,6 @@ export function ReaderAppReactPdf() {
             />
           ))}
           {markdownSlot.mounted ? <ReaderMarkdownPanel open={markdownSlot.open} jobId={session.jobId} sourceOnly={c.sourceOnly} side="right" onClose={closeAssistant} /> : null}
-          {aiSlot.mounted ? <ReaderAiPanel key={session.documentId || session.jobId || "reader-ai-pending"} open={aiSlot.open} jobId={session.jobId} documentId={session.documentId} sessionIdentity={session.sessionIdentity} side="right" selectionContext={aiSelectionContext} onClearSelectionContext={() => setAiSelectionContext(null)} onClose={closeAssistant} onJumpCitation={jumpCitation} onDocumentCommitted={refreshCommittedDocument} /> : null}
         </Suspense>
         <ReaderNotesPanel
           open={notesSlot.open}

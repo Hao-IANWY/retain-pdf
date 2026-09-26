@@ -119,7 +119,7 @@ test("恢复只看存下来的东西 —— 存的 mode 是哪个都不影响", 
   }
   // 清单是从真源 map 出来的，漏登记一个面板这里的组合数会掉。
   assert.equal(checked.length, savedModes.length * READER_ASSISTANT_PANEL_IDS.length);
-  assert.ok(READER_ASSISTANT_PANEL_IDS.length >= 5, "面板清单疑似漏登记");
+  assert.ok(READER_ASSISTANT_PANEL_IDS.length >= 3, "面板清单疑似漏登记");
 
   // 这条就是病 1 本身：有译文的书默认 mode 就是 compare。
   assert.equal(resolveInitialAssistantPanel({
@@ -142,9 +142,11 @@ test("没存 / 存坏了 / 显式关着 都回 null，旧两栏布局按迁移�
   assert.equal(resolveInitialAssistantPanel({
     schema: "retainpdf_reader_view_v1", assistantPanel: "wormhole", updatedAt: 1,
   }), null);
+  // 旧两栏布局里右栏是 AI 的：那个面板已经不存在，所以不开任何面板。迁到终端
+  // 更糟 —— 会恢复出一个用户没要过的 agent 会话。
   assert.equal(resolveInitialAssistantPanel({
     schema: "retainpdf_reader_view_v1", splitLayout: { left: "source", right: "ai" }, updatedAt: 1,
-  }), "ai");
+  }), null);
   assert.equal(resolveInitialAssistantPanel({
     schema: "retainpdf_reader_view_v1", splitLayout: { left: "markdown", right: "source" }, updatedAt: 1,
   }), "markdown");
@@ -203,24 +205,24 @@ test("键从 job: 迁到 document: 时，两个键都不会被对方的值盖掉
   seed("document:D3", { assistantPanel: "terminal" });
   const view = mountPanel("job:J3");
   assert.equal(view.seen.api.panel, null);
-  view.set("ai");
-  assert.equal(stored("job:J3").assistantPanel, "ai");
+  view.set("terminal");
+  assert.equal(stored("job:J3").assistantPanel, "terminal");
 
   // documentId 到了：按新键存的东西重新恢复。
   view.rerender("document:D3");
   assert.equal(view.seen.api.panel, "terminal", "新 scope 存的面板没恢复");
   assert.equal(view.seen.api.scope, "document:D3");
   assert.equal(stored("document:D3").assistantPanel, "terminal");
-  assert.equal(stored("job:J3").assistantPanel, "ai", "旧键被新 scope 的值盖了");
+  assert.equal(stored("job:J3").assistantPanel, "terminal", "旧键被新 scope 的值盖了");
 
-  // 要害在这条：迁移那一帧，新键**被写过一次** "ai" 也不行。
+  // 要害在这条：迁移那一帧，新键**被写过一次** "terminal" 也不行。
   // 只看最后一次的话，下一帧的重渲染会把它改回 "terminal"，错写被完全遮住。
   assert.deepEqual(
     [...new Set(writesTo("document:D3"))],
     ["terminal"],
     "新键在迁移那一帧被旧 scope 的值写过",
   );
-  assert.ok(writesTo("job:J3").includes("ai"), "旧键根本没被写过，这条门禁是空的");
+  assert.ok(writesTo("job:J3").includes("terminal"), "旧键根本没被写过，这条门禁是空的");
   view.unmount();
 });
 

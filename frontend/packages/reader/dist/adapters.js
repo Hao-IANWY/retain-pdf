@@ -1,7 +1,7 @@
 import { s as a } from "./config-CgaWliJ_.js";
-import { s as t, r as s } from "./answer-enhance-D8zK9znw.js";
-import { h as P, l as v, n as D } from "./markdown-payload-kK3ewW_I.js";
-const l = [
+import { s as t, r as d } from "./answer-enhance-3YjrVVwj.js";
+import { h as P, l as v, n as w } from "./markdown-payload-kK3ewW_I.js";
+const n = [
   "isMockMode",
   "resolveResourceUrl",
   "fetchProtected",
@@ -17,9 +17,6 @@ const l = [
   "liveTranslation",
   "pdf",
   "sessionData",
-  "aiOperations",
-  "conversations",
-  "askChat",
   "resolveMarkdownAssetUrl",
   "resolveReaderDownloadUrls",
   "resolveReaderDownloadName",
@@ -28,9 +25,7 @@ const l = [
   "apiPrefix",
   "fetchDocumentByJobId",
   "credentialsPort",
-  "askDocumentAi",
-  "renderReaderTerminal",
-  "renderReaderReadingMap"
+  "renderReaderTerminal"
 ], c = [
   "resolveMarkdownAssetUrl",
   "resolveReaderDownloadUrls",
@@ -38,17 +33,16 @@ const l = [
   "downloadProtectedResource",
   "failDownloadToast",
   "fetchDocumentByJobId",
-  "credentialsPort",
-  "askDocumentAi"
+  "credentialsPort"
 ];
 let r = null;
-function i(e) {
-  r = e, a({ credentialsPort: (e == null ? void 0 : e.credentialsPort) ?? null }), s(), e && t({
+function R(e) {
+  r = e, a({ credentialsPort: (e == null ? void 0 : e.credentialsPort) ?? null }), d(), e && t({
     fetchProtected: e.fetchProtected,
     resolveResourceUrl: e.resolveResourceUrl
   });
 }
-function R() {
+function i() {
   return r;
 }
 function f(e) {
@@ -57,13 +51,13 @@ function f(e) {
   return o;
 }
 export {
-  l as READER_ADAPTER_KEYS,
+  n as READER_ADAPTER_KEYS,
   c as READER_REQUIRED_ADAPTER_KEYS,
-  R as getReaderAdapters,
+  i as getReaderAdapters,
   P as hasMarkdownContent,
   v as loadMarkdownPayloadWithFallback,
-  D as normalizeMarkdownPayload,
+  w as normalizeMarkdownPayload,
   f as requireAdapter,
-  i as setReaderAdapters
+  R as setReaderAdapters
 };
 //# sourceMappingURL=adapters.js.map

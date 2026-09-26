@@ -29,7 +29,6 @@
 /** 包自己渲染的面板。内容在包里，不需要宿主注入。 */
 export const READER_BASE_PANEL_IDS = [
   "markdown",
-  "ai",
   "notes",
 ] as const;
 
@@ -41,7 +40,6 @@ export const READER_BASE_PANEL_IDS = [
  * 顺序就是 dock 里 tab 的顺序。
  */
 export const READER_HOST_PANEL_IDS = [
-  "reading-map",
   "terminal",
 ] as const;
 

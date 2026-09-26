@@ -15,12 +15,11 @@
  * 会话键。再加一个「给它文档和跳转」的面板时，宿主侧**一行都不用改** —— 这正是
  * 这次要换来的东西。
  */
-import { Route, SquareTerminal } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import type {
   ReaderAdapters,
-  ReaderReadingPathSlotProps,
   ReaderTerminalSlotProps,
 } from "../../adapters.js";
 import {
@@ -60,31 +59,27 @@ type ReaderHostPanelBase = {
  * 第一版在这儿用 `as never` 硬转，等于把类型检查关掉，而这个功能上一次白屏
  * 正是这么来的。 */
 export type ReaderHostPanelSpec = ReaderHostPanelBase & (
-  | { slot: "document"; adapterKey: AdapterKeysTaking<ReaderReadingPathSlotProps> }
   | { slot: "terminal"; adapterKey: AdapterKeysTaking<ReaderTerminalSlotProps> }
 );
 
 export type ReaderHostPanelSlotKind = ReaderHostPanelSpec["slot"];
 
 const SPECS = {
-  "reading-map": {
-    label: "阅读地图",
-    short: "图",
-    Icon: Route,
-    adapterKey: "renderReaderReadingMap",
-    slot: "document",
-    ariaLabel: "阅读地图",
-    // 画布卸载会让 tldraw 整个重建（闪一下，且丢掉平移缩放），所以整个面板
-    // 都留在树上 —— 列表那半本来不需要，但它很轻，不值得为它拆两种生命周期。
-    keepMounted: true,
-  },
+  // 这个面板叫「AI」而不是「终端」：它是阅读页里**唯一**的 AI 入口。
+  //
+  // 原来一篇文档有三扇 AI 的门 —— AI 问答面板（自带一套 chunking + retrieval +
+  // LLM 的 Rust 栈）、这个终端（agent 进程）、阅读地图（渲染 agent 产物）——
+  // 三者互不知道对方存在，两套 LLM 栈零共用代码。15 本书上的用量是
+  // 4 / 17 / 1，留用得最多且能力是超集的那个。
+  //
+  // id 仍是 terminal：改 id 会让所有存着的面板恢复记录失效。
   terminal: {
-    label: "终端",
-    short: "SH",
-    Icon: SquareTerminal,
+    label: "AI",
+    short: "AI",
+    Icon: Sparkles,
     adapterKey: "renderReaderTerminal",
     slot: "terminal",
-    ariaLabel: "fx 终端",
+    ariaLabel: "AI（agent 终端）",
     keepMounted: true,
   },
 } satisfies Record<ReaderHostPanelId, Omit<ReaderHostPanelSpec, "id">>;

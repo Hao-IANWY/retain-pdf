@@ -85,5 +85,16 @@ export declare function findReaderRegionByAssetUrl(regions: readonly ReaderRegio
 export declare function regionBoxForPane(region: ReaderRegion, pane: ReaderPaneId): ReaderRegionBox;
 export declare function resolveReaderRegionHighlight(region: ReaderRegion | null | undefined, metadata: ReaderMetadata | null | undefined, pane: ReaderPaneId): ReaderRegionHighlight | null;
 export declare function projectReaderRegion(highlight: ReaderRegionHighlight | null | undefined, renderedWidth: number, renderedHeight: number): ReaderRegionRect | null;
+/** 选区送进终端 agent 时先变成的那句话。
+ *
+ * 阅读页现在只有一扇 AI 的门（终端里的 agent），「从选区问 AI」就是把选中的
+ * 东西喂给它。两种选区形状要分开取文字：
+ * - 文本选区有 quote
+ * - 区域选区（公式 / 表格 / 图）的文字在 region 里，且**要取用户选的那一栏**
+ *   —— 从译文栏选公式却把原文塞进去，问出来的是另一回事。
+ *
+ * 取不到文字时不编：返回空串，调用方就只开面板不注入。
+ */
+export declare function readerSelectionPrompt(selection: ReaderSelection): string;
 export {};
 //# sourceMappingURL=reader-regions.d.ts.map
