@@ -49,12 +49,6 @@ export const TERMINAL_SUGGESTIONS: readonly TerminalSuggestion[] = [
     path: "./reading-path.v1.json",
   },
   {
-    id: "notes",
-    label: "标注隐含前提",
-    prompt: "把第 3 节的隐含前提和跨页依赖标到 ./notes.v1.json 上",
-    path: "./notes.v1.json",
-  },
-  {
     id: "canvas",
     label: "画概念图",
     prompt: "把这篇论文的脉络画成概念图，写到 ./canvas.v1.json",

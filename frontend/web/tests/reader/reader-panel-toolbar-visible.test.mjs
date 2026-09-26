@@ -2,7 +2,7 @@
  *
  * ## 起因：和圆钮同型的第二起
  *
- * 批注 / AI 批注 / 摘录 从浮窗搬进 dock 之后，class 从
+ * 批注 / 摘录 从浮窗搬进 dock 之后，class 从
  * `reader-notes-panel--float` 变成 `--workspace`，于是撞上 float-markdown.css
  * 里一条本来命不中的规则：
  *
@@ -13,8 +13,6 @@
  *
  * - 批注的「导出 Markdown」是 `annotations.exportMarkdown` 在整个包里**唯一**
  *   的入口，没了就是批注导不出来；
- * - AI 批注的「显示全部 N 条」是 level 3 批注进索引列表的唯一入口（默认
- *   DEFAULT_MAX_LEVEL = 2）；
  * - 摘录的「刷新」和「加载中…／N 条」状态同理。
  *
  * ## 所以这份文件测的是「渲染得出来」，不是「代码长什么样」
@@ -30,7 +28,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { JSDOM } from "jsdom";
 
 import { ReaderNotesPanel } from "../../../packages/reader/src/components/react-pdf/ReaderNotesPanel.tsx";
-import { ReaderAiNotesPanel } from "../../../packages/reader/src/components/react-pdf/ReaderAiNotesPanel.tsx";
 import { ReaderFavoritesPanel } from "../../../packages/reader/src/components/react-pdf/ReaderFavoritesPanel.tsx";
 import { hidingRulesFor } from "./helpers/reader-css.mjs";
 
@@ -59,23 +56,6 @@ const CASES = [
       onUpdateNote: noop,
       onRemove: noop,
       onExport: async () => true,
-    }),
-  },
-  {
-    name: "AI 批注面板的「显示全部」层级开关",
-    label: "显示全部 2 条",
-    node: () => createElement(ReaderAiNotesPanel, {
-      open: true,
-      doc: {
-        notes: [
-          { id: "a1", anchor: { blockId: "b1", pageIdx: 0 }, kind: "note", level: 1, text: "重点", refs: [], weak: false },
-          // level 3 默认被挡掉，只有这个按钮能把它放出来。
-          { id: "a2", anchor: { blockId: "b2", pageIdx: 0 }, kind: "note", level: 3, text: "细节", refs: [], weak: true },
-        ],
-        weakCount: 1,
-      },
-      onClose: noop,
-      onJump: noop,
     }),
   },
   {

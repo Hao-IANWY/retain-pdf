@@ -3,7 +3,6 @@ import { type ProtectedPdfFile } from "./useProtectedPdfFile.js";
 import type { PageRowHeights } from "./usePageRowSync.js";
 import { type ReaderPaneId } from "./reader-dom-contract.js";
 import { type ReaderMetadata, type ReaderRegion, type ReaderRegionSelection } from "../shared/data/reader-regions.js";
-import type { AiNote } from "../shared/data/ai-notes.js";
 import type { LiveTranslationState } from "../shared/data/live-translation-state.js";
 type PdfDocumentPaneProps = {
     pane: ReaderPaneId;
@@ -29,14 +28,6 @@ type PdfDocumentPaneProps = {
     onNumPagesChange?: (numPages: number, pane: ReaderPaneId) => void;
     activeRegion?: ReaderRegion | null;
     regions?: ReaderRegion[];
-    aiNotes?: readonly AiNote[];
-    activeAiNoteId?: string | null;
-    onSelectAiNote?: (note: AiNote, rect: {
-        left: number;
-        top: number;
-        width: number;
-        height: number;
-    }) => void;
     readerMetadata?: ReaderMetadata | null;
     onSelectRegion?: (selection: ReaderRegionSelection) => void;
     liveTranslation?: LiveTranslationState;

@@ -1,4 +1,5 @@
 import type { ReaderLiveTranslationPort } from "../../contracts/live-translation.js";
+/** 没注入 = 宿主没有这个端点。返回 null 表示「还没有」，不是失败。 */
 /** Markdown 原文的来源描述（来自 job detail artifacts.markdown）。 */
 export type MarkdownSourceDescriptor = {
     rawUrl: string;
@@ -15,7 +16,7 @@ export type MarkdownRangeResult = {
     rangeEnd: number | null;
     etag: string | null;
 };
-export declare function createReaderDataPort({ apiPrefix, loadJob, loadManifest, loadMarkdown, loadMarkdownDocument, loadMarkdownSource, fetchMarkdownRange, loadRegions, loadMetadata, loadAiNotes, fetchProtectedResource, liveTranslation, }?: {
+export declare function createReaderDataPort({ apiPrefix, loadJob, loadManifest, loadMarkdown, loadMarkdownDocument, loadMarkdownSource, fetchMarkdownRange, loadRegions, loadMetadata, fetchProtectedResource, liveTranslation, }?: {
     apiPrefix?: string;
     loadJob?: (jobId: string, apiPrefix: string) => Promise<unknown>;
     loadManifest?: (jobId: string, apiPrefix: string) => Promise<unknown>;
@@ -28,7 +29,6 @@ export declare function createReaderDataPort({ apiPrefix, loadJob, loadManifest,
     /** agent 写的页面批注。**不跟着 loadReaderPayload 一起加载** —— 它会在阅读过程中
      * 被 agent 重写，需要轮询，而 payload 是一次性的。所以单独一个方法。
      * 文件不存在时返回 null（正常状态，不是错误）。 */
-    loadAiNotes?: (jobId: string, apiPrefix: string) => Promise<unknown>;
     fetchProtectedResource?: typeof fetch;
     liveTranslation?: ReaderLiveTranslationPort | null;
 }): Readonly<{
@@ -52,7 +52,6 @@ export declare function createReaderDataPort({ apiPrefix, loadJob, loadManifest,
             metadata: unknown;
         };
     }>;
-    loadAiNotes: (jobId: string) => Promise<unknown>;
     liveTranslation: ReaderLiveTranslationPort;
 }>;
 export declare const defaultReaderDataPort: Readonly<{
@@ -76,7 +75,6 @@ export declare const defaultReaderDataPort: Readonly<{
             metadata: unknown;
         };
     }>;
-    loadAiNotes: (jobId: string) => Promise<unknown>;
     liveTranslation: ReaderLiveTranslationPort;
 }>;
 //# sourceMappingURL=data-port.d.ts.map

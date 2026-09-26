@@ -111,10 +111,6 @@ pub(super) fn routes() -> Router<AppState> {
             get(jobs::download_ai_canvas),
         )
         .route(
-            "/api/v1/jobs/:job_id/ai-notes",
-            get(jobs::download_ai_notes),
-        )
-        .route(
             "/api/v1/jobs/:job_id/board",
             get(jobs::list_ai_board),
         )

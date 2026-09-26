@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use crate::models::domain::{JobArtifactRecord, JobSnapshot};
 
 use super::constants::{
-    AI_BOARD_DIR_NAME, AI_CANVAS_FILE_NAME, AI_NOTES_FILE_NAME, AI_READING_PATH_FILE_NAME,
+    AI_BOARD_DIR_NAME, AI_CANVAS_FILE_NAME, AI_READING_PATH_FILE_NAME,
     OUTPUT_AI_DIR_NAME,
     OUTPUT_ARTIFACTS_DIR_NAME, OUTPUT_LOGS_DIR_NAME, OUTPUT_MARKDOWN_DIR_NAME,
     OUTPUT_RENDERED_DIR_NAME, OUTPUT_TRANSLATED_DIR_NAME, OUTPUT_TYPST_BOOK_OVERLAYS_DIR_NAME,
@@ -98,11 +98,6 @@ pub fn resolve_ai_reading_path(job: &JobSnapshot, data_root: &Path) -> Option<Pa
 /// `<job>/ai/canvas.v1.json` —— agent 画的概念图。
 pub fn resolve_ai_canvas(job: &JobSnapshot, data_root: &Path) -> Option<PathBuf> {
     resolve_ai_artifact(job, data_root, AI_CANVAS_FILE_NAME)
-}
-
-/// `<job>/ai/notes.v1.json` —— agent 标在 PDF 页面上的批注。
-pub fn resolve_ai_notes(job: &JobSnapshot, data_root: &Path) -> Option<PathBuf> {
-    resolve_ai_artifact(job, data_root, AI_NOTES_FILE_NAME)
 }
 
 /// `<job>/ai/board/` —— agent 的画板目录。

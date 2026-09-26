@@ -1,7 +1,7 @@
 use crate::error::AppError;
 use crate::models::domain::JobSnapshot;
 use crate::storage_paths::{
-    resolve_ai_canvas, resolve_ai_notes, resolve_ai_reading_path, resolve_normalization_report, resolve_normalized_document,
+    resolve_ai_canvas, resolve_ai_reading_path, resolve_normalization_report, resolve_normalized_document,
     resolve_output_pdf,
 };
 
@@ -21,9 +21,6 @@ pub(crate) enum DocumentDownloadKind {
     /// Agent 在 `<job>/ai/` 里画的概念图。和 AiReadingPath 同一类：
     /// 非流水线产物，404 是正常状态。
     AiCanvas,
-    /// Agent 标在 PDF 页面上的批注。和上面两个同一类：非流水线产物，
-    /// 404 是正常状态。
-    AiNotes,
 }
 
 impl DocumentDownloadKind {
@@ -34,7 +31,7 @@ impl DocumentDownloadKind {
             | Self::NormalizationReport
             | Self::AiReadingPath
             | Self::AiCanvas
-            | Self::AiNotes => "application/json",
+            => "application/json",
         }
     }
 
@@ -45,7 +42,6 @@ impl DocumentDownloadKind {
             Self::NormalizationReport => "normalization report not ready",
             Self::AiReadingPath => "reading path not generated yet",
             Self::AiCanvas => "canvas not generated yet",
-            Self::AiNotes => "notes not generated yet",
         }
     }
 
@@ -60,7 +56,7 @@ impl DocumentDownloadKind {
     /// 逼着做一次决定。
     fn is_agent_artifact(self) -> bool {
         match self {
-            Self::AiReadingPath | Self::AiCanvas | Self::AiNotes => true,
+            Self::AiReadingPath | Self::AiCanvas => true,
             Self::OutputPdf | Self::NormalizedDocument | Self::NormalizationReport => false,
         }
     }
@@ -76,7 +72,6 @@ impl DocumentDownloadKind {
             Self::NormalizationReport => resolve_normalization_report(job, data_root),
             Self::AiReadingPath => resolve_ai_reading_path(job, data_root),
             Self::AiCanvas => resolve_ai_canvas(job, data_root),
-            Self::AiNotes => resolve_ai_notes(job, data_root),
         }
     }
 }
@@ -105,7 +100,7 @@ pub(super) fn document_download(
 
 #[cfg(test)]
 mod schema_backed_artifact_gate {
-    /// 加第四种带 schema 的 agent 产物之前，先读这段。
+    /// 加第三种带 schema 的 agent 产物之前，先读这段。
     ///
     /// 这条门禁不检查行为，它**拦一个决定**：仓库里跨 ≥3 层的提交只占 3.1%，
     /// 而那一小撮里几乎全是「给 agent 加一种产物」。每加一种要走完 Python 写
@@ -115,7 +110,7 @@ mod schema_backed_artifact_gate {
     /// `board/` 就是为了掐断这条链：后缀白名单覆盖图片 / markdown / json /
     /// 文本，agent 用 shell 画好丢进去就显示，**新增一种可视化零行代码**。
     #[test]
-    fn schema_backed_agent_artifacts_stay_at_three() {
+    fn schema_backed_agent_artifacts_stay_at_two() {
         let source = include_str!("documents.rs");
         let body = source
             .split_once("pub(crate) enum DocumentDownloadKind {")
@@ -133,12 +128,13 @@ mod schema_backed_artifact_gate {
 
         assert_eq!(
             variants,
-            ["AiReadingPath", "AiCanvas", "AiNotes"],
+            ["AiReadingPath", "AiCanvas"],
             "\n\n\
-             要加第四种带 schema 的 agent 产物了 —— 先确认 board/ 真的不够。\n\n\
-             现有这三种留着，是因为它们各有 board/ 做不到的锚定语义：\n\
-             notes 挂 block_id 定位到页面、reading-path 点一步跳到论文的真实\n\
-             位置、canvas 的节点带连线。**如果你要加的东西只是「把一组数据画\n\
+             要加第三种带 schema 的 agent 产物了 —— 先确认 board/ 真的不够。\n\n\
+             现有这两种留着，是因为它们各有 board/ 做不到的锚定语义：\n\
+             reading-path 点一步跳到论文的真实位置、canvas 的节点带连线。\n\
+             （AI 批注 notes.v1.json 曾是第三种，因为 15 本书 61 个 job 里产物\n\
+             为 0 而整条删掉了 —— 加新产物前先想想它会不会是同样的下场。）**如果你要加的东西只是「把一组数据画\n\
              出来给人看」，它属于 board/** —— agent 写个 python3 画成 PNG 丢\n\
              进去就显示，这边一行代码都不用改。\n\n\
              确实需要锚定语义，就改这里的期望值，并在提交信息里写清楚 board/\n\

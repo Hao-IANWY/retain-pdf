@@ -1,13 +1,13 @@
 //! 重译之后 agent 工作区的接力。
 //!
 //! 起因：`<job>/ai/` 下的产物挂在 job 上。重新翻译一本书就开一个新 job，新
-//! job 的 `ai/` 是空的 —— 用户在这本书上攒的阅读路径、概念图、批注、画板文件
+//! job 的 `ai/` 是空的 —— 用户在这本书上攒的阅读路径、概念图、概念图、画板文件
 //! **一声不响地留在旧 job 里**，界面上和「从没让 agent 干过活」长得一样。
 //!
 //! 这里守四件事，每一件反过来都是一个安静的数据事故：
 //! - 接得过来（不然这个修复等于没做）
 //! - **不覆盖新 job 上已有的产出**（覆盖 = 直接销毁用户的工作）
-//! - 只接同一本书的（接错书 = 把别人的批注贴到这本书上）
+//! - 只接同一本书的（接错书 = 把别人的概念图贴到这本书上）
 //! - 不跟随符号链接（`ai/` 是 agent 可写目录）
 
 use std::fs;
@@ -90,7 +90,7 @@ impl Fixture {
         let ai = job_root.join("ai");
         fs::create_dir_all(ai.join("board")).unwrap();
         fs::write(ai.join("reading-path.v1.json"), br#"{"steps":[]}"#).unwrap();
-        fs::write(ai.join("notes.v1.json"), r#"{"notes":["旧批注"]}"#).unwrap();
+        fs::write(ai.join("canvas.v1.json"), r#"{"nodes":["旧概念图"]}"#).unwrap();
         fs::write(ai.join("board").join("chart.png"), b"fake png").unwrap();
         // agent 自己写的脚本也是它的工作，要一起搬。
         fs::write(ai.join("probe.sh"), b"#!/bin/sh\necho hi\n").unwrap();
@@ -110,15 +110,15 @@ impl Fixture {
         )
     }
 
-    /// 打一次阅读页首屏必打的那个端点，返回它解析出的路径。
+    /// 打一次画布面板会打的那个端点，返回它解析出的路径。
     ///
     /// **这个端点不 stat 文件** —— 解析器只拼路径，404 是 HTTP 层读不到文件时
     /// 才出的。所以「没接力过来」必须断文件系统，断 `Err` 会永远为假。
-    async fn fetch_notes(&self, job_id: &str) -> PathBuf {
+    async fn fetch_canvas(&self, job_id: &str) -> PathBuf {
         self.downloads()
-            .download_job_document(job_id, false, DocumentDownloadKind::AiNotes)
+            .download_job_document(job_id, false, DocumentDownloadKind::AiCanvas)
             .await
-            .expect("解析批注路径不该失败")
+            .expect("解析概念图路径不该失败")
             .path
     }
 }
@@ -137,14 +137,14 @@ async fn carries_previous_workspace_to_the_retranslated_job() {
     let new = fx.job("new-job", DOCUMENT_ID);
 
     // 这一次请求本身就该成功 —— 修之前它是 404「notes not generated yet」。
-    let path = fx.fetch_notes("new-job").await;
-    assert_eq!(fs::read_to_string(&path).unwrap(), r#"{"notes":["旧批注"]}"#);
+    let path = fx.fetch_canvas("new-job").await;
+    assert_eq!(fs::read_to_string(&path).unwrap(), r#"{"nodes":["旧概念图"]}"#);
 
     let ai = new.join("ai");
     assert!(ai.join("reading-path.v1.json").exists(), "阅读路径没接过来");
     assert!(ai.join("board").join("chart.png").exists(), "画板文件没接过来");
     assert!(ai.join("probe.sh").exists(), "agent 自己写的脚本没接过来");
-    // 来源留痕：现场排查时这是唯一能回答「这些批注哪来的」的东西。
+    // 来源留痕：现场排查时这是唯一能回答「这些概念图哪来的」的东西。
     assert_eq!(
         fs::read_to_string(ai.join(".carried-from")).unwrap().trim(),
         "old-job"
@@ -158,25 +158,25 @@ async fn leaves_the_generated_agents_md_behind() {
     let fx = Fixture::new();
     fx.seed_workspace(&fx.job("old-job", DOCUMENT_ID));
     let new = fx.job("new-job", DOCUMENT_ID);
-    fx.fetch_notes("new-job").await;
+    fx.fetch_canvas("new-job").await;
     // 先确认接力真的发生了 —— 否则「AGENTS.md 不在」在「什么都没搬」时
     // 也成立，这条就成了永远绿的假门禁。
-    assert!(new.join("ai").join("notes.v1.json").exists(), "根本没接力");
+    assert!(new.join("ai").join("canvas.v1.json").exists(), "根本没接力");
     assert!(!new.join("ai").join("AGENTS.md").exists(), "旧模板被搬过来了");
 }
 
 #[tokio::test]
 async fn never_overwrites_work_already_done_on_this_job() {
-    // 这条要是破了，用户在新 job 上刚写的批注会被旧 job 的版本静默盖掉 ——
+    // 这条要是破了，用户在新 job 上刚写的概念图会被旧 job 的版本静默盖掉 ——
     // 比原本那个 bug 严重得多：原来只是看不到，这里是真的销毁。
     let fx = Fixture::new();
     fx.seed_workspace(&fx.job("old-job", DOCUMENT_ID));
     let new = fx.job("new-job", DOCUMENT_ID);
     fs::create_dir_all(new.join("ai")).unwrap();
-    fs::write(new.join("ai").join("notes.v1.json"), r#"{"notes":["新批注"]}"#).unwrap();
+    fs::write(new.join("ai").join("canvas.v1.json"), r#"{"nodes":["新概念图"]}"#).unwrap();
 
-    let path = fx.fetch_notes("new-job").await;
-    assert_eq!(fs::read_to_string(&path).unwrap(), r#"{"notes":["新批注"]}"#);
+    let path = fx.fetch_canvas("new-job").await;
+    assert_eq!(fs::read_to_string(&path).unwrap(), r#"{"nodes":["新概念图"]}"#);
     assert!(
         !new.join("ai").join("reading-path.v1.json").exists(),
         "这个 job 已经在用了，不该再往里灌旧产物"
@@ -185,33 +185,33 @@ async fn never_overwrites_work_already_done_on_this_job() {
 
 #[tokio::test]
 async fn carries_over_once_so_deletions_stick() {
-    // 没有标记的话：用户删掉接过来的批注 → 下一次轮询发现 ai/ 里只剩 AGENTS.md
+    // 没有标记的话：用户删掉接过来的概念图 → 下一次轮询发现 ai/ 里只剩 AGENTS.md
     // → 又接一遍。删除操作永远不生效，而且没有任何报错。
     let fx = Fixture::new();
     fx.seed_workspace(&fx.job("old-job", DOCUMENT_ID));
     let new = fx.job("new-job", DOCUMENT_ID);
-    fx.fetch_notes("new-job").await;
+    fx.fetch_canvas("new-job").await;
 
     fs::remove_dir_all(new.join("ai").join("board")).unwrap();
-    fs::remove_file(new.join("ai").join("notes.v1.json")).unwrap();
+    fs::remove_file(new.join("ai").join("canvas.v1.json")).unwrap();
     fs::remove_file(new.join("ai").join("reading-path.v1.json")).unwrap();
     fs::remove_file(new.join("ai").join("probe.sh")).unwrap();
 
-    fx.fetch_notes("new-job").await;
-    assert!(!new.join("ai").join("notes.v1.json").exists(), "删掉的批注又长回来了");
+    fx.fetch_canvas("new-job").await;
+    assert!(!new.join("ai").join("canvas.v1.json").exists(), "删掉的概念图又长回来了");
     assert!(!new.join("ai").join("board").exists(), "删掉的画板又长回来了");
 }
 
 #[tokio::test]
 async fn never_carries_over_from_a_different_document() {
-    // 接错书 = 把另一本书的批注贴到这本书的页面坐标上。界面不会报错，
+    // 接错书 = 把另一本书的概念图贴到这本书的页面坐标上。界面不会报错，
     // 只是每一条都指向错的地方。
     let fx = Fixture::new();
     fx.seed_workspace(&fx.job("other-book-job", "sha256-of-a-different-pdf"));
     let new = fx.job("new-job", DOCUMENT_ID);
 
-    fx.fetch_notes("new-job").await;
-    assert!(!new.join("ai").join("notes.v1.json").exists(), "接了别的书的批注");
+    fx.fetch_canvas("new-job").await;
+    assert!(!new.join("ai").join("canvas.v1.json").exists(), "接了别的书的概念图");
     assert!(!new.join("ai").join(".carried-from").exists(), "标记都写下了，说明真接了");
 }
 
@@ -231,8 +231,8 @@ async fn skips_jobs_with_no_document() {
     });
     fx.db.save_job(&job).unwrap();
 
-    fx.fetch_notes("orphan-job").await;
-    assert!(!orphan_root.join("ai").join("notes.v1.json").exists());
+    fx.fetch_canvas("orphan-job").await;
+    assert!(!orphan_root.join("ai").join("canvas.v1.json").exists());
     assert!(!orphan_root.join("ai").join(".carried-from").exists());
 }
 
@@ -248,7 +248,7 @@ async fn does_not_follow_symlinks() {
     symlink(&secret, ai.join("board").join("leak.png")).unwrap();
 
     let new = fx.job("new-job", DOCUMENT_ID);
-    fx.fetch_notes("new-job").await;
+    fx.fetch_canvas("new-job").await;
 
     let leaked = new.join("ai").join("board").join("leak.png");
     assert!(!leaked.exists(), "符号链接被跟着复制了");

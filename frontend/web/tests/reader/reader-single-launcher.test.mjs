@@ -17,7 +17,7 @@
  *
  * ## 所以这份文件守的是「可达性」，不是「代码长什么样」
  *
- * - 8 个面板每一个都在唯一那个启动器的清单里（从 id 真源 map 出来对账，
+ * - 7 个面板每一个都在唯一那个启动器的清单里（从 id 真源 map 出来对账，
  *   不手抄一份清单：手抄的那份漏一个也没人知道）；
  * - 三路下载仍然可达；
  * - **没有任何 CSS 规则会把这个启动器整体隐藏** —— 这正是圆钮栽的地方。
@@ -60,7 +60,7 @@ const readStyle = (name) => stripComments(readFileSync(
 
 // ------------------------------------------------------------------ 清单对账
 
-test("8 个面板每一个都在唯一那个启动器的清单里", () => {
+test("7 个面板每一个都在唯一那个启动器的清单里", () => {
   // 从 id 真源 map 出来比，不在这里抄第二份清单 —— 抄的那份漏一个的表现是
   // 「那个面板再也打不开」，而这条测试照样绿。
   const ids = readerDockTabs(() => true).map((tab) => tab.id);
@@ -68,7 +68,7 @@ test("8 个面板每一个都在唯一那个启动器的清单里", () => {
   assert.deepEqual([...ids].sort(), [...READER_ASSISTANT_PANEL_IDS].sort());
   // 顺序也来自真源：dock 里 tab 的先后就是这份清单的先后。
   assert.deepEqual(ids, [...READER_ASSISTANT_PANEL_IDS]);
-  assert.ok(ids.length >= 8, `只有 ${ids.length} 个面板，八成漏登记了`);
+  assert.ok(ids.length >= 7, `只有 ${ids.length} 个面板，八成漏登记了`);
 });
 
 test("每个面板都有标签和图标 —— 少一样那个 tab 要么空白要么崩", () => {
@@ -185,8 +185,8 @@ test("启动器的两种形态都真的渲染出可点的东西", () => {
   const dock = renderToStaticMarkup(
     createElement(ReaderAssistantDock, { active: "notes", onSelect() {}, onClose() {} }),
   );
-  // 宿主适配器没注册时只有 5 个 base 面板，但它们必须一个不少地画出来。
-  for (const id of ["markdown", "ai", "notes", "ai-notes", "favorites"]) {
+  // 宿主适配器没注册时只有 4 个 base 面板，但它们必须一个不少地画出来。
+  for (const id of ["markdown", "ai", "notes", "favorites"]) {
     const label = readerDockTabs(() => false).find((tab) => tab.id === id)?.label;
     assert.ok(rail.includes(`打开${label}`), `竖条上没有${label}`);
     assert.ok(dock.includes(`>${label}<`), `tab 条上没有${label}`);
@@ -305,7 +305,7 @@ test("纯本地 PDF（没有 job）下，不需要 job 的那几个面板照样�
       [...state.values()].some(Boolean),
       `${active ? "tab 条" : "竖条"}上一个禁用的入口都没有，sourceOnly 那条分支八成失效了`,
     );
-    for (const id of ["notes", "ai-notes", "favorites"]) {
+    for (const id of ["notes", "favorites"]) {
       assert.equal(
         state.get(labelOf(id)),
         false,

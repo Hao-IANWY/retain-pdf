@@ -1,7 +1,6 @@
 import { type ReactNode } from "react";
 import type { ReaderPaneModel } from "../../hooks/use-reader-pane-model.js";
 import type { ReaderDownloadContext } from "../../hooks/use-reader-session.js";
-import type { AiNote } from "../../shared/data/ai-notes.js";
 import type { ReaderMetadata, ReaderRegion, ReaderRegionSelection } from "../../shared/data/reader-regions.js";
 import type { ProtectedPdfFile } from "../../pdf/useProtectedPdfFile.js";
 import type { PageRowHeights } from "../../pdf/usePageRowSync.js";
@@ -25,14 +24,6 @@ export type ReaderContextValue = {
     readerMetadata: ReaderMetadata | null;
     activeRegion: ReaderRegion | null;
     onSelectRegion: (selection: ReaderRegionSelection) => void;
-    aiNotes: readonly AiNote[];
-    activeAiNoteId: string | null;
-    onSelectAiNote: (note: AiNote, rect: {
-        left: number;
-        top: number;
-        width: number;
-        height: number;
-    }) => void;
     /**
      * 真源语义 =「无 job」：判断 Markdown / AI / 收藏等需要任务的能力。
      * 仅 FAB 工具禁用等「无 job」场景取用；不要用它判断能否并排。

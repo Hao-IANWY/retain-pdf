@@ -38,13 +38,8 @@ const ReaderAiPanel = lazy(() => import("./components/react-pdf/ReaderAiPanel.js
 
 import { useReaderPanelSlot } from "./components/react-pdf/use-reader-panel-slot.js";
 import { ReaderHostPanelShell } from "./components/react-pdf/ReaderHostPanelShell.js";
-import { ReaderAiNotePopover } from "./pdf/ReaderAiNotePopover.js";
-import { ReaderAiNotesPanel } from "./components/react-pdf/ReaderAiNotesPanel.js";
-import { useReaderAiNotes } from "./hooks/use-reader-ai-notes.js";
-import type { AiNote } from "./shared/data/ai-notes.js";
 
 /** 稳定的空数组：每次渲染新建一个会让每页的标记层白白重算。 */
-const EMPTY_AI_NOTES: readonly AiNote[] = [];
 import { READER_HOST_PANELS } from "./components/react-pdf/reader-host-panels.js";
 
 /** 阅读视图可见台面的判别联合。 */
@@ -267,7 +262,6 @@ export function ReaderAppReactPdf() {
   const markdownSlot = useReaderPanelSlot(assistantPanel, "markdown");
   const aiSlot = useReaderPanelSlot(assistantPanel, "ai");
   const notesSlot = useReaderPanelSlot(assistantPanel, "notes");
-  const aiNotesSlot = useReaderPanelSlot(assistantPanel, "ai-notes");
   // 槽位面板（阅读路径 / 画布 / 终端）的挂载、适配器查找和壳都在
   // ReaderHostPanelShell 里，按 READER_HOST_PANELS 逐个渲染 —— 见下面那段 map。
   // 键盘与 UI 共用同一「可见模式」真源：paneComposition.visibleMode。
@@ -331,21 +325,8 @@ export function ReaderAppReactPdf() {
 
   // AI 批注：标记画在每页上，正文在弹窗里。轮询是必须的 —— agent 是在你读的
   // 时候写的，一次性加载会让「标完了要刷新才看得见」重演（画布那次的 bug）。
-  const aiNoteDoc = useReaderAiNotes(session.jobId);
-  const [activeAiNote, setActiveAiNote] = useState<
-    { note: AiNote; rect: { left: number; top: number; width: number; height: number } } | null
-  >(null);
-  const selectAiNote = useCallback((
-    note: AiNote,
-    rect: { left: number; top: number; width: number; height: number },
-  ) => {
-    // 再点同一个记号就关掉 —— 否则只能去点弹窗的 ×。
-    setActiveAiNote((prev) => (prev?.note.id === note.id ? null : { note, rect }));
-  }, []);
-  const closeAiNote = useCallback(() => setActiveAiNote(null), []);
   // 换文档时把打开的批注关掉：它锚在上一本书的块上。
   useEffect(() => {
-    setActiveAiNote(null);
   }, [session.jobId]);
 
   const hostPanelContext = useMemo(() => ({
@@ -383,9 +364,6 @@ export function ReaderAppReactPdf() {
     sourceFile: c.sessionFiles.sourceFile,
     translatedFile: c.sessionFiles.translatedFile,
     regions: session.regions,
-    aiNotes: aiNoteDoc?.notes ?? EMPTY_AI_NOTES,
-    activeAiNoteId: activeAiNote?.note.id ?? null,
-    onSelectAiNote: selectAiNote,
     readerMetadata: session.readerMetadata,
     activeRegion: c.activeRegion,
     onSelectRegion: c.selectRegion,
@@ -450,7 +428,7 @@ export function ReaderAppReactPdf() {
         />
         <ReaderAssistantDock
           active={assistantPanel}
-          badges={{ notes: annotations.count, "ai-notes": aiNoteDoc?.notes.length ?? 0 }}
+          badges={{ notes: annotations.count }}
         />
         {assistantOpen ? <ReaderAiSplitResizeHandle /> : null}
         <ReaderCompareGrid paneComposition={paneComposition} markdownSplit={markdownSlot.open} assistantSplit={assistantOpen} liveTranslation={c.liveTranslation} sourcePaneAction={sourcePaneAction} />
@@ -473,20 +451,6 @@ export function ReaderAppReactPdf() {
           {markdownSlot.mounted ? <ReaderMarkdownPanel open={markdownSlot.open} jobId={session.jobId} sourceOnly={c.sourceOnly} side="right" onClose={closeAssistant} /> : null}
           {aiSlot.mounted ? <ReaderAiPanel key={session.documentId || session.jobId || "reader-ai-pending"} open={aiSlot.open} jobId={session.jobId} documentId={session.documentId} sessionIdentity={session.sessionIdentity} side="right" selectionContext={aiSelectionContext} onClearSelectionContext={() => setAiSelectionContext(null)} onClose={closeAssistant} onJumpCitation={jumpCitation} onDocumentCommitted={refreshCommittedDocument} /> : null}
         </Suspense>
-        {activeAiNote ? (
-          <ReaderAiNotePopover
-            note={activeAiNote.note}
-            anchorRect={activeAiNote.rect}
-            onJump={jumpCitation}
-            onClose={closeAiNote}
-          />
-        ) : null}
-        <ReaderAiNotesPanel
-          open={aiNotesSlot.open}
-          doc={aiNoteDoc}
-          onClose={closeAssistant}
-          onJump={jumpCitation}
-        />
         <ReaderNotesPanel
           open={notesSlot.open}
           groups={annotations.groups}

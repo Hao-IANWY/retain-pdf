@@ -31,7 +31,6 @@ export const READER_BASE_PANEL_IDS = [
   "markdown",
   "ai",
   "notes",
-  "ai-notes",
   "favorites",
 ] as const;
 

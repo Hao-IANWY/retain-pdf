@@ -1,7 +1,5 @@
 import { type ReaderPaneId } from "./reader-dom-contract.js";
 import { type ReaderRegionHighlight, type ReaderRegionSelection } from "../shared/data/reader-regions.js";
-import { type ReaderAiNoteTarget } from "./ReaderAiNoteLayer.js";
-import type { AiNote } from "../shared/data/ai-notes.js";
 import type { ReaderLiveTranslationLayoutPage as LiveTranslationLayoutPage } from "../contracts/live-translation.js";
 import type { LiveTranslationPageState } from "../shared/data/live-translation-state.js";
 export declare const DEFAULT_ASPECT = 1.414;
@@ -22,20 +20,12 @@ type PdfPageSlotProps = {
     sentinelRef?: (el: HTMLDivElement | null) => void;
     regionHighlight?: ReaderRegionHighlight | null;
     regionTargets?: ReaderRegionHighlight[];
-    aiNoteTargets?: ReaderAiNoteTarget[];
-    activeAiNoteId?: string | null;
-    onSelectAiNote?: (note: AiNote, rect: {
-        left: number;
-        top: number;
-        width: number;
-        height: number;
-    }) => void;
     onSelectRegion?: (selection: ReaderRegionSelection) => void;
     liveTranslationLayout?: LiveTranslationLayoutPage;
     liveTranslationPage?: LiveTranslationPageState;
     showLiveTranslation?: boolean;
 };
-declare function PdfPageSlotInner({ pageNumber, width, devicePixelRatio, pane, active, syncedMinHeight, onMetrics, cachedAspect, onAspectChange, sentinelRef, regionHighlight, regionTargets, aiNoteTargets, activeAiNoteId, onSelectAiNote, onSelectRegion, liveTranslationLayout, liveTranslationPage, showLiveTranslation, }: PdfPageSlotProps): import("react").JSX.Element;
+declare function PdfPageSlotInner({ pageNumber, width, devicePixelRatio, pane, active, syncedMinHeight, onMetrics, cachedAspect, onAspectChange, sentinelRef, regionHighlight, regionTargets, onSelectRegion, liveTranslationLayout, liveTranslationPage, showLiveTranslation, }: PdfPageSlotProps): import("react").JSX.Element;
 export declare const PdfPageSlot: import("react").MemoExoticComponent<typeof PdfPageSlotInner>;
 export {};
 //# sourceMappingURL=PdfPageSlot.d.ts.map

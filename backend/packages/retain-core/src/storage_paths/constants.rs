@@ -13,8 +13,6 @@ pub(crate) const OUTPUT_AI_DIR_NAME: &str = "ai";
 pub(crate) const AI_READING_PATH_FILE_NAME: &str = "reading-path.v1.json";
 /// Agent 生成的概念画布。schema 见 canvas_v1（前端 reading-canvas-doc.ts）。
 pub(crate) const AI_CANVAS_FILE_NAME: &str = "canvas.v1.json";
-/// Agent 写的 PDF 页面批注。schema 见 ai_notes_v1（前端 shared/data/ai-notes.ts）。
-pub(crate) const AI_NOTES_FILE_NAME: &str = "notes.v1.json";
 /// Agent 的画板目录。往里丢文件就能在阅读页的画布上看到 —— 和上面三个不同，
 /// 这里**没有 schema**，agent 用它已有的工具产出什么就显示什么。
 pub(crate) const AI_BOARD_DIR_NAME: &str = "board";

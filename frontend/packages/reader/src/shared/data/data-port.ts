@@ -19,6 +19,13 @@ const DEFAULT_API_PREFIX = "/api/v1";
 const JOB_LOAD_REUSE_MS = 250;
 
 /** 可选产物（regions/metadata）失败降级：保留 fallback 值，同时记录真实错误。 */
+function defaultFetchProtected(input: any, init?: RequestInit): Promise<Response> {
+  if (typeof globalThis.fetch === "function") {
+    return (globalThis.fetch as any)(input, init);
+  }
+  return Promise.reject(new Error(`fetchProtected not injected for ${input}`));
+}
+
 function settleOptional<T>(
   load: () => Promise<T>,
   fallback: T,
@@ -48,16 +55,6 @@ function defaultLoadMetadata(): Promise<unknown> {
   return Promise.resolve(null);
 }
 /** 没注入 = 宿主没有这个端点。返回 null 表示「还没有」，不是失败。 */
-function defaultLoadAiNotes(): Promise<unknown> {
-  return Promise.resolve(null);
-}
-function defaultFetchProtected(input: any, init?: RequestInit): Promise<Response> {
-  if (typeof globalThis.fetch === "function") {
-    return (globalThis.fetch as any)(input, init);
-  }
-  return Promise.reject(new Error(`fetchProtected not injected for ${input}`));
-}
-
 /** Markdown 原文的来源描述（来自 job detail artifacts.markdown）。 */
 export type MarkdownSourceDescriptor = {
   rawUrl: string;
@@ -86,7 +83,6 @@ export function createReaderDataPort({
   fetchMarkdownRange = null,
   loadRegions = defaultLoadRegions,
   loadMetadata = defaultLoadMetadata,
-  loadAiNotes = defaultLoadAiNotes,
   fetchProtectedResource = defaultFetchProtected,
   liveTranslation = null,
 }: {
@@ -102,7 +98,6 @@ export function createReaderDataPort({
   /** agent 写的页面批注。**不跟着 loadReaderPayload 一起加载** —— 它会在阅读过程中
    * 被 agent 重写，需要轮询，而 payload 是一次性的。所以单独一个方法。
    * 文件不存在时返回 null（正常状态，不是错误）。 */
-  loadAiNotes?: (jobId: string, apiPrefix: string) => Promise<unknown>;
   fetchProtectedResource?: typeof fetch;
   liveTranslation?: ReaderLiveTranslationPort | null;
 } = {}) {
@@ -237,11 +232,6 @@ export function createReaderDataPort({
     return fetchMarkdownRange(rawUrl, start, endInclusive, etag, signal);
   }
 
-  function loadAiNotesPayload(jobId: string): Promise<unknown> {
-    if (!jobId) return Promise.resolve(null);
-    // 取不到就当「还没有」：批注是叠加层，拿不到不该让阅读页报错。
-    return Promise.resolve(loadAiNotes(jobId, apiPrefix)).catch(() => null);
-  }
 
   return Object.freeze({
     apiPrefix,
@@ -251,7 +241,6 @@ export function createReaderDataPort({
     loadMarkdownRange,
     loadJobPayload,
     loadReaderPayload,
-    loadAiNotes: loadAiNotesPayload,
     liveTranslation,
   });
 }
