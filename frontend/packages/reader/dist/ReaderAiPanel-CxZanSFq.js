@@ -1,7 +1,7 @@
 import { jsx as i, jsxs as T, Fragment as Ie } from "react/jsx-runtime";
 import { useState as W, useRef as B, useEffect as U, useMemo as Q, useCallback as H, useId as pt } from "react";
 import { Square as mt, ArrowUp as ft, Copy as ht, GitBranch as gt, RefreshCw as yt, Sigma as He, Table2 as wt, Image as vt, Type as It, X as be, BookOpen as Ge, Sparkles as Re, Loader2 as Ce, FileText as Ae, ArrowDown as Ve, Quote as bt, ListTree as Rt, FlaskConical as Ct, ShieldCheck as Nt, Bot as Mt, ChevronUp as _t, ChevronDown as Ye, TriangleAlert as Qe, ExternalLink as St, Check as Je, Circle as At, Plus as kt, Pencil as $t, Trash2 as Tt } from "lucide-react";
-import { c as me, e as fe, g as De, h as xt, d as Et, b as Pt } from "./ReaderApp-o5tCKdGC.js";
+import { c as me, e as fe, g as De, h as xt, d as Et, b as Pt } from "./ReaderApp-B9HbApxY.js";
 import { ThreadPrimitive as se, ComposerPrimitive as ye, MessagePrimitive as Xe, ActionBarPrimitive as _e, useAui as Ot, SelectionToolbarPrimitive as Dt, useExternalStoreRuntime as Ft, AssistantRuntimeProvider as qt } from "@assistant-ui/react";
 import { A as zt } from "./AiMarkdownAnswer-BKvhvx2o.js";
 import { r as Ze } from "./reader-regions-DsePY7B_.js";
@@ -2705,4 +2705,4 @@ function Or({
 export {
   Or as ReaderAiPanel
 };
-//# sourceMappingURL=ReaderAiPanel-BljHjlcB.js.map
+//# sourceMappingURL=ReaderAiPanel-CxZanSFq.js.map

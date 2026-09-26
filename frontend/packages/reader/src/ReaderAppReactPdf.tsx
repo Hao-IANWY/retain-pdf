@@ -40,6 +40,7 @@ import { ReaderHostPanelShell } from "./components/react-pdf/ReaderHostPanelShel
 
 /** 稳定的空数组：每次渲染新建一个会让每页的标记层白白重算。 */
 import { READER_HOST_PANELS } from "./components/react-pdf/reader-host-panels.js";
+import { resolveLiveTranslationToggles } from "./shared/data/live-translation-state.js";
 
 /** 阅读视图可见台面的判别联合。 */
 export type ReaderPaneComposition = {
@@ -196,6 +197,13 @@ export function ReaderAppReactPdf() {
     assistantOpen,
     assistantPdfPane,
   });
+  // 叠层的两个开关分别摆在哪 —— 判断在 live-translation-state.ts 里，因为
+  // 「收掉顶栏 pill 之后叠层还够得着吗」这个不变式要能单测（见那里的注释）。
+  const liveToggles = resolveLiveTranslationToggles({
+    hasOverlayContent,
+    connection: c.liveTranslation.connection,
+    showSource: paneComposition.showSource,
+  });
   const sourceViewOnly = paneComposition.sourceViewOnly;
   const visiblePdfMode = paneComposition.visibleMode;
   const openNotes = useCallback(() => setAssistantPanel(resolveAssistantPanelAfterNote), []);
@@ -302,7 +310,7 @@ export function ReaderAppReactPdf() {
   // 源栏「译文」开关：把流式译文直接叠在原文 PDF 上 / 收起。进行中与完成后
   // 都可用（只要有可叠加内容）。默认关，避免自动叠加造成「左右都中文」。
   const sourcePaneAction = useMemo(() => {
-    if (!hasOverlayContent || !paneComposition.showSource) return null;
+    if (!liveToggles.sourcePaneToggle) return null;
     return (
       <button
         type="button"
@@ -314,7 +322,7 @@ export function ReaderAppReactPdf() {
         译文
       </button>
     );
-  }, [hasOverlayContent, paneComposition.showSource, liveTranslationVisible]);
+  }, [liveToggles.sourcePaneToggle, liveTranslationVisible]);
 
   const selectAssistant = useCallback((next: ReaderAssistantPanel) => {
     setAssistantPanel(next);
@@ -416,7 +424,7 @@ export function ReaderAppReactPdf() {
           documentReady={Boolean(session.jobId)}
           sourceViewOnly={sourceViewOnly}
           onModeChange={changeWorkspace}
-          liveTranslation={hasOverlayContent ? {
+          liveTranslation={liveToggles.topBarPill ? {
             visible: liveTranslationVisible,
             state: c.liveTranslation,
             onToggle: () => setLiveTranslationVisible((visible) => !visible),

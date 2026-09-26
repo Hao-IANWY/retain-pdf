@@ -12,7 +12,7 @@
  * 三个而已，直接摊开比多一层点击好；而且 disabled 的那个要能把原因说出来
  * （title），藏进下拉里就得先点开才知道「译文还没生成」。
  */
-import { Columns2, FileText, Languages } from "lucide-react";
+import { Columns2, Download, FileText, Languages } from "lucide-react";
 import type { ReactElement } from "react";
 
 import {
@@ -51,6 +51,23 @@ export function ReaderDownloadActions(props: ReaderDownloadActionsProps): ReactE
 
   return (
     <div className="reader-download-actions" role="group" aria-label="下载 PDF">
+      {/* 这个 ⤓ 是给眼睛看的组标签，不是按钮。
+        *
+        * 没有它的时候这一组和顶栏中间的模式页签**用的是同一套图标**
+        * （FileText / Columns2 / Languages）、词也几乎一样（原文/对照/译文
+        * vs 源文件/对照/翻译文件），两组都写着「对照」，挨在一条栏上。一个切
+        * 视图、一个下文件，看不出区别 —— 用户报的就是这个。
+        *
+        * 为什么不改成「按当前模式下载」的单个按钮：≤900px 时文字标签会被裁掉
+        * 只剩图标（见 chrome.css 的 900 断点），单按钮方案在窄屏反而更糊；而且
+        * 三路摊开是为了让 disabled 的那一路能就地说出原因。
+        *
+        * 为什么不去掉各自的图标：同样是那条 900 断点 —— 去掉就变成三个一模一样
+        * 的按钮。所以留图标，给整组加前缀。
+        * 读屏走的是 role=group 的 aria-label，所以这里 aria-hidden。 */}
+      <span className="reader-download-actions-prefix" aria-hidden>
+        <Download size={14} strokeWidth={2.2} />
+      </span>
       {downloadItems.map((action) => {
         const meta = READER_DOWNLOAD_ACTIONS[action];
         const url = trimReaderDownloadString(urls[action]);

@@ -256,6 +256,22 @@
   -webkit-backdrop-filter: blur(16px);
 }
 
+/* 整组的 ⤓ 前缀：把这一组和顶栏中间的模式页签区分开。
+ *
+ * 两组原本共用 FileText / Columns2 / Languages 三个图标，词也几乎一样，都有
+ * 「对照」—— 一个切视图、一个下文件。前缀在宽窄屏都保留（900 断点只裁文字
+ * 标签，不裁图标），否则窄屏下三个下载按钮无从分辨。
+ * 它不可点、不夺焦，纯装饰。 */
+.reader-download-actions-prefix {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 6px 0 7px;
+  margin-right: 1px;
+  color: color-mix(in srgb, var(--ink) 38%, var(--muted));
+  border-right: 1px solid color-mix(in srgb, var(--ink) 10%, transparent);
+  pointer-events: none;
+}
+
 /* 按钮外面那层：disabled 的按钮不派发鼠标事件，title 得挂在它身上才弹得出来
  * （见 ReaderDownloadActions.tsx）。它不该在布局上多占一层，所以就是个
  * inline-flex 的贴身盒。 */
@@ -301,8 +317,10 @@
 /* 窄屏只留图标 —— 按钮本身还在，下载仍然够得到。
  *
  * 900px 这个数是算出来的，不是拍的：顶栏页签在内容盒里居中（左右各 72px
- * 内边距），带文字的下载组连同关闭按钮约 274px。900 以下两边会开始压到一起，
- * 而顶栏页签被盖住比下载少三个字糟得多。 */
+ * 内边距），带文字的下载组连同关闭按钮约 274px，加上 ⤓ 前缀约 296px。900 以下
+ * 两边会开始压到一起，而顶栏页签被盖住比下载少三个字糟得多。
+ *
+ * 裁的只是文字：⤓ 前缀和每个按钮的图标都留着，否则窄屏下三个按钮一模一样。 */
 @media (max-width: 900px) {
   .reader-download-action {
     padding: 0;
