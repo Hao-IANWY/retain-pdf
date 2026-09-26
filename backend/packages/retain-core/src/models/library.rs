@@ -29,7 +29,6 @@ pub struct DocumentRecord {
     pub added_at: String,
     pub last_opened_at: Option<String>,
     pub updated_at: String,
-    pub tags: Vec<String>,
     /// 源 PDF 下载 URL（列表/详情由 API 层填充，不入库）
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub source_pdf_url: String,
@@ -161,7 +160,6 @@ pub struct ListDocumentsQuery {
     #[serde(default)]
     pub offset: u32,
     pub reading_status: Option<String>,
-    pub tag: Option<String>,
     pub collection_id: Option<String>,
     /// 按任意 job_id(含历史 run)直查其所属文档,前端无需再扫列表反查
     pub job_id: Option<String>,
@@ -187,7 +185,6 @@ pub struct DocumentListView {
 pub struct PatchDocumentInput {
     pub title: Option<String>,
     pub reading_status: Option<String>,
-    pub tags: Option<Vec<String>>,
 }
 
 fn default_metadata_suggestion_fields() -> Vec<String> {

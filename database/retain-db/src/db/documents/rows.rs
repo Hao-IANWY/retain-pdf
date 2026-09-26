@@ -40,20 +40,9 @@ pub(in crate::db) fn query_document(
     let Some(mut record) = record else {
         return Ok(None);
     };
-    record.tags = load_document_tags(conn, document_id)?;
     Ok(Some(record))
 }
 
-pub(super) fn load_document_tags(conn: &Connection, document_id: &str) -> Result<Vec<String>> {
-    let mut stmt =
-        conn.prepare("SELECT tag FROM document_tags WHERE document_id = ?1 ORDER BY tag")?;
-    let rows = stmt.query_map(params![document_id], |row| row.get::<_, String>(0))?;
-    let mut tags = Vec::new();
-    for row in rows {
-        tags.push(row?);
-    }
-    Ok(tags)
-}
 
 pub(in crate::db) fn row_to_document(row: &rusqlite::Row<'_>) -> rusqlite::Result<DocumentRecord> {
     Ok(DocumentRecord {
@@ -73,7 +62,6 @@ pub(in crate::db) fn row_to_document(row: &rusqlite::Row<'_>) -> rusqlite::Resul
         added_at: row.get(13)?,
         last_opened_at: row.get(14)?,
         updated_at: row.get(15)?,
-        tags: Vec::new(),
         source_pdf_url: String::new(),
         cover_url: String::new(),
         thumbnail_url: String::new(),

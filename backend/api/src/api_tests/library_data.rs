@@ -426,15 +426,15 @@ async fn documents_list_supports_text_search_over_title_and_filename() {
     seed_document(&state, b"text-search-unrelated");
     state
         .db
-        .update_document_fields(&spectra, Some("拉曼散射的计算方法"), None, None)
+        .update_document_fields(&spectra, Some("拉曼散射的计算方法"), None)
         .expect("title spectra");
     state
         .db
-        .update_document_fields(&attention, Some("Attention Is All You Need"), None, None)
+        .update_document_fields(&attention, Some("Attention Is All You Need"), None)
         .expect("title attention");
     state
         .db
-        .update_document_fields(&attention, None, None, None)
+        .update_document_fields(&attention, None, None)
         .expect("noop patch keeps title");
 
     let hit = app
@@ -576,7 +576,6 @@ async fn documents_list_total_uses_filters_upload_constraint_and_job_lookup() {
             &chemistry_reading,
             None,
             Some("reading"),
-            Some(&["chemistry".to_string()]),
         )
         .expect("mark chemistry reading");
     state
@@ -585,7 +584,6 @@ async fn documents_list_total_uses_filters_upload_constraint_and_job_lookup() {
             &biology_reading,
             None,
             Some("reading"),
-            Some(&["biology".to_string()]),
         )
         .expect("mark biology reading");
     state
@@ -594,7 +592,6 @@ async fn documents_list_total_uses_filters_upload_constraint_and_job_lookup() {
             &chemistry_finished,
             None,
             Some("finished"),
-            Some(&["chemistry".to_string()]),
         )
         .expect("mark chemistry finished");
     state
@@ -617,17 +614,12 @@ async fn documents_list_total_uses_filters_upload_constraint_and_job_lookup() {
         [],
     )
     .expect("insert orphan document");
-    conn.execute(
-        "INSERT INTO document_tags (document_id, tag) VALUES ('orphan-filtered', 'chemistry')",
-        [],
-    )
-    .expect("tag orphan document");
 
     let filtered = app
         .clone()
         .oneshot(
             Request::builder()
-                .uri("/api/v1/documents?reading_status=reading&tag=chemistry&collection_id=col-chemistry-reading&limit=1&offset=0")
+                .uri("/api/v1/documents?reading_status=reading&collection_id=col-chemistry-reading&limit=1&offset=0")
                 .header("X-API-Key", "test-key")
                 .body(Body::empty())
                 .expect("filtered request"),

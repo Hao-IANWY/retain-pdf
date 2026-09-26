@@ -11,7 +11,6 @@ export interface MockDocument {
   bytes: number;
   active_job_id: string | null;
   reading_status: MockReadingStatus | string;
-  tags: string[];
   added_at: string;
   updated_at: string;
   last_opened_at?: string | null;
@@ -45,7 +44,6 @@ export interface MockDocumentListResult {
 export interface MockDocumentPatch {
   title?: string;
   reading_status?: MockReadingStatus | string;
-  tags?: string[];
 }
 
 export interface MockCollection {

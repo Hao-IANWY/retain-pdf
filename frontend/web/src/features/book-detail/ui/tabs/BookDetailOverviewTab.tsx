@@ -40,8 +40,6 @@ export type BookDetailOverviewTabProps = {
   memberCollections?: string[];
   editing: boolean;
   titleText: string;
-  tagsText: string;
-  tags: string[];
   authors: string[];
   year: string | number | null | undefined;
   displayTitle: string;
@@ -50,7 +48,6 @@ export type BookDetailOverviewTabProps = {
   onCancelEdit: () => void;
   onSave: () => void;
   onTitleChange: (value: string) => void;
-  onTagsTextChange: (value: string) => void;
   management?: ReactNode;
   ocrStatus?: OverviewStatus;
   translationStatus?: OverviewStatus;

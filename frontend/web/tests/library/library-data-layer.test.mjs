@@ -18,14 +18,13 @@ import { createRecentJobActions } from "../../src/features/library/domain/recent
 
 // ===== documents:形状与语义(与后端对接说明对齐) =====
 
-test("mock 文档列表支持 reading_status 与 tag 过滤", () => {
+test("mock 文档列表支持 reading_status 过滤", () => {
   const all = getMockDocumentList();
   assert.ok(all.documents.length >= 3);
   for (const doc of all.documents) {
     assert.ok(doc.document_id);
     // 文档中心模型:active_job_id 可空(馆藏态,只入库未翻译),不再是硬不变量。
     assert.ok(["unread", "reading", "done"].includes(doc.reading_status));
-    assert.ok(Array.isArray(doc.tags));
     // API 层给每篇文档填三个媒体 URL(镜像后端 with_document_media_urls)。
     assert.ok(doc.source_pdf_url, "source_pdf_url 让馆藏文档也能读原文");
     assert.ok(doc.cover_url);
@@ -39,9 +38,6 @@ test("mock 文档列表支持 reading_status 与 tag 过滤", () => {
   );
   const reading = getMockDocumentList({ readingStatus: "reading" });
   assert.ok(reading.documents.every((doc) => doc.reading_status === "reading"));
-  const tagged = getMockDocumentList({ tag: "化学" });
-  assert.ok(tagged.documents.length >= 1);
-  assert.ok(tagged.documents.every((doc) => doc.tags.includes("化学")));
 });
 
 test("mock 文档列表支持 q 标题/文件名过滤（镜像后端 LIKE）", () => {
@@ -102,12 +98,8 @@ test("deleteMockDocument:被收藏引用时报 409", () => {
   assert.throws(() => deleteMockDocument(MOCK_DOCUMENT_ID), /409/);
 });
 
-test("PATCH 文档:reading_status 校验与 tags 整体替换语义", () => {
+test("PATCH 文档:reading_status 只认三个合法值", () => {
   assert.throws(() => patchMockDocument(MOCK_DOCUMENT_ID, { reading_status: "archived" }), /400/);
-  const updated = patchMockDocument(MOCK_DOCUMENT_ID, { tags: ["新标签"] });
-  assert.deepEqual(updated.tags, ["新标签"]);
-  const cleared = patchMockDocument(MOCK_DOCUMENT_ID, { tags: [] });
-  assert.deepEqual(cleared.tags, [], "传 [] 即清空");
   patchMockDocument(MOCK_DOCUMENT_ID, { reading_status: "done" });
   assert.equal(getMockDocument(MOCK_DOCUMENT_ID).reading_status, "done");
 });

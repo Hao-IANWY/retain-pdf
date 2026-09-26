@@ -83,7 +83,7 @@ impl Fixture {
             })
             .unwrap();
         self.db
-            .update_document_fields(document_id, Some(title), None, None)
+            .update_document_fields(document_id, Some(title), None)
             .unwrap();
         upload_id
     }

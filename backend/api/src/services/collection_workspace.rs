@@ -150,7 +150,7 @@ pub fn ensure_collection_workspace(
     collection_id: &str,
 ) -> Result<CollectionWorkspace, AppError> {
     let documents = db
-        .list_documents(MAX_BOOKS, 0, None, None, Some(collection_id), None)
+        .list_documents(MAX_BOOKS, 0, None, Some(collection_id), None)
         .map_err(|err| AppError::internal(format!("list collection documents: {err}")))?;
 
     let workspace = collection_workspace_dir(data_root, collection_id);

@@ -89,7 +89,6 @@ pub fn list_documents(
         query.limit.clamp(1, MAX_DOCUMENT_LIMIT),
         query.offset,
         query.reading_status.as_deref(),
-        query.tag.as_deref(),
         query.collection_id.as_deref(),
         query.q.as_deref(),
     )?;
@@ -228,7 +227,6 @@ pub fn patch_document(
             document_id,
             payload.title.as_deref().map(str::trim),
             payload.reading_status.as_deref(),
-            payload.tags.as_deref(),
         )
         .map_err(|_| AppError::not_found(format!("document not found: {document_id}")))?;
     Ok(with_document_media_urls(document, base_url))

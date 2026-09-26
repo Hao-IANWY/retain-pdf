@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 
 use anyhow::{Context, Result};
 use rusqlite::{params, Connection, OptionalExtension, ToSql, TransactionBehavior};
@@ -28,7 +27,6 @@ fn like_pattern(query: &str) -> String {
 
 fn build_document_filter_query(
     reading_status: Option<&str>,
-    tag: Option<&str>,
     collection_id: Option<&str>,
     query: Option<&str>,
 ) -> DocumentFilterQuery {
@@ -42,13 +40,6 @@ fn build_document_filter_query(
     if let Some(status) = reading_status {
         clauses.push(format!("d.reading_status = ?{}", args.len() + 1));
         args.push(status.to_string());
-    }
-    if let Some(tag) = tag {
-        clauses.push(format!(
-            "EXISTS (SELECT 1 FROM document_tags t WHERE t.document_id = d.document_id AND t.tag = ?{})",
-            args.len() + 1
-        ));
-        args.push(tag.to_string());
     }
     if let Some(collection_id) = collection_id {
         clauses.push(format!(
@@ -108,41 +99,9 @@ fn query_documents(
     for row in rows {
         documents.push(row?);
     }
-    load_page_tags(conn, &mut documents)?;
     Ok(documents)
 }
 
-fn load_page_tags(conn: &Connection, documents: &mut [DocumentRecord]) -> Result<()> {
-    if documents.is_empty() {
-        return Ok(());
-    }
-    let ids: Vec<_> = documents
-        .iter()
-        .map(|document| document.document_id.as_str())
-        .collect();
-    #[cfg(test)]
-    PAGE_TAG_QUERIES.with(|count| count.set(count.get() + 1));
-    let mut stmt = conn.prepare(
-        "SELECT document_id, tag FROM document_tags WHERE document_id IN (SELECT value FROM json_each(?1)) ORDER BY document_id, tag",
-    )?;
-    let rows = stmt.query_map(params![serde_json::to_string(&ids)?], |row| {
-        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
-    })?;
-    let mut tags: HashMap<String, Vec<String>> = HashMap::new();
-    for row in rows {
-        let (document_id, tag) = row?;
-        tags.entry(document_id).or_default().push(tag);
-    }
-    for document in documents {
-        document.tags = tags.remove(&document.document_id).unwrap_or_default();
-    }
-    Ok(())
-}
-
-#[cfg(test)]
-thread_local! {
-    static PAGE_TAG_QUERIES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
-}
 
 fn count_documents_with_filter(conn: &Connection, filter: &DocumentFilterQuery) -> Result<u64> {
     let sql = format!("SELECT COUNT(*) FROM documents d {}", filter.where_sql);
@@ -232,24 +191,22 @@ impl Db {
         limit: u32,
         offset: u32,
         reading_status: Option<&str>,
-        tag: Option<&str>,
-        collection_id: Option<&str>,
+            collection_id: Option<&str>,
         query: Option<&str>,
     ) -> Result<Vec<DocumentRecord>> {
         let conn = self.connect()?;
-        let filter = build_document_filter_query(reading_status, tag, collection_id, query);
+        let filter = build_document_filter_query(reading_status, collection_id, query);
         query_documents(&conn, &filter, limit, offset)
     }
 
     pub fn count_documents(
         &self,
         reading_status: Option<&str>,
-        tag: Option<&str>,
-        collection_id: Option<&str>,
+            collection_id: Option<&str>,
         query: Option<&str>,
     ) -> Result<u64> {
         let conn = self.connect()?;
-        let filter = build_document_filter_query(reading_status, tag, collection_id, query);
+        let filter = build_document_filter_query(reading_status, collection_id, query);
         count_documents_with_filter(&conn, &filter)
     }
 
@@ -260,13 +217,12 @@ impl Db {
         limit: u32,
         offset: u32,
         reading_status: Option<&str>,
-        tag: Option<&str>,
-        collection_id: Option<&str>,
+            collection_id: Option<&str>,
         query: Option<&str>,
     ) -> Result<(Vec<DocumentRecord>, u64)> {
         let mut conn = self.connect()?;
         let transaction = conn.transaction()?;
-        let filter = build_document_filter_query(reading_status, tag, collection_id, query);
+        let filter = build_document_filter_query(reading_status, collection_id, query);
         let total = count_documents_with_filter(&transaction, &filter)?;
         let documents = query_documents(&transaction, &filter, limit, offset)?;
         transaction.commit()?;
@@ -278,7 +234,6 @@ impl Db {
         document_id: &str,
         title: Option<&str>,
         reading_status: Option<&str>,
-        tags: Option<&[String]>,
     ) -> Result<DocumentRecord> {
         let mut conn = self.connect()?;
         let tx = conn.transaction()?;
@@ -306,22 +261,6 @@ impl Db {
                 "UPDATE documents SET reading_status = ?1, updated_at = ?2 WHERE document_id = ?3",
                 params![status, now, document_id],
             )?;
-        }
-        if let Some(tags) = tags {
-            tx.execute(
-                "DELETE FROM document_tags WHERE document_id = ?1",
-                params![document_id],
-            )?;
-            for tag in tags {
-                let tag = tag.trim();
-                if tag.is_empty() {
-                    continue;
-                }
-                tx.execute(
-                    "INSERT OR IGNORE INTO document_tags (document_id, tag) VALUES (?1, ?2)",
-                    params![document_id, tag],
-                )?;
-            }
         }
         let record = query_document(&tx, document_id)?
             .with_context(|| format!("document not found: {document_id}"))?;
@@ -453,7 +392,7 @@ impl Db {
         Ok(changed > 0)
     }
 
-    /// 删除文档行(FK 级联清 favorites/document_tags/collection_documents,
+    /// 删除文档行(FK 级联清 favorites/collection_documents,
     /// ai_conversations.document_id 置 NULL)+ 派生的 blocks_fts 行。
     pub fn delete_document(&self, document_id: &str) -> Result<bool> {
         let conn = self.connect()?;
@@ -579,41 +518,4 @@ fn delete_job_rows(tx: &rusqlite::Transaction<'_>, job_ids: &[String]) -> Result
 mod page_io_tests {
     use super::*;
 
-    #[test]
-    fn tags_use_one_query_for_a_page_and_keep_order_and_empty_lists() {
-        let root =
-            std::env::temp_dir().join(format!("retain-document-page-tags-{}", fastrand::u64(..)));
-        let db = Db::new(root.join("jobs.db"), root.clone());
-        let conn = db.connect().unwrap();
-        conn.execute_batch(
-            "WITH RECURSIVE ids(n) AS (VALUES(1) UNION ALL SELECT n + 1 FROM ids WHERE n < 500)
-             INSERT INTO uploads (upload_id, filename, stored_path, bytes, page_count, uploaded_at, developer_mode, content_hash)
-             SELECT 'upload-' || n, 'paper.pdf', 'uploads/paper.pdf', 10, 1, 'now', 0, 'document-' || n FROM ids;
-             INSERT INTO documents (document_id, title, source_filename, page_count, bytes, added_at, updated_at)
-             SELECT content_hash, filename, filename, page_count, bytes, uploaded_at, uploaded_at FROM uploads;
-             INSERT INTO document_tags (document_id, tag)
-             SELECT document_id, 'zebra' FROM documents WHERE document_id <> 'document-1';
-             INSERT INTO document_tags (document_id, tag)
-             SELECT document_id, 'alpha' FROM documents WHERE document_id <> 'document-1';",
-        ).unwrap();
-        PAGE_TAG_QUERIES.with(|count| count.set(0));
-        let (page, total) = db
-            .list_documents_with_total(500, 0, None, None, None, None)
-            .unwrap();
-        assert_eq!(total, 500);
-        assert_eq!(page.len(), 500);
-        assert_eq!(PAGE_TAG_QUERIES.with(|count| count.get()), 1);
-        let by_id: HashMap<_, _> = page
-            .iter()
-            .map(|doc| (doc.document_id.as_str(), &doc.tags))
-            .collect();
-        assert!(by_id["document-1"].is_empty());
-        assert_eq!(by_id["document-2"].as_slice(), ["alpha", "zebra"]);
-        assert_eq!(by_id["document-500"].as_slice(), ["alpha", "zebra"]);
-        let empty = db.list_documents(500, 500, None, None, None, None).unwrap();
-        assert!(empty.is_empty());
-        assert_eq!(PAGE_TAG_QUERIES.with(|count| count.get()), 1);
-        drop(conn);
-        std::fs::remove_dir_all(root).unwrap();
-    }
 }

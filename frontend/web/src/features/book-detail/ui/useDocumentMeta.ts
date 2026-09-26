@@ -46,8 +46,6 @@ export function useDocumentMeta({
   const [deleteBlocked, setDeleteBlocked] = useState<DeleteBlockedState | null>(null);
   const [editing, setEditing] = useState(false);
   const [titleText, setTitleText] = useState("");
-  const [tagsText, setTagsText] = useState("");
-  const [tags, setTags] = useState<string[]>([]);
   const requestGenerationRef = useRef(0);
   const scopeRef = useRef({ open, documentId });
   scopeRef.current = { open, documentId };
@@ -75,14 +73,10 @@ export function useDocumentMeta({
         reading_status?: string;
         title?: string;
         source_filename?: string;
-        tags?: string[];
       };
       setDoc(full);
       setReadingStatus(detail.reading_status || "unread");
       setTitleText(detail.title || detail.source_filename || "");
-      const fullTags = Array.isArray(detail.tags) ? detail.tags : [];
-      setTags(fullTags);
-      setTagsText(fullTags.join("、"));
       return full;
     } catch {
       return null;
@@ -99,13 +93,9 @@ export function useDocumentMeta({
       return undefined;
     }
     // 只在打开/换文档时做初始同步；刻意不依赖 item（轮询会换引用），
-    // 否则后台刷新会覆盖用户正在编辑的 title/tags，并反复重打 fetchDocument。
     const liveItem = itemRef.current;
-    const initialTags: string[] = Array.isArray(liveItem?.tags) ? liveItem.tags : [];
     setReadingStatus(liveItem?.reading_status || "unread");
     setTitleText(liveItem?.title || liveItem?.display_name || "");
-    setTags(initialTags);
-    setTagsText(initialTags.join("、"));
     void refresh();
     return () => {
       requestGenerationRef.current += 1;
@@ -145,15 +135,10 @@ export function useDocumentMeta({
 
   function startEdit() {
     setTitleText(doc?.title || item?.title || item?.display_name || "");
-    setTagsText((tags || []).join("、"));
     setEditing(true);
   }
 
   async function handleSaveEdit() {
-    const nextTags = tagsText
-      .split(/[，,、\s]+/)
-      .map((t) => t.trim())
-      .filter(Boolean);
     const nextTitle = titleText.trim();
     try {
       await withBusy(
@@ -161,10 +146,8 @@ export function useDocumentMeta({
         async () => {
           const updated = await actions.updateDocument(documentId, {
             title: nextTitle || undefined,
-            tags: nextTags,
           });
           if (updated) setDoc(updated);
-          setTags(nextTags);
           setEditing(false);
         },
         "保存失败",
@@ -245,10 +228,6 @@ export function useDocumentMeta({
     setEditing,
     titleText,
     setTitleText,
-    tagsText,
-    setTagsText,
-    tags,
-    setTags,
     refresh,
     startEdit,
     handleSaveEdit,

@@ -40,7 +40,6 @@ export function getMockDocumentList({
     list = list.filter((item) => item.reading_status === trimId(readingStatus));
   }
   if (`${tag}`.trim()) {
-    list = list.filter((item) => item.tags.includes(trimId(tag)));
   }
   if (`${collectionId}`.trim()) {
     const memberIds = collectionMembership(trimId(collectionId));

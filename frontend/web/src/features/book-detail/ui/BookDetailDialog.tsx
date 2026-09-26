@@ -216,8 +216,6 @@ export function BookDetailDialog() {
               memberCollections={docState.memberCollections}
               editing={docState.editing}
               titleText={docState.titleText}
-              tagsText={docState.tagsText}
-              tags={docState.tags}
               authors={docState.authors}
               year={docState.doc?.year}
               displayTitle={docState.doc?.title || docState.titleText}
@@ -231,7 +229,6 @@ export function BookDetailDialog() {
               onCancelEdit={() => docState.setEditing(false)}
               onSave={docState.handleSaveEdit}
               onTitleChange={docState.setTitleText}
-              onTagsTextChange={docState.setTagsText}
               management={(
                 <BookDetailManageTab
                   readingStatus={docState.readingStatus}

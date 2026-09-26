@@ -60,12 +60,6 @@ const VERSIONED_MIGRATIONS: &[&str] = &[
         added_at        TEXT NOT NULL,
         PRIMARY KEY(collection_id, document_id)
     );
-    CREATE TABLE IF NOT EXISTS document_tags (
-        document_id     TEXT NOT NULL REFERENCES documents(document_id) ON DELETE CASCADE,
-        tag             TEXT NOT NULL,
-        PRIMARY KEY(document_id, tag)
-    );
-    CREATE INDEX IF NOT EXISTS idx_document_tags_tag ON document_tags(tag);
     CREATE VIRTUAL TABLE IF NOT EXISTS blocks_fts USING fts5(
         document_id UNINDEXED, job_id UNINDEXED, page_idx UNINDEXED, block_id UNINDEXED,
         source_text, translated_text,

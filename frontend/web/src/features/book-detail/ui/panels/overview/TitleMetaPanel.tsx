@@ -7,8 +7,6 @@ import { Check, Pencil, X } from "lucide-react";
  * @param {object} props
  * @param {boolean} props.editing
  * @param {string} props.titleText
- * @param {string} props.tagsText
- * @param {string[]} props.tags
  * @param {string[]} props.authors
  * @param {string|number|null|undefined} props.year
  * @param {string} props.displayTitle 展示用标题
@@ -17,13 +15,10 @@ import { Check, Pencil, X } from "lucide-react";
  * @param {() => void} props.onCancelEdit
  * @param {() => void} props.onSave
  * @param {(v: string) => void} props.onTitleChange
- * @param {(v: string) => void} props.onTagsTextChange
  */
 export function TitleMetaPanel({
   editing,
   titleText,
-  tagsText,
-  tags,
   authors,
   year,
   displayTitle,
@@ -32,7 +27,6 @@ export function TitleMetaPanel({
   onCancelEdit,
   onSave,
   onTitleChange,
-  onTagsTextChange,
 }) {
   return (
     <div className="flex items-start justify-between gap-3 pr-8">
@@ -50,11 +44,8 @@ export function TitleMetaPanel({
             <div>
               <p className="mb-1 text-xs text-muted-foreground">标签（逗号或顿号分隔）</p>
               <input
-                id="book-detail-tags-input"
                 type="text"
-                value={tagsText}
                 placeholder="例如：化学、综述"
-                onChange={(e) => onTagsTextChange(e.target.value)}
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
               />
             </div>
@@ -85,15 +76,6 @@ export function TitleMetaPanel({
               {authors.length ? authors.join("、") : "未知作者"}
               {year ? ` · ${year}` : ""}
             </p>
-            {tags.length ? (
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {tags.map((t) => (
-                  <span key={t} className="rounded-full bg-muted px-2.5 py-0.5 text-xs text-muted-foreground">
-                    {t}
-                  </span>
-                ))}
-              </div>
-            ) : null}
           </>
         )}
       </div>

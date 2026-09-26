@@ -70,7 +70,6 @@ export type LibraryCardItem = {
 
   // 文档元数据
   reading_status?: string;
-  tags?: string[];
   source_pdf_url?: string;
   bytes?: number | null;
 
