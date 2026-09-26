@@ -41,8 +41,7 @@ export const READER_BASE_PANEL_IDS = [
  * 顺序就是 dock 里 tab 的顺序。
  */
 export const READER_HOST_PANEL_IDS = [
-  "reading-path",
-  "reading-canvas",
+  "reading-map",
   "terminal",
 ] as const;
 

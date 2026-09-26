@@ -53,7 +53,7 @@ const renderShell = (panel, active) => renderToStaticMarkup(
 );
 
 test("三个宿主槽位面板都真的接到了假渲染器 —— 否则下面两条永远绿", () => {
-  assert.ok(READER_HOST_PANELS.length >= 3, `只登记了 ${READER_HOST_PANELS.length} 个槽位面板`);
+  assert.ok(READER_HOST_PANELS.length >= 2, `只登记了 ${READER_HOST_PANELS.length} 个槽位面板`);
   for (const panel of READER_HOST_PANELS) {
     assert.match(
       renderShell(panel, panel.id),

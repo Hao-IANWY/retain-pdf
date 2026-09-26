@@ -119,22 +119,15 @@ export type ReaderReadingPathSlotProps = {
   onClose: () => void;
 };
 
-export type ReaderReadingPathAdapters = {
+export type ReaderReadingMapAdapters = {
   /** 阅读路径面板由宿主渲染 —— 数据来自 RetainPDF 的 API，包不认识那个端点。
    *
    * 和终端槽位同一个道理：包决定它在 dock 里的位置和生命周期，内容宿主给。
    * 不提供 = 这个 tab 不出现。
    */
-  renderReaderReadingPath?: (props: ReaderReadingPathSlotProps) => ReactNode;
+  renderReaderReadingMap?: (props: ReaderReadingPathSlotProps) => ReactNode;
 };
 
-export type ReaderReadingCanvasAdapters = {
-  /** 阅读路径的画布视图。和 renderReaderReadingPath 是同一份数据的两个渲染器 ——
-   * 列表看顺序，画布看空间关系。分成两个槽位而不是一个带模式开关，是因为画布
-   * 依赖很重（tldraw），要能单独懒加载。
-   */
-  renderReaderReadingCanvas?: (props: ReaderReadingPathSlotProps) => ReactNode;
-};
 
 export type ReaderTerminalAdapters = {
   /** 终端面板由**宿主**渲染。
@@ -156,8 +149,7 @@ export type ReaderAdapters = ReaderSessionAdapters
   & ReaderCredentialsAdapters
   & ReaderAiAdapters
   & ReaderTerminalAdapters
-  & ReaderReadingPathAdapters
-  & ReaderReadingCanvasAdapters;
+  & ReaderReadingMapAdapters;
 
 /**
  * ReaderAdapters 声明键的运行时镜像（TS 类型在运行时被擦除）。
@@ -193,8 +185,7 @@ export const READER_ADAPTER_KEYS = [
   "credentialsPort",
   "askDocumentAi",
   "renderReaderTerminal",
-  "renderReaderReadingPath",
-  "renderReaderReadingCanvas",
+  "renderReaderReadingMap",
 ] as const satisfies readonly (keyof ReaderAdapters)[];
 
 /** 必填（非 `?`）适配键子集，供门禁断言最小注入面。 */

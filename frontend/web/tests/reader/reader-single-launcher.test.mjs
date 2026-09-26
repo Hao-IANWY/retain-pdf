@@ -17,7 +17,7 @@
  *
  * ## 所以这份文件守的是「可达性」，不是「代码长什么样」
  *
- * - 6 个面板每一个都在唯一那个启动器的清单里（从 id 真源 map 出来对账，
+ * - 5 个面板每一个都在唯一那个启动器的清单里（从 id 真源 map 出来对账，
  *   不手抄一份清单：手抄的那份漏一个也没人知道）；
  * - 三路下载仍然可达；
  * - **没有任何 CSS 规则会把这个启动器整体隐藏** —— 这正是圆钮栽的地方。
@@ -60,7 +60,7 @@ const readStyle = (name) => stripComments(readFileSync(
 
 // ------------------------------------------------------------------ 清单对账
 
-test("6 个面板每一个都在唯一那个启动器的清单里", () => {
+test("5 个面板每一个都在唯一那个启动器的清单里", () => {
   // 从 id 真源 map 出来比，不在这里抄第二份清单 —— 抄的那份漏一个的表现是
   // 「那个面板再也打不开」，而这条测试照样绿。
   const ids = readerDockTabs(() => true).map((tab) => tab.id);
@@ -68,7 +68,7 @@ test("6 个面板每一个都在唯一那个启动器的清单里", () => {
   assert.deepEqual([...ids].sort(), [...READER_ASSISTANT_PANEL_IDS].sort());
   // 顺序也来自真源：dock 里 tab 的先后就是这份清单的先后。
   assert.deepEqual(ids, [...READER_ASSISTANT_PANEL_IDS]);
-  assert.ok(ids.length >= 6, `只有 ${ids.length} 个面板，八成漏登记了`);
+  assert.ok(ids.length >= 5, `只有 ${ids.length} 个面板，八成漏登记了`);
 });
 
 test("每个面板都有标签和图标 —— 少一样那个 tab 要么空白要么崩", () => {

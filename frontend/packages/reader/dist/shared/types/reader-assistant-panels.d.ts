@@ -34,8 +34,8 @@ export declare const READER_BASE_PANEL_IDS: readonly ["markdown", "ai", "notes"]
  *
  * 顺序就是 dock 里 tab 的顺序。
  */
-export declare const READER_HOST_PANEL_IDS: readonly ["reading-path", "reading-canvas", "terminal"];
-export declare const READER_ASSISTANT_PANEL_IDS: readonly ["markdown", "ai", "notes", "reading-path", "reading-canvas", "terminal"];
+export declare const READER_HOST_PANEL_IDS: readonly ["reading-map", "terminal"];
+export declare const READER_ASSISTANT_PANEL_IDS: readonly ["markdown", "ai", "notes", "reading-map", "terminal"];
 export type ReaderBasePanelId = (typeof READER_BASE_PANEL_IDS)[number];
 export type ReaderHostPanelId = (typeof READER_HOST_PANEL_IDS)[number];
 export type ReaderAssistantPanel = ReaderBasePanelId | ReaderHostPanelId;

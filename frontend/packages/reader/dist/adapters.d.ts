@@ -97,20 +97,13 @@ export type ReaderReadingPathSlotProps = {
     }) => void;
     onClose: () => void;
 };
-export type ReaderReadingPathAdapters = {
+export type ReaderReadingMapAdapters = {
     /** 阅读路径面板由宿主渲染 —— 数据来自 RetainPDF 的 API，包不认识那个端点。
      *
      * 和终端槽位同一个道理：包决定它在 dock 里的位置和生命周期，内容宿主给。
      * 不提供 = 这个 tab 不出现。
      */
-    renderReaderReadingPath?: (props: ReaderReadingPathSlotProps) => ReactNode;
-};
-export type ReaderReadingCanvasAdapters = {
-    /** 阅读路径的画布视图。和 renderReaderReadingPath 是同一份数据的两个渲染器 ——
-     * 列表看顺序，画布看空间关系。分成两个槽位而不是一个带模式开关，是因为画布
-     * 依赖很重（tldraw），要能单独懒加载。
-     */
-    renderReaderReadingCanvas?: (props: ReaderReadingPathSlotProps) => ReactNode;
+    renderReaderReadingMap?: (props: ReaderReadingPathSlotProps) => ReactNode;
 };
 export type ReaderTerminalAdapters = {
     /** 终端面板由**宿主**渲染。
@@ -124,13 +117,13 @@ export type ReaderTerminalAdapters = {
      */
     renderReaderTerminal?: (props: ReaderTerminalSlotProps) => ReactNode;
 };
-export type ReaderAdapters = ReaderSessionAdapters & ReaderMarkdownAdapters & ReaderDownloadAdapters & ReaderDocumentIdentityAdapters & ReaderCredentialsAdapters & ReaderAiAdapters & ReaderTerminalAdapters & ReaderReadingPathAdapters & ReaderReadingCanvasAdapters;
+export type ReaderAdapters = ReaderSessionAdapters & ReaderMarkdownAdapters & ReaderDownloadAdapters & ReaderDocumentIdentityAdapters & ReaderCredentialsAdapters & ReaderAiAdapters & ReaderTerminalAdapters & ReaderReadingMapAdapters;
 /**
  * ReaderAdapters 声明键的运行时镜像（TS 类型在运行时被擦除）。
  * 注册层与门禁测试共用，避免手工复制字段集漂移；`satisfies` 保证不引入拼错键。
  * 完整性由紧随其后的编译期断言守护。
  */
-export declare const READER_ADAPTER_KEYS: readonly ["isMockMode", "resolveResourceUrl", "fetchProtected", "resolvePdfjsVendorUrl", "defaultReaderDataPort", "defaultReaderPageConfigPort", "resolveReaderAnchor", "resolveReaderDocumentId", "resolveReaderJobId", "resolveReaderArtifactUrl", "resolveReaderSourcePdf", "resolveReaderTranslatedPdfUrl", "liveTranslation", "pdf", "sessionData", "aiOperations", "conversations", "askChat", "resolveMarkdownAssetUrl", "resolveReaderDownloadUrls", "resolveReaderDownloadName", "downloadProtectedResource", "failDownloadToast", "apiPrefix", "fetchDocumentByJobId", "credentialsPort", "askDocumentAi", "renderReaderTerminal", "renderReaderReadingPath", "renderReaderReadingCanvas"];
+export declare const READER_ADAPTER_KEYS: readonly ["isMockMode", "resolveResourceUrl", "fetchProtected", "resolvePdfjsVendorUrl", "defaultReaderDataPort", "defaultReaderPageConfigPort", "resolveReaderAnchor", "resolveReaderDocumentId", "resolveReaderJobId", "resolveReaderArtifactUrl", "resolveReaderSourcePdf", "resolveReaderTranslatedPdfUrl", "liveTranslation", "pdf", "sessionData", "aiOperations", "conversations", "askChat", "resolveMarkdownAssetUrl", "resolveReaderDownloadUrls", "resolveReaderDownloadName", "downloadProtectedResource", "failDownloadToast", "apiPrefix", "fetchDocumentByJobId", "credentialsPort", "askDocumentAi", "renderReaderTerminal", "renderReaderReadingMap"];
 /** 必填（非 `?`）适配键子集，供门禁断言最小注入面。 */
 export declare const READER_REQUIRED_ADAPTER_KEYS: readonly ["resolveMarkdownAssetUrl", "resolveReaderDownloadUrls", "resolveReaderDownloadName", "downloadProtectedResource", "failDownloadToast", "fetchDocumentByJobId", "credentialsPort", "askDocumentAi"];
 export declare function setReaderAdapters(a: ReaderAdapters | null): void;

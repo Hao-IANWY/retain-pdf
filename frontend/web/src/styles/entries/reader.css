@@ -146,6 +146,55 @@
     opacity: 0.7;
   }
 
+  /* 阅读地图：列表 / 画布两个视图共用一个面板。 */
+  .reader-reading-map {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+  }
+
+  .reader-reading-map-views {
+    display: flex;
+    gap: 4px;
+    padding: 0 2px 6px;
+    flex: 0 0 auto;
+  }
+
+  .reader-reading-map-view {
+    font-size: 11.5px;
+    line-height: 1.5;
+    padding: 3px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    color: var(--ink);
+    background: transparent;
+    border: 1px solid color-mix(in srgb, var(--ink) 14%, transparent);
+  }
+
+  .reader-reading-map-view[aria-pressed="true"] {
+    background: color-mix(in srgb, var(--accent) 24%, transparent);
+    border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  }
+
+  .reader-reading-map-body {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  /* 非当前视图挪到屏幕外而不是 display:none —— tldraw 量到 0 尺寸会画不出来。
+     和终端标签同一套手法。 */
+  .reader-reading-map-body[data-hidden] {
+    position: absolute;
+    left: -200vw;
+    top: 0;
+    width: 60vw;
+    height: 50vh;
+    pointer-events: none;
+  }
+
   /* 标签条：同时开几条终端。 */
   .reader-terminal-tabs {
     display: flex;

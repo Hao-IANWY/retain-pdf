@@ -15,7 +15,7 @@
  * 会话键。再加一个「给它文档和跳转」的面板时，宿主侧**一行都不用改** —— 这正是
  * 这次要换来的东西。
  */
-import { PenTool, Route, SquareTerminal } from "lucide-react";
+import { Route, SquareTerminal } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import type {
@@ -67,22 +67,15 @@ export type ReaderHostPanelSpec = ReaderHostPanelBase & (
 export type ReaderHostPanelSlotKind = ReaderHostPanelSpec["slot"];
 
 const SPECS = {
-  "reading-path": {
-    label: "阅读路径",
-    short: "路径",
+  "reading-map": {
+    label: "阅读地图",
+    short: "图",
     Icon: Route,
-    adapterKey: "renderReaderReadingPath",
+    adapterKey: "renderReaderReadingMap",
     slot: "document",
-    ariaLabel: "阅读路径",
-    keepMounted: false,
-  },
-  "reading-canvas": {
-    label: "画布",
-    short: "画",
-    Icon: PenTool,
-    adapterKey: "renderReaderReadingCanvas",
-    slot: "document",
-    ariaLabel: "AI 画布",
+    ariaLabel: "阅读地图",
+    // 画布卸载会让 tldraw 整个重建（闪一下，且丢掉平移缩放），所以整个面板
+    // 都留在树上 —— 列表那半本来不需要，但它很轻，不值得为它拆两种生命周期。
     keepMounted: true,
   },
   terminal: {

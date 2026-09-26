@@ -51,7 +51,7 @@ test("槽位是可选适配键，不能进必填列表", () => {
   const requiredBlock = ADAPTERS.slice(ADAPTERS.indexOf("READER_REQUIRED_ADAPTER_KEYS"));
   const block = requiredBlock.slice(0, requiredBlock.indexOf("] as const"));
   assert.doesNotMatch(block, /renderReaderReadingPath/);
-  assert.match(ADAPTERS, /"renderReaderReadingPath",/);
+  assert.match(ADAPTERS, /"renderReaderReadingMap",/);
 });
 
 test("包不认识那个 API 端点", () => {

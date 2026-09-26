@@ -58,13 +58,16 @@ test("藏起来的面板不参与 Tab、不被读屏念出来", () => {
   assert.match(shell, /aria-hidden=\{!open \? true : undefined\}/);
 });
 
-test("终端和画布是 keepMounted 的，阅读路径不是", () => {
-  // 只在「卸载会丢掉不可重建的状态」时才开：终端 = 杀 PTY，画布 = tldraw 重建。
-  // 阅读路径没有这类状态，卸载还顺便释放了轮询定时器。
+test("两个宿主面板都是 keepMounted 的，各有各的理由", () => {
+  // 只在「卸载会丢掉不可重建的状态」时才开：终端 = 杀 PTY，阅读地图 = 里面
+  // 的画布会让 tldraw 整个重建（闪一下，且丢掉平移缩放）。
+  //
+  // 阅读地图的列表那半本来不需要常驻，但它很轻 —— 不值得为它把一个面板拆成
+  // 两种生命周期，那正是合并之前的样子。
   const by = Object.fromEntries(READER_HOST_PANELS.map((p) => [p.id, p.keepMounted]));
   assert.equal(by.terminal, true, "终端被卸载 = 杀掉 fx 会话");
-  assert.equal(by["reading-canvas"], true, "画布被卸载 = tldraw 整个重建，会闪");
-  assert.equal(by["reading-path"], false);
+  assert.equal(by["reading-map"], true, "画布被卸载 = tldraw 整个重建，会闪");
+  assert.equal(Object.keys(by).length, 2, "宿主面板数变了，这条断言要跟着看一遍");
 });
 
 test("终端自己那层的 hidden 仍在 —— 两层配合，不是二选一", () => {

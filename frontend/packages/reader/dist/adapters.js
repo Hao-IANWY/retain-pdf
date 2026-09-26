@@ -30,8 +30,7 @@ const l = [
   "credentialsPort",
   "askDocumentAi",
   "renderReaderTerminal",
-  "renderReaderReadingPath",
-  "renderReaderReadingCanvas"
+  "renderReaderReadingMap"
 ], c = [
   "resolveMarkdownAssetUrl",
   "resolveReaderDownloadUrls",

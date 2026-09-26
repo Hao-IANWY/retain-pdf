@@ -35,7 +35,7 @@ test("每个宿主槽位都按「有没有注册渲染器」决定显不显示",
   // 之后照样绿，而这里跑的就是 dock 渲染 tab 用的那一个函数。
   const registered = readerDockTabs(() => true).map((tab) => tab.id);
   const none = readerDockTabs(() => false).map((tab) => tab.id);
-  assert.ok(READER_HOST_PANELS.length >= 3, "槽位面板没找全");
+  assert.ok(READER_HOST_PANELS.length >= 2, "槽位面板没找全");
   for (const panel of READER_HOST_PANELS) {
     assert.ok(registered.includes(panel.id), `宿主注册了渲染器，${panel.id} 却没有 tab`);
     assert.ok(!none.includes(panel.id), `宿主没注册渲染器，${panel.id} 仍然给了一个点不出东西的 tab`);

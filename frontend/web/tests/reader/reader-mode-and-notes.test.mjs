@@ -113,7 +113,7 @@ test("原来 FAB 菜单里的两样（Markdown / AI）一个都没丢", () => {
     assert.ok(ids.includes(id), `${id} 不在启动器清单里: ${ids}`);
   }
   // 宿主槽位面板也在同一份清单里 —— 这正是「两个启动器各管一半」消失的证据。
-  assert.ok(READER_HOST_PANEL_IDS.length >= 3, `宿主槽位面板没找全: ${READER_HOST_PANEL_IDS}`);
+  assert.ok(READER_HOST_PANEL_IDS.length >= 2, `宿主槽位面板没找全: ${READER_HOST_PANEL_IDS}`);
   for (const id of READER_HOST_PANEL_IDS) {
     assert.ok(ids.includes(id), `${id} 不在启动器清单里: ${ids}`);
   }

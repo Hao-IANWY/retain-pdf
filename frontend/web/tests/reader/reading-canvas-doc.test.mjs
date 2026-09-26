@@ -204,8 +204,9 @@ test("退路不能被悄悄加回来", () => {
   const PANEL = read("../../src/features/reader/ui/reading-canvas.tsx");
   assert.doesNotMatch(PANEL, /fetchArtifact\(jobId, "reading-path"\)/,
     "画布又去拉阅读路径了 —— 每 4 秒一次的白拉请求");
-  // 空状态得把人指到旁边那个 tab,否则「画布是空的」看起来像功能坏了。
-  assert.match(PANEL, /阅读路径在旁边那个 tab/);
+  // 空状态得说清楚阅读顺序在哪,否则「画布是空的」看起来像功能坏了。
+  // 合并成「阅读地图」之后那是面板内的另一个视图,不再是隔壁 tab。
+  assert.match(PANEL, /阅读顺序在「路径」那个视图/);
 });
 
 test("概念图写坏了要说出来，不能静默当成空", () => {

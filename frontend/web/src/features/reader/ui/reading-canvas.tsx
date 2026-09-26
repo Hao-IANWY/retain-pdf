@@ -123,7 +123,7 @@ function ReadingCanvasPanel({ open, jobId, onJump }: ReaderReadingPathSlotProps)
   if (source.kind === "empty" && board.length === 0) {
     return (
       <p className="reader-reading-path-note">
-        画布是空的。阅读路径在旁边那个 tab —— 这里放的是概念图和 agent 画的东西。
+        画布是空的。这里放概念图和 agent 画的东西（阅读顺序在「路径」那个视图）。
         在终端里让 fx 往里放：它有 python3、jq、typst，产物丢进
         <code>./board/</code> 就会出现在这里：
         <code>把每页的翻译问题数画成柱状图，存到 ./board/issues.png</code>

@@ -119,7 +119,7 @@ test("恢复只看存下来的东西 —— 存的 mode 是哪个都不影响", 
   }
   // 清单是从真源 map 出来的，漏登记一个面板这里的组合数会掉。
   assert.equal(checked.length, savedModes.length * READER_ASSISTANT_PANEL_IDS.length);
-  assert.ok(READER_ASSISTANT_PANEL_IDS.length >= 6, "面板清单疑似漏登记");
+  assert.ok(READER_ASSISTANT_PANEL_IDS.length >= 5, "面板清单疑似漏登记");
 
   // 这条就是病 1 本身：有译文的书默认 mode 就是 compare。
   assert.equal(resolveInitialAssistantPanel({
