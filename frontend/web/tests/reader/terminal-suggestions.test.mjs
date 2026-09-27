@@ -26,13 +26,17 @@ import {
 
 const read = (relative) => readFileSync(new URL(relative, import.meta.url), "utf8");
 
-test("提示覆盖 agent 的四类产出，落点各不重复", () => {
-  // 四条：画板那类给了两条（画图 / 排文档）。「画张图」和「排一份文档」在用户那边是两个
-  // 不同的请求，而后者是猜不到的 —— 一个终端旁边的 AI 能交出一份带标题和表格的
-  // 中文 PDF，不写出来没人会去要。
-  assert.equal(TERMINAL_SUGGESTIONS.length, 4);
+test("提示覆盖 agent 的产出形态，落点各不重复", () => {
+  // 三条。原来有四条，其中两条（阅读路径 / 概念图）写的是有 schema 的产物，
+  // 那两个渲染器随「阅读页只留一扇 AI 的门」删掉了 —— 提示一个没人渲染的
+  // 产物，agent 白干一轮、用户什么也看不到。
+  //
+  // 现在两条 HTML + 一条 PDF。HTML 排前面是因为它是**唯一能在左边打开**的，
+  // 而且零依赖；PDF 得下载了看，但「排一份带标题和表格的中文文档」是用户猜
+  // 不到的能力，不写出来没人会去要。
+  assert.equal(TERMINAL_SUGGESTIONS.length, 3);
   const paths = TERMINAL_SUGGESTIONS.map((s) => s.path);
-  assert.equal(new Set(paths).size, 4, `路径重复: ${paths}`);
+  assert.equal(new Set(paths).size, 3, `路径重复: ${paths}`);
   for (const suggestion of TERMINAL_SUGGESTIONS) {
     assert.ok(suggestion.label.length > 0 && suggestion.label.length <= 8,
       `标签要短才放得下: ${suggestion.label}`);
@@ -160,15 +164,15 @@ test("脏值和抛异常的 localStorage 都不能让面板崩", () => {
   // 隐私模式下读写会抛；键里还可能留着别的版本写的东西。
   // 多显示一次比整个面板崩了好。
   const dirty = fakeStore();
-  for (const raw of ["1", "not json", '{"a":1}', '["canvas", 7, "unknown-id"]']) {
+  for (const raw of ["1", "not json", '{"a":1}', '["chart", 7, "unknown-id"]']) {
     dirty.map.set(TERMINAL_SUGGESTIONS_DISMISSED_KEY, raw);
     assert.doesNotThrow(() => readDismissedSuggestions(dirty));
   }
   // 认识的 id 仍然生效，不认识的被过掉。
-  dirty.map.set(TERMINAL_SUGGESTIONS_DISMISSED_KEY, '["canvas", 7, "unknown-id"]');
+  dirty.map.set(TERMINAL_SUGGESTIONS_DISMISSED_KEY, '["chart", 7, "unknown-id"]');
   const visible = visibleSuggestions(readDismissedSuggestions(dirty));
   assert.equal(visible.length, TERMINAL_SUGGESTIONS.length - 1);
-  assert.ok(!visible.some((s) => s.id === "canvas"));
+  assert.ok(!visible.some((s) => s.id === "chart"));
 
   const boom = {
     getItem() { throw new Error("blocked"); },

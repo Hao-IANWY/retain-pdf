@@ -238,6 +238,110 @@
     border: 1px solid var(--line);
   }
 
+  /* ---------------------------------------------- agent 产物（board/ 的 HTML）
+
+     这一块**盖在**文档区上，不替换它 —— 底下的 ReaderCompareGrid 留在树上，
+     关掉之后阅读位置、已渲染的页、缩放都还在。
+
+     所以它必须真的不透明：半透明的话底下的 PDF 会透出来和图表叠在一起。
+
+     几何照抄 .reader-react-scroll-shell（react-pdf.css）：`inset: 60px 0 0`，
+     开着助手面板时右边让出 --reader-ai-split-width。**不能写 inset: 0** ——
+     根容器是 position:relative 且占满视口，那样会连顶栏（下载 / 关闭 / 模式
+     页签）和右边的 AI 面板一起盖住，于是既点不了别的产物、也关不掉这一块。 */
+  .reader-board-pane {
+    position: absolute;
+    inset: 60px 0 0;
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    background: var(--paper);
+  }
+
+  .reader-react-root.is-assistant-open .reader-board-pane {
+    right: var(--reader-ai-split-width);
+  }
+
+  .reader-board-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--line);
+    font-size: 12px;
+  }
+
+  .reader-board-name {
+    font-weight: 650;
+    color: var(--ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* 这块盖住了 PDF，关闭是唯一的退路 —— 底下的模式页签此刻够不到。
+     有门禁盯着它没被任何 CSS 藏掉（和圆钮、面板工具条同一种死法）。 */
+  .reader-board-close {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex: none;
+    padding: 4px 10px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--ink);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+
+  .reader-board-frame {
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    border: 0;
+    /* iframe 默认透明，agent 的文档没设背景时会透出底下的 --paper。
+     *
+     * 这里**不**硬编码白色：那在深色主题下是个洞，而且「图表该什么底色」本来
+     * 就该由 agent 的文档自己说（AGENTS.md 里要求它设）。跟随主题至少保证
+     * 「没设背景」时文字和底色是配套的。 */
+    background: var(--paper);
+  }
+
+  .reader-board-error,
+  .reader-board-loading {
+    margin: 0;
+    padding: 16px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  /* 终端上方那条产物列表。 */
+  .reader-terminal-board {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .reader-terminal-board-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 9px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--ink);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+
   /* 壳默认按内容撑高；终端要占满可用高度。 */
   #reader-terminal-panel {
     display: flex;

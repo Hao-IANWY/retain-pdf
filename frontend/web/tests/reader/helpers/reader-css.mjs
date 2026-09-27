@@ -48,6 +48,18 @@ export function readerStyleSources() {
 }
 
 /** 按配对的花括号切成 { prelude, body }，不依赖缩进也不依赖换行位置。 */
+/** 切出顶层的 `prelude { body }`。
+ *
+ * 顶层的 `;` 必须把 start 推过去 —— 没有花括号的语句型 at-rule（`@import`、
+ * `@charset`、`@namespace`）否则会被粘进**下一个**块的 prelude 里。
+ *
+ * 这不是理论问题：`entries/reader.css` 开头是两行 @import，正文整个包在
+ * `@layer pages { }` 里。粘起来之后那唯一的顶层块 prelude 变成
+ * `@import "tailwindcss"; @import "…entry.css"; @layer pages`，以 @import 开头、
+ * 不匹配 NESTING_AT_RULE，于是被整块跳过 —— `allRules()` 对那个文件返回 0 条，
+ * 宿主加的每一条规则（fx 终端、agent 产物那块）从来没被扫描器看过。
+ * 而这个扫描器正是「入口被 CSS 藏掉」那类 bug 的唯一门禁。
+ */
 function splitBlocks(css) {
   const out = [];
   let depth = 0;
@@ -64,6 +76,8 @@ function splitBlocks(css) {
         out.push({ prelude: css.slice(start, preludeEnd).trim(), body: css.slice(preludeEnd + 1, i) });
         start = i + 1;
       }
+    } else if (ch === ";" && depth === 0) {
+      start = i + 1;
     }
   }
   return out;

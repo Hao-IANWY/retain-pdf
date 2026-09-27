@@ -25,6 +25,7 @@ import {
 } from "../domain/terminal-tabs.js";
 
 import {
+  TerminalBoardStrip,
   TerminalScopeBar,
   TerminalSuggestions,
   TerminalTabBar,
@@ -51,7 +52,7 @@ type PanelProps = ReaderTerminalSlotProps & {
   apiKey: string;
 };
 
-function ReaderTerminalPanel({ open, sessionKey, pendingInput, baseUrl, apiKey }: PanelProps) {
+function ReaderTerminalPanel({ open, sessionKey, pendingInput, onOpenBoard, baseUrl, apiKey }: PanelProps) {
   // 可以同时开几条。后端一直支持并行（busy_session_ids 会让第二条挑一个没被
   // 占用的 fx 会话），卡点一直在这里 —— 只有一个 <FxTerminal>。
   // 摆好的工作台要活过刷新：开了几条、每条盯着哪个作用域，都从上次读回来。
@@ -121,6 +122,13 @@ function ReaderTerminalPanel({ open, sessionKey, pendingInput, baseUrl, apiKey }
         baseUrl={baseUrl}
         apiKey={apiKey}
         onChange={(scope) => setTabs((state) => setTabScope(state, state.activeId, scope))}
+      />
+      <TerminalBoardStrip
+        jobId={sessionKey}
+        baseUrl={baseUrl}
+        apiKey={apiKey}
+        open={open}
+        onOpen={onOpenBoard}
       />
       <TerminalSuggestions
         session={{ send: (data) => sendToActive.current(data) }}

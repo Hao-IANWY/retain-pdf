@@ -36,6 +36,7 @@ const adapters: ReaderAdapters = {
   credentialsPort: ext.defaultCredentialsStatePort,
   // —— AI（阅读页唯一的一扇门：终端里的 agent）——
   renderReaderTerminal: ext.renderReaderTerminal,
+  renderReaderBoard: ext.renderReaderBoard,
 };
 setReaderAdapters(adapters);
 export { adapters as retainPdfReaderAdapters };

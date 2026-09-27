@@ -85,6 +85,26 @@ export type ReaderCredentialsAdapters = {
   credentialsPort: ReaderCredentialsPort;
 };
 /** 宿主往辅助面板里塞一块自己的 UI 时拿到的东西。 */
+/** 宿主渲染 agent 产物（board/ 里的 HTML）时拿到的东西。
+ *
+ * 这块**接管文档区**（PDF 那半边），不是又开一个 dock 面板 —— 用户要的是
+ * 「左边直接打开」。所以它和 ReaderCompareGrid 是二选一，由 App 决定。
+ *
+ * 包不认识 board 端点，也不认识 HTML 怎么安全渲染（那一整套隔离在宿主的
+ * domain/board-html.ts 里）。这里只约定「给你 jobId 和文件名，还我一块内容」。
+ */
+export type ReaderBoardSlotProps = {
+  jobId: string;
+  /** board/ 里的文件名。 */
+  name: string;
+  onClose: () => void;
+};
+
+export type ReaderBoardAdapters = {
+  /** 不提供 = 打不开 agent 产物，AI 面板里也不会出现那一条。 */
+  renderReaderBoard?: (props: ReaderBoardSlotProps) => ReactNode;
+};
+
 export type ReaderTerminalSlotProps = {
   open: boolean;
   /** 同一个 key 接回同一份终端会话。用 jobId，换文档就换终端。 */
@@ -95,6 +115,10 @@ export type ReaderTerminalSlotProps = {
    * 一条命令直接开跑太意外了，得让人先看见自己要问什么。
    * token 而不是文本判重：连着两次选同一段，两次都该送。 */
   pendingInput: { text: string; token: number } | null;
+  /** agent 在 board/ 里写了个能看的东西，请求把它在左边打开。
+   *
+   * 由包来开：文档区归包管，宿主自己去改左半边会和分栏/模式状态打架。 */
+  onOpenBoard: (name: string) => void;
   onClose: () => void;
 };
 
@@ -116,7 +140,8 @@ export type ReaderAdapters = ReaderSessionAdapters
   & ReaderDownloadAdapters
   & ReaderDocumentIdentityAdapters
   & ReaderCredentialsAdapters
-  & ReaderTerminalAdapters;
+  & ReaderTerminalAdapters
+  & ReaderBoardAdapters;
 
 /**
  * ReaderAdapters 声明键的运行时镜像（TS 类型在运行时被擦除）。
@@ -148,6 +173,7 @@ export const READER_ADAPTER_KEYS = [
   "fetchDocumentByJobId",
   "credentialsPort",
   "renderReaderTerminal",
+  "renderReaderBoard",
 ] as const satisfies readonly (keyof ReaderAdapters)[];
 
 /** 必填（非 `?`）适配键子集，供门禁断言最小注入面。 */
@@ -195,4 +221,13 @@ export function requireAdapter<T extends keyof ReaderAdapters>(key: T): NonNulla
   const v = _adapters?.[key];
   if (v == null) throw new Error(`Reader adapter missing: ${String(key)} (call setReaderAdapters)`);
   return v as NonNullable<ReaderAdapters[T]>;
+}
+
+/** 渲染 agent 产物那一块。
+ *
+ * 宿主没注册渲染器时返回 null —— 调用方据此回落到 PDF，而不是留一块空白。
+ * 和槽位面板同一条规矩：没有实现就当这个功能不存在，不给一个点了没反应的入口。
+ */
+export function renderReaderBoardSlot(props: ReaderBoardSlotProps): ReactNode {
+  return getReaderAdapters()?.renderReaderBoard?.(props) ?? null;
 }

@@ -1,4 +1,4 @@
-/** 终端面板的外壳：标签条、作用域条、提示 chip。
+/** 终端面板的外壳：标签条、作用域条、提示 chip、agent 产物条。
  *
  * 和 terminal.tsx 分开只有一个理由：**这三样都不碰 xterm**。混在一起时那个文件
  * 到了 413 行，撞上体量棘轮（阈值 380）。拆开之后一边认 PTY 和 WebSocket 的
@@ -7,6 +7,13 @@
  * 没有登记棘轮豁免 —— 那是把问题往后推，而这个文件本来就该拆。
  */
 import { useCallback, useEffect, useState } from "react";
+import { LayoutDashboard } from "lucide-react";
+
+import {
+  openableBoardItems,
+  parseBoardListing,
+  type BoardListing,
+} from "../domain/board.js";
 
 import {
   dismissAllSuggestions,
@@ -241,6 +248,84 @@ export function TerminalSuggestions({
       >
         ×
       </button>
+    </div>
+  );
+}
+
+/** agent 在 board/ 里写了什么能看的东西 —— 列在终端上方，点了在左边打开。
+ *
+ * # 为什么入口在这儿
+ *
+ * 这些文件是 agent 写的，而 agent 就在这个面板里。产物出现在产出它的地方，
+ * 不用在 dock 上再开一扇门 —— 阅读页收成一扇 AI 的门就是为了不再有第二扇。
+ *
+ * # 为什么轮询
+ *
+ * agent 是在你看着的时候写文件的。一次性加载会让「它说画好了，我却要刷新页面
+ * 才看得见」重演（画布那次就是这个 bug）。只在面板开着时轮询。
+ *
+ * # 只列 HTML
+ *
+ * 别的类型（图片 / PDF / markdown）后端认得、也下发得了，但前端没有渲染器。
+ * 列一个点了打不开的东西比不列更糟。
+ */
+export function TerminalBoardStrip({
+  jobId,
+  baseUrl,
+  apiKey,
+  open,
+  onOpen,
+}: {
+  jobId: string;
+  baseUrl: string;
+  apiKey: string;
+  open: boolean;
+  onOpen: (name: string) => void;
+}) {
+  const [items, setItems] = useState<BoardListing[]>([]);
+
+  useEffect(() => {
+    if (!open || !jobId) return undefined;
+    let alive = true;
+    const abort = new AbortController();
+    const poll = async () => {
+      try {
+        const response = await fetch(
+          `${baseUrl}/api/v1/jobs/${encodeURIComponent(jobId)}/board`,
+          { headers: { "X-API-Key": apiKey }, signal: abort.signal },
+        );
+        if (!response.ok) return;
+        const parsed = parseBoardListing(await response.json());
+        // 取不到就保持原样，不清空：网络抖一下不该让列表闪没。
+        if (alive && parsed) setItems(openableBoardItems(parsed));
+      } catch {
+        // 叠加信息，挂了不该让终端报错。
+      }
+    };
+    void poll();
+    const timer = setInterval(() => void poll(), 4000);
+    return () => {
+      alive = false;
+      abort.abort();
+      clearInterval(timer);
+    };
+  }, [apiKey, baseUrl, jobId, open]);
+
+  if (items.length === 0) return null;
+  return (
+    <div className="reader-terminal-board" aria-label="agent 产物">
+      {items.map((item) => (
+        <button
+          key={item.name}
+          type="button"
+          className="reader-terminal-board-item"
+          title={`在左边打开 ${item.name}`}
+          onClick={() => onOpen(item.name)}
+        >
+          <LayoutDashboard size={13} strokeWidth={2.2} aria-hidden />
+          <span>{item.name}</span>
+        </button>
+      ))}
     </div>
   );
 }

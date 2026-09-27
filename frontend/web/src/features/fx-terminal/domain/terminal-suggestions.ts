@@ -43,34 +43,30 @@ export type TerminalSuggestion = {
 
 export const TERMINAL_SUGGESTIONS: readonly TerminalSuggestion[] = [
   {
-    id: "reading-path",
-    label: "写阅读路径",
-    prompt: "读一遍这本书，写一条阅读路径到 ./reading-path.v1.json",
-    path: "./reading-path.v1.json",
-  },
-  {
-    id: "canvas",
-    label: "画概念图",
-    prompt: "把这篇论文的脉络画成概念图，写到 ./canvas.v1.json",
-    path: "./canvas.v1.json",
-  },
-  {
+    // 头一条就是 HTML：它是现在**唯一能在左边打开**的产物，而且零依赖
+    // （matplotlib / pdftoppm 这台机器上都没有，写 HTML 不需要它们）。
     id: "chart",
     label: "画张图表",
-    prompt: "把每页的翻译问题数画成柱状图，存到 ./board/issues.png",
-    path: "./board/",
+    prompt: "把每页的翻译问题数画成柱状图，存到 ./board/issues.html",
+    path: "./board/issues.html",
   },
   {
-    // 画板的第二条。「画张图」和「排一份文档」在用户那边是两个完全不同的请求，
-    // 而后者是**猜不到的** —— 一个终端旁边的 AI 能交出一份带标题和表格的中文
-    // PDF，不写出来没人会去要。（agent 那边用 typst 渲，说明在 AGENTS.md 里。）
+    id: "summary",
+    label: "理张对照表",
+    prompt: "把术语不一致的地方列成表，存到 ./board/terms.html",
+    path: "./board/terms.html",
+  },
+  {
+    // 「画张图」和「排一份文档」在用户那边是两个完全不同的请求，而后者是
+    // **猜不到的** —— 一个终端旁边的 AI 能交出一份带标题和表格的中文 PDF，
+    // 不写出来没人会去要。（agent 那边用 typst 渲，说明在 AGENTS.md 里。）
+    // PDF 还不能在左边打开，用户得下载，所以排在 HTML 后面。
     id: "report",
     label: "出份报告",
     prompt: "把翻译问题整理成一份报告，渲成 ./board/report.pdf",
     path: "./board/report.pdf",
   },
 ];
-
 /** 用户已经点过哪几条。
  *
  * v1 存的是一个全局布尔，而界面上点**任意一条** chip 就写它 —— 五条一起永久

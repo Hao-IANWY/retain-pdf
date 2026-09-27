@@ -1,7 +1,7 @@
-import { s as a } from "./config-CgaWliJ_.js";
-import { s as t, r as d } from "./answer-enhance-3YjrVVwj.js";
-import { h as P, l as v, n as w } from "./markdown-payload-kK3ewW_I.js";
-const n = [
+import { s as d } from "./config-CgaWliJ_.js";
+import { s as t, r as s } from "./answer-enhance-3YjrVVwj.js";
+import { h as w, l as D, n as m } from "./markdown-payload-kK3ewW_I.js";
+const R = [
   "isMockMode",
   "resolveResourceUrl",
   "fetchProtected",
@@ -25,8 +25,9 @@ const n = [
   "apiPrefix",
   "fetchDocumentByJobId",
   "credentialsPort",
-  "renderReaderTerminal"
-], c = [
+  "renderReaderTerminal",
+  "renderReaderBoard"
+], i = [
   "resolveMarkdownAssetUrl",
   "resolveReaderDownloadUrls",
   "resolveReaderDownloadName",
@@ -35,29 +36,34 @@ const n = [
   "fetchDocumentByJobId",
   "credentialsPort"
 ];
-let r = null;
-function R(e) {
-  r = e, a({ credentialsPort: (e == null ? void 0 : e.credentialsPort) ?? null }), d(), e && t({
+let o = null;
+function f(e) {
+  o = e, d({ credentialsPort: (e == null ? void 0 : e.credentialsPort) ?? null }), s(), e && t({
     fetchProtected: e.fetchProtected,
     resolveResourceUrl: e.resolveResourceUrl
   });
 }
-function i() {
-  return r;
-}
-function f(e) {
-  const o = r == null ? void 0 : r[e];
-  if (o == null) throw new Error(`Reader adapter missing: ${String(e)} (call setReaderAdapters)`);
+function l() {
   return o;
 }
+function u(e) {
+  const r = o == null ? void 0 : o[e];
+  if (r == null) throw new Error(`Reader adapter missing: ${String(e)} (call setReaderAdapters)`);
+  return r;
+}
+function A(e) {
+  var r, a;
+  return ((a = (r = l()) == null ? void 0 : r.renderReaderBoard) == null ? void 0 : a.call(r, e)) ?? null;
+}
 export {
-  n as READER_ADAPTER_KEYS,
-  c as READER_REQUIRED_ADAPTER_KEYS,
-  i as getReaderAdapters,
-  P as hasMarkdownContent,
-  v as loadMarkdownPayloadWithFallback,
-  w as normalizeMarkdownPayload,
-  f as requireAdapter,
-  R as setReaderAdapters
+  R as READER_ADAPTER_KEYS,
+  i as READER_REQUIRED_ADAPTER_KEYS,
+  l as getReaderAdapters,
+  w as hasMarkdownContent,
+  D as loadMarkdownPayloadWithFallback,
+  m as normalizeMarkdownPayload,
+  A as renderReaderBoardSlot,
+  u as requireAdapter,
+  f as setReaderAdapters
 };
 //# sourceMappingURL=adapters.js.map

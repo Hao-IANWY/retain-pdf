@@ -181,12 +181,15 @@ def build_collection_workspace_instructions(workspace: Path) -> str:
 
 ## 想给用户看什么,丢进 `./board/`
 
-和单本书工作区同一套规则：
+和单本书工作区同一套规则：**首选 `.html`**，写一份自包含网页（所有 CSS/JS/字体
+内联，自己定 background 和 color —— 页面在断网沙箱里跑，外链一律被挡）。
 
-    认这些后缀   png jpg jpeg webp gif · pdf · md · json · txt csv
-    不认         svg、html、其它一律不显示
+    认这些后缀   html · png jpg jpeg webp gif · pdf · md · json · txt csv
+    不认         svg（能带脚本）、其它一律不显示
     文件名       只能是字母数字和 . _ -，不能有空格、中文、斜杠、开头的点
     大小         单个 16 MB 以内
+
+目前只有 `.html` 能在左边打开，别的类型还没有渲染器。
 
 要排版就用 `typst`（中文直接出得来）：写 `.typ` 然后
 `typst compile report.typ ./board/report.pdf`,单条命令。
@@ -275,23 +278,44 @@ def build_job_workspace_instructions(job_dir: Path) -> str:
 
 ## 想给用户看什么，丢进 `./board/`
 
-**这是最省事的一条：你手里已经有 shell 了。** 画个图、截个页、导个表、排一份
-文档，产物放进 `./board/`，几秒后就出现在用户的画布上。不需要学任何格式。
+**这是最省事的一条：你手里已经有 shell 了。** 产物放进 `./board/`，几秒后就
+出现在用户那边的产物条上，点一下在左边（PDF 那半边）整屏打开。
 
-    python3 -c "import matplotlib;..." 存成 ./board/issues.png
-    pdftoppm -f 4 -l 4 -r 150 -png ../source/*.pdf ./board/page4
-    jq '...' ../artifacts/translation_review.json > ./board/issues.json
-    写一段说明到 ./board/summary.md
+### 首选 `.html` —— 写一份自包含网页
 
-    认这些后缀   png jpg jpeg webp gif · pdf · md · json · txt csv
-    不认         svg（能带脚本，暂不收）、html、其它一律不显示
+不用学任何格式，浏览器认得的东西都能用：表格、SVG 图、交互。也**不依赖
+matplotlib / pdftoppm 之类没准没装的东西**，`cat > ./board/x.html` 就完事。
+
+三条硬要求，违反了页面会白屏或者根本不显示：
+
+1. **自包含**。所有 CSS / JS / 字体 / 图片都内联。页面在一个**断网**的沙箱里
+   跑（CSP `default-src 'none'`），任何 `<script src="https://cdn...">`、
+   `@import url(...)`、外链图片都会被挡掉。图片用 `data:` URI。
+2. **自己定背景和文字色**。给 `html` 或 `body` 写上 `background` 和 `color`。
+   不写的话会透出用户的主题色，深色主题下黑字配黑底。
+3. 不要指望 `localStorage`、`fetch`、`window.parent`。沙箱是独立源、且不出网，
+   这些要么报错要么静默失败。
+
+    cat > ./board/issues.html <<'HTML'
+    <!doctype html><meta charset="utf-8">
+    <style>html{{background:#fff;color:#111;font:14px/1.6 system-ui}}</style>
+    <h1>各页残差</h1>
+    <svg width="600" height="200">…</svg>
+    HTML
+
+### 别的类型也收
+
+    认这些后缀   html · png jpg jpeg webp gif · pdf · md · json · txt csv
+    不认         svg（能带脚本，且会被直接塞进页面）、其它一律不显示
     文件名       只能是字母数字和 . _ -，不能有空格、中文、斜杠、开头的点
     大小         单个 16 MB 以内
 
-**文件名就是画布上的标签**，所以起个说得清的名字：`fig-3-residual-by-page.png`
-比 `out.png` 有用得多。按修改时间从上往下排，新的接在后面。
+但目前**只有 `.html` 能在左边打开**。别的类型收得下、下得动，还没有渲染器。
 
-长文本会被截断显示（画布是用来扫一眼的），图片按比例缩放并收在合理高度内。
+另一个常见的：术语前后不一致，列成一张表存到 `./board/terms.html`。
+
+**文件名就是标签**，所以起个说得清的名字：`fig-3-residual-by-page.html`
+比 `out.html` 有用得多。按修改时间从上往下排，新的接在后面。
 
 ### 要排版就用 `typst` —— 它就在 PATH 上，中文直接出得来
 
@@ -301,45 +325,10 @@ def build_job_workspace_instructions(job_dir: Path) -> str:
 
     typst compile report.typ ./board/report.pdf
 
-画布上显示的是**第 1 页**（页数会写在标签上），所以结论放第一页，别让人去翻。
+PDF 目前**不能在左边打开**（只有 `.html` 能），用户得下载了看。所以除非确实要
+一份能存档、能打印的东西，否则直接写 `.html` 更顺手。
+
 排不出来时不要硬凑 —— 退回 `./board/*.md`，一段清楚的文字胜过一份排版失败的 PDF。
-
-## 另外三个有固定格式的产物
-
-这三个不是"显示一张图"，而是要和 PDF 联动（点了能跳到对应内容），所以有 schema。
-
-### `./canvas.v1.json` — 概念图，画在画布左边
-
-**只写语义，不写坐标颜色。** 位置由边的关系算出来。**最多 8 个节点，每个 ≤ 20 字**
-（超过 60 字会被截断成省略号）—— 这是画布不是文档，超过十来个框人就不看了。
-能放图就放图（`image` 填 `../md/images/` 下的文件名）。
-
-    {{"schema": "retainpdf_reading_canvas_v1",
-     "nodes": [{{"id": "n1", "kind": "concept", "text": "一句话",
-                "anchor": {{"page_idx": 1, "block_id": "p002-b0007"}},
-                "image": "e7b7b384....jpg"}}],
-     "edges": [{{"from": "n1", "to": "n2", "label": "因此"}}]}}
-
-    kind    concept / note / question / warning / result，决定颜色
-    anchor  可选。有 anchor 的节点点一下跳到 PDF，没有的画虚线
-    image   `../md/images/` 下的**文件名**（带路径会被丢掉）
-
-### `./reading-path.v1.json` — 阅读顺序
-
-    {{"steps": [{{"order": 1, "page_idx": 0, "block_id": "p001-b0004",
-                "why": "为什么先读这里"}}]}}
-
-### 这三个都要真实的 `block_id`
-
-从 `../ocr/normalized/document.v1.json` 取，锚不到的一律不显示：
-
-    jq -r '.pages[3].blocks[] | "\\(.block_id) \\(.type) \\(.text[0:40])"' ../ocr/normalized/document.v1.json
-
-图和它的 `block_id`（`asset_key` 就是填进 `image` 的文件名）：
-
-    jq -r '.pages[].blocks[] | select(.type=="image") | "\\(.block_id) \\(.metadata.asset_key)"' ../ocr/normalized/document.v1.json
-
-写坏了界面会直接说读不懂，不会悄悄显示旧的。
 
 ## `../` 只读 —— 不要修改或删除
 

@@ -37,6 +37,7 @@ import { ReaderHostPanelShell } from "./components/react-pdf/ReaderHostPanelShel
 /** 稳定的空数组：每次渲染新建一个会让每页的标记层白白重算。 */
 import { READER_HOST_PANELS } from "./components/react-pdf/reader-host-panels.js";
 import { resolveLiveTranslationToggles } from "./shared/data/live-translation-state.js";
+import { renderReaderBoardSlot } from "./adapters.js";
 
 /** 阅读视图可见台面的判别联合。 */
 export type ReaderPaneComposition = {
@@ -161,6 +162,13 @@ export function ReaderAppReactPdf() {
   // —— 不能拿文本本身判重，连着两次选同一段也得送两次。
   const [terminalPrefill, setTerminalPrefill] =
     useState<{ text: string; token: number } | null>(null);
+  // agent 产物在左边打开时，看的是哪个文件。null = 看 PDF。
+  //
+  // **不进 ReaderWorkspaceMode。** 那三个（源文件/对照/翻译文件）是
+  // resolveReaderPaneComposition 的输入，连着持久化、键盘、HUD 和一堆 PDF 专属
+  // 的不变式；往里加第四个成员会让「对照降级」「叠加层」那些判断全部要重想。
+  // 这里是文档区的**接管**，和 PDF 栏二选一，所以是独立状态。
+  const [boardFile, setBoardFile] = useState<string | null>(null);
   const [liveTranslationVisible, setLiveTranslationVisible] = useState(false);
   const modeScopeRef = useRef<string | null>(null);
 
@@ -181,6 +189,10 @@ export function ReaderAppReactPdf() {
   });
   // 叠层的两个开关分别摆在哪 —— 判断在 live-translation-state.ts 里，因为
   // 「收掉顶栏 pill 之后叠层还够得着吗」这个不变式要能单测（见那里的注释）。
+  const closeBoard = useCallback(() => setBoardFile(null), []);
+  const boardContent = boardFile
+    ? renderReaderBoardSlot({ jobId: session.jobId, name: boardFile, onClose: closeBoard })
+    : null;
   const liveToggles = resolveLiveTranslationToggles({
     hasOverlayContent,
     connection: c.liveTranslation.connection,
@@ -198,6 +210,7 @@ export function ReaderAppReactPdf() {
   // 需要自动打开的那一处走 resolveLiveTranslationVisibleOnWorkspaceChange。
   useEffect(() => {
     setTerminalPrefill(null);
+    setBoardFile(null);
     setLiveTranslationVisible(false);
   }, [c.viewStateKey]);
 
@@ -287,6 +300,7 @@ export function ReaderAppReactPdf() {
   const hostPanelContext = useMemo(() => ({
     sessionKey: session.jobId || session.documentId || "reader",
     pendingInput: terminalPrefill,
+    onOpenBoard: setBoardFile,
     onClose: closeAssistant,
   }), [closeAssistant, session.documentId, session.jobId, terminalPrefill]);
 
@@ -390,6 +404,14 @@ export function ReaderAppReactPdf() {
         <ReaderAssistantDock active={assistantPanel} />
         {assistantOpen ? <ReaderAssistantSplitResizeHandle /> : null}
         <ReaderCompareGrid paneComposition={paneComposition} markdownSplit={markdownSlot.open} assistantSplit={assistantOpen} liveTranslation={c.liveTranslation} sourcePaneAction={sourcePaneAction} />
+        {/* agent 产物盖在文档区上，**不替换** ReaderCompareGrid。
+          *
+          * 换成二选一的话，开一张图再关掉，PDF 栅格整个重建 —— 阅读位置、已渲染
+          * 的页、缩放全丢。和终端面板用 hidden 而不是卸载是同一个理由。
+          *
+          * 宿主没注册渲染器时 boardContent 是 null，这里什么都不画，下面还是 PDF：
+          * 「功能没实现」要表现为「没有这个东西」，不是一块白屏。 */}
+        {boardContent}
         {c.showHud ? (
           <ReaderZoomHud
             mode={visiblePdfMode}

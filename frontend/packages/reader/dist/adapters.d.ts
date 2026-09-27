@@ -63,6 +63,24 @@ export type ReaderCredentialsAdapters = {
     credentialsPort: ReaderCredentialsPort;
 };
 /** 宿主往辅助面板里塞一块自己的 UI 时拿到的东西。 */
+/** 宿主渲染 agent 产物（board/ 里的 HTML）时拿到的东西。
+ *
+ * 这块**接管文档区**（PDF 那半边），不是又开一个 dock 面板 —— 用户要的是
+ * 「左边直接打开」。所以它和 ReaderCompareGrid 是二选一，由 App 决定。
+ *
+ * 包不认识 board 端点，也不认识 HTML 怎么安全渲染（那一整套隔离在宿主的
+ * domain/board-html.ts 里）。这里只约定「给你 jobId 和文件名，还我一块内容」。
+ */
+export type ReaderBoardSlotProps = {
+    jobId: string;
+    /** board/ 里的文件名。 */
+    name: string;
+    onClose: () => void;
+};
+export type ReaderBoardAdapters = {
+    /** 不提供 = 打不开 agent 产物，AI 面板里也不会出现那一条。 */
+    renderReaderBoard?: (props: ReaderBoardSlotProps) => ReactNode;
+};
 export type ReaderTerminalSlotProps = {
     open: boolean;
     /** 同一个 key 接回同一份终端会话。用 jobId，换文档就换终端。 */
@@ -76,6 +94,10 @@ export type ReaderTerminalSlotProps = {
         text: string;
         token: number;
     } | null;
+    /** agent 在 board/ 里写了个能看的东西，请求把它在左边打开。
+     *
+     * 由包来开：文档区归包管，宿主自己去改左半边会和分栏/模式状态打架。 */
+    onOpenBoard: (name: string) => void;
     onClose: () => void;
 };
 export type ReaderTerminalAdapters = {
@@ -90,16 +112,22 @@ export type ReaderTerminalAdapters = {
      */
     renderReaderTerminal?: (props: ReaderTerminalSlotProps) => ReactNode;
 };
-export type ReaderAdapters = ReaderSessionAdapters & ReaderMarkdownAdapters & ReaderDownloadAdapters & ReaderDocumentIdentityAdapters & ReaderCredentialsAdapters & ReaderTerminalAdapters;
+export type ReaderAdapters = ReaderSessionAdapters & ReaderMarkdownAdapters & ReaderDownloadAdapters & ReaderDocumentIdentityAdapters & ReaderCredentialsAdapters & ReaderTerminalAdapters & ReaderBoardAdapters;
 /**
  * ReaderAdapters 声明键的运行时镜像（TS 类型在运行时被擦除）。
  * 注册层与门禁测试共用，避免手工复制字段集漂移；`satisfies` 保证不引入拼错键。
  * 完整性由紧随其后的编译期断言守护。
  */
-export declare const READER_ADAPTER_KEYS: readonly ["isMockMode", "resolveResourceUrl", "fetchProtected", "resolvePdfjsVendorUrl", "defaultReaderDataPort", "defaultReaderPageConfigPort", "resolveReaderAnchor", "resolveReaderDocumentId", "resolveReaderJobId", "resolveReaderArtifactUrl", "resolveReaderSourcePdf", "resolveReaderTranslatedPdfUrl", "liveTranslation", "pdf", "sessionData", "resolveMarkdownAssetUrl", "resolveReaderDownloadUrls", "resolveReaderDownloadName", "downloadProtectedResource", "failDownloadToast", "apiPrefix", "fetchDocumentByJobId", "credentialsPort", "renderReaderTerminal"];
+export declare const READER_ADAPTER_KEYS: readonly ["isMockMode", "resolveResourceUrl", "fetchProtected", "resolvePdfjsVendorUrl", "defaultReaderDataPort", "defaultReaderPageConfigPort", "resolveReaderAnchor", "resolveReaderDocumentId", "resolveReaderJobId", "resolveReaderArtifactUrl", "resolveReaderSourcePdf", "resolveReaderTranslatedPdfUrl", "liveTranslation", "pdf", "sessionData", "resolveMarkdownAssetUrl", "resolveReaderDownloadUrls", "resolveReaderDownloadName", "downloadProtectedResource", "failDownloadToast", "apiPrefix", "fetchDocumentByJobId", "credentialsPort", "renderReaderTerminal", "renderReaderBoard"];
 /** 必填（非 `?`）适配键子集，供门禁断言最小注入面。 */
 export declare const READER_REQUIRED_ADAPTER_KEYS: readonly ["resolveMarkdownAssetUrl", "resolveReaderDownloadUrls", "resolveReaderDownloadName", "downloadProtectedResource", "failDownloadToast", "fetchDocumentByJobId", "credentialsPort"];
 export declare function setReaderAdapters(a: ReaderAdapters | null): void;
 export declare function getReaderAdapters(): ReaderAdapters | null;
 export declare function requireAdapter<T extends keyof ReaderAdapters>(key: T): NonNullable<ReaderAdapters[T]>;
+/** 渲染 agent 产物那一块。
+ *
+ * 宿主没注册渲染器时返回 null —— 调用方据此回落到 PDF，而不是留一块空白。
+ * 和槽位面板同一条规矩：没有实现就当这个功能不存在，不给一个点了没反应的入口。
+ */
+export declare function renderReaderBoardSlot(props: ReaderBoardSlotProps): ReactNode;
 //# sourceMappingURL=adapters.d.ts.map

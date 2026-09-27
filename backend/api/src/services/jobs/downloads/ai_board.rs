@@ -69,6 +69,22 @@ pub struct AiBoardListing {
 /// **故意不收 SVG**：SVG 能带脚本，而这些文件是 agent 写的。等有明确需求时
 /// 再加，并且要走消毒，不是直接放行。
 ///
+/// # HTML 收，但整条路和别的类型都不一样
+///
+/// agent 手里有 shell，让它直接写一份自包含 HTML，比我们为每种可视化定一套
+/// schema + 写一个渲染器划算得多（画布那条路就是这么死的：加到第三种时
+/// AGENTS.md 一半篇幅在教 agent 拼格式）。
+///
+/// 但它是**这里最危险的一种字节**：agent 读的是不受信的 PDF，一篇论文里埋一句
+/// 提示注入就能让它写出任意脚本。而浏览器里 localStorage 存着用户的 API Key。
+/// 所以放行的前提是这两道，缺一不可：
+///
+/// - 这一层：`forces_attachment` 对 html 返回 true，堵死「在 API 源上内联打开」
+/// - 前端：只在 `sandbox="allow-scripts"`（**不给 allow-same-origin**）的 iframe
+///   里用 srcdoc 渲染，再注入一条断网 CSP。见 reader-board-html.tsx。
+///
+/// 两个 sandbox 值同时给等于没有沙箱，那条由前端的门禁守着。
+///
 /// # PDF 收，但和 SVG 的区别要说清楚
 ///
 /// PDF 一样能内嵌 JavaScript（`/OpenAction` + `/JavaScript`），它照样是 agent
@@ -94,16 +110,21 @@ fn board_kind(name: &str) -> Option<(&'static str, &'static str)> {
         "md" => Some(("markdown", "text/markdown; charset=utf-8")),
         "json" => Some(("json", "application/json")),
         "txt" | "csv" => Some(("text", "text/plain; charset=utf-8")),
+        "html" => Some(("html", "text/html; charset=utf-8")),
         _ => None,
     }
 }
 
 /// 哪些 kind 必须以附件下发。
 ///
-/// 只有 PDF：别的类型要么浏览器不会当文档执行（图片），要么内联打开也只是
-/// 一段纯文本。理由写在 `board_kind` 上面那段里。
+/// PDF 和 HTML：这两种浏览器会当文档执行，而文件是 agent 写的。别的类型要么
+/// 浏览器不会执行（图片），要么内联打开也只是一段纯文本。理由写在 `board_kind`
+/// 上面那两段里。
+///
+/// 这个头**不影响我们自己**：前端拿这些文件走 `fetch()`，它根本不看
+/// Content-Disposition。挡的是「有人直接在地址栏打开这个端点」。
 fn forces_attachment(kind: &str) -> bool {
-    kind == "pdf"
+    matches!(kind, "pdf" | "html")
 }
 
 /// 只认单层、字符受限的文件名。
@@ -310,10 +331,13 @@ mod tests {
     }
 
     /// SVG 能带脚本，而这些文件是 agent 写的。要放行得先做消毒，不是直接收。
+    ///
+    /// HTML 后来放行了，但走的是另一条路（沙箱 iframe + 断网 CSP，见
+    /// `html_is_a_board_kind_but_always_an_attachment`）。SVG 没有那条路：
+    /// 它会被当图片直接塞进我们自己的 DOM，脚本就在页面里跑。
     #[test]
     fn svg_is_not_a_board_kind() {
         assert!(board_kind("x.svg").is_none());
-        assert!(board_kind("x.html").is_none());
         assert!(board_kind("x.js").is_none());
         // 认得出的那些还得在。
         assert_eq!(board_kind("x.png").map(|(k, _)| k), Some("image"));
@@ -334,9 +358,26 @@ mod tests {
         assert_eq!(board_kind("REPORT.PDF").map(|(k, _)| k), Some("pdf"));
     }
 
-    /// 只有 PDF 强制附件。加错了会把图片也变成下载 —— 画布上的图就没了。
+    /// HTML 是这里最危险的一种字节：agent 读不受信的 PDF，而浏览器里
+    /// localStorage 存着 API Key。放行它的前提是**两道**，这里守第一道。
     #[test]
-    fn only_pdf_forces_an_attachment() {
+    fn html_is_a_board_kind_but_always_an_attachment() {
+        assert_eq!(
+            board_kind("chart.html"),
+            Some(("html", "text/html; charset=utf-8")),
+            "HTML 没被认出来，agent 写的可视化在前端就是不存在"
+        );
+        assert_eq!(board_kind("CHART.HTML").map(|(k, _)| k), Some("html"));
+        assert!(
+            forces_attachment("html"),
+            "HTML 不强制附件 = 能在我们的 API 源上内联打开一份 agent 写的页面，\
+             那时它和应用同源，localStorage 里的 key 就是它的"
+        );
+    }
+
+    /// 会被浏览器当文档执行的才强制附件。加错了会把图片也变成下载。
+    #[test]
+    fn only_executable_kinds_force_an_attachment() {
         assert!(forces_attachment("pdf"));
         for inline in ["image", "markdown", "json", "text"] {
             assert!(!forces_attachment(inline), "{inline} 被改成附件了");
@@ -441,7 +482,26 @@ mod download_tests {
         );
     }
 
-    /// 图片必须保持内联：画布是靠 `fetch` 拿字节再转 data URL 的，一旦这里
+    /// HTML 走完整条下发路径也必须带附件头。
+    ///
+    /// 只测 `forces_attachment("html")` 不够：那只证明那张表对了，不证明这条
+    /// 分支真的接到了下发上（`board_kind` 和 `forces_attachment` 之间还隔着
+    /// 一次 kind 字符串的传递，拼错了表照样对、下发照样裸奔）。
+    #[test]
+    fn a_board_html_is_served_as_an_attachment() {
+        let fixture = BoardFixture::new();
+        fixture.write("chart.html", b"<!doctype html><p>hi");
+        let download = fixture.download("chart.html").expect("html download");
+        assert_eq!(download.content_type, "text/html; charset=utf-8");
+        assert_eq!(
+            download.download_name.as_deref(),
+            Some("chart.html"),
+            "HTML 没带附件头 —— 在地址栏打开这个 URL，agent 写的页面就跑在我们的源上，\
+             localStorage 里的 API Key 归它了"
+        );
+    }
+
+    /// 图片必须保持内联：前端是靠 `fetch` 拿字节再转 data URL 的，一旦这里
     /// 顺手把所有类型都改成附件，别的地方（比如直接 `<img src>`）就会开始下载。
     #[test]
     fn other_board_kinds_stay_inline() {

@@ -12,6 +12,7 @@ export { MOCK_DOCUMENT_SOURCE_PDF_URL } from "@/platform/mock/documents.js";
 export { READER_DIALOG_MESSAGES } from "@/features/reader/domain.js";
 // 终端面板是 React，所以走 ui/ 而不是 domain/ —— domain 层有「不得 import React」的门禁。
 export { renderReaderTerminal } from "@/features/reader/ui/terminal.jsx";
+export { renderReaderBoard } from "@/features/reader/ui/board-html.jsx";
 
 // —— job / http / vendor ——
 export { resolveResourceUrl } from "@retainpdf/domain/job";

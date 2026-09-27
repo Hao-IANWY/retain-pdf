@@ -281,22 +281,6 @@ def _parser_source() -> str:
     )
 
 
-def test_the_canvas_fields_match_what_the_frontend_actually_parses(
-    tmp_path: Path,
-) -> None:
-    """文档里的字段名 = 解析器真正读的字段名。"""
-    import re
-
-    parser = _parser_source()
-    text = build_job_workspace_instructions(_job(tmp_path, "job-1"))
-
-    # 解析器里 `node.xxx` / `edge.xxx` / `anchor.xxx` 的那些取值。
-    read_fields = set(re.findall(r"\b(?:node|edge|anchor)\.([a-z_]+)", parser))
-    assert read_fields >= {"id", "text", "kind", "from", "to", "label"}, read_fields
-    for field in read_fields:
-        assert field in text, f"解析器读 {field}，但工作区说明里没写"
-
-
 def _indented_json_example(text: str, marker: str) -> dict:
     """把说明里那段缩进 4 格的 JSON 例子抠出来解析。
 
@@ -322,90 +306,10 @@ def _indented_json_example(text: str, marker: str) -> dict:
     raise AssertionError(f"{marker} 的例子解析不出来：\n" + "\n".join(body))
 
 
-def test_the_canvas_schema_is_documented_with_a_copyable_example(
-    tmp_path: Path,
-) -> None:
-    """给个能直接抄的例子。只描述字段的话模型还是会猜结构。"""
-    import json
-    import re
-
-    text = build_job_workspace_instructions(_job(tmp_path, "job-1"))
-    assert "canvas.v1.json" in text
-    assert "retainpdf_reading_canvas_v1" in text
-
-    # 把缩进的 JSON 块抠出来，确认它真能 parse —— 例子本身写错过一次就全白费。
-    payload = _indented_json_example(text, '"retainpdf_reading_canvas_v1"')
-    assert payload["nodes"][0]["id"]
-    assert payload["nodes"][0]["anchor"]["block_id"]
-    assert payload["edges"][0]["from"] == payload["nodes"][0]["id"]
-
-
-def test_the_instructions_say_not_to_invent_coordinates(tmp_path: Path) -> None:
-    """坐标是我们算的。不说清楚，模型会自己塞 x/y，然后奇怪为什么没生效。"""
-    text = build_job_workspace_instructions(_job(tmp_path, "job-1"))
-    assert "只写语义" in text
-    assert "坐标" in text
-
-
-def test_the_instructions_tie_anchors_to_real_block_ids(tmp_path: Path) -> None:
-    """锚点是这个功能的全部价值。编出来的 block_id 点了不跳，而且看不出为什么。"""
-    text = build_job_workspace_instructions(_job(tmp_path, "job-1"))
-    assert "block_id" in text
-    canvas_section = text[text.index("canvas.v1.json") :]
-    assert "document.v1.json" in canvas_section, "没说 block_id 要从哪儿取"
-
-
-def test_the_instructions_cap_how_much_gets_drawn(tmp_path: Path) -> None:
-    """「产生的东西太多了看不过来」是真实反馈。
-
-    模型不会自己节制 —— 它默认把知道的都倒出来。不写上限，画布就退化成一张
-    拥挤的文档，而画布的全部价值是一眼看完。
-    """
-    text = build_job_workspace_instructions(_job(tmp_path, "job-1"))
-    canvas = text[text.index("canvas.v1.json") :]
-    assert "8 个节点" in canvas, "没写节点数量上限"
-    assert "20 字" in canvas, "没写每个节点的长度上限"
-    assert "截断" in canvas, "没说超了会被截断，模型不知道后果"
-
-
-def test_the_instructions_push_for_figures_over_prose(tmp_path: Path) -> None:
-    """一张图顶一段话。不明说的话模型只会写字 —— 它更擅长写字。"""
-    text = build_job_workspace_instructions(_job(tmp_path, "job-1"))
-    canvas = text[text.index("canvas.v1.json") :]
-    assert "image" in canvas
-    assert "md/images" in canvas, "没说图在哪儿"
-    # 查那条 jq 命令本身，不是散文里出现过 asset_key 就算数 —— 第一版这么写的，
-    # 把命令里的字段换掉也照样绿。
-    assert '.metadata.asset_key' in canvas, (
-        "没给「块 → 图片文件名」的可跑命令，模型只能猜文件名"
-    )
-    assert 'select(.type=="image")' in canvas, "没说怎么筛出图片块"
-
-
-def test_the_truncation_limit_in_the_docs_matches_the_code(tmp_path: Path) -> None:
-    """文档说的截断长度必须和前端真正的上限一致。
-
-    两个数字分别写在 Python 文档和 TS 常量里。不一致的表现是「按文档写了却被
-    截断」，而两边看起来都没错 —— 和 canvas 字段名同一类问题。
-    """
-    import re
-
-    parser = _parser_source()
-    match = re.search(r"const MAX_LABEL = (\d+);", parser)
-    assert match, "前端没有 MAX_LABEL 了，这条断言要跟着改"
-    text = build_job_workspace_instructions(_job(tmp_path, "job-1"))
-    assert f"{match.group(1)} 字" in text, (
-        f"前端截断在 {match.group(1)} 字，但说明里没提这个数"
-    )
-
-
-# ---------------------------------------------------------------- 页面批注
-
-
 def _board_section(tmp_path: Path) -> str:
     text = build_job_workspace_instructions(_job(tmp_path, "job-1"))
     start = text.index("丢进 `./board/`")
-    end = text.index("## 另外三个有固定格式的产物")
+    end = text.index("## `../` 只读 —— 不要修改或删除")
     return text[start:end]
 
 
@@ -425,15 +329,54 @@ def _board_accepted_line(tmp_path: Path) -> str:
 def test_the_board_is_pitched_as_use_the_shell_you_already_have(
     tmp_path: Path,
 ) -> None:
-    """画板的全部价值是「不用学新格式」。
+    """产物条的全部价值是「不用学新格式」。
 
-    不把这点说透，模型会继续去找 schema —— 它被前三个产物训练成那样了。
+    不把这点说透，模型会继续去找 schema —— 它被早先那三个有 schema 的产物
+    训练成那样了。
     """
     section = _board_section(tmp_path)
     assert "已经有 shell" in section, "没说清楚用现有工具就行"
     # 给可抄的例子，而不是只描述。模型照着抄比照着想靠谱。
-    for tool in ("python3", "jq", "pdftoppm"):
-        assert tool in section, f"没举 {tool} 的例子"
+    assert "cat > ./board/" in section, "没给一条可以直接抄的写文件命令"
+    assert "<!doctype html" in section.lower(), "没给 HTML 的样子"
+
+
+def test_the_board_examples_only_name_tools_that_exist(tmp_path: Path) -> None:
+    """例子里点名的命令必须真的在 agent 的 PATH 上。
+
+    这条不是洁癖：之前说明书举的是 `python3 -c "import matplotlib..."` 和
+    `pdftoppm ...`，而这台机器上 **matplotlib 没装、pdftoppm 根本没有**。模型
+    照抄就是直接失败，而它没有任何线索能猜到是环境缺东西。改用 HTML 之后连
+    这两个都不需要了 —— `cat > x.html` 零依赖。
+    """
+    import shutil
+
+    import re
+
+    section = _board_section(tmp_path)
+    # 只看命令行例子（缩进四格那些），不看散文里提到的名字。
+    # heredoc 的**内容和结束符**要跳过 —— 不跳的话 `<<'HTML'` 后面那段正文的
+    # 第一个词会被当成命令名（实测：结束符 HTML 被当成一条命令）。
+    named: set[str] = set()
+    heredoc: str | None = None
+    for line in section.splitlines():
+        if not line.startswith("    "):
+            continue
+        body = line.strip()
+        if heredoc is not None:
+            if body == heredoc:
+                heredoc = None
+            continue
+        match = re.search(r"<<'?([A-Za-z_][A-Za-z0-9_]*)'?", body)
+        if match:
+            heredoc = match.group(1)
+        word = body.split()[0] if body.split() else ""
+        # 只认像命令名的：那一段缩进里还有「认这些后缀 / 文件名 / 大小」这种
+        # 中文对照表，它们不是命令。
+        if re.fullmatch(r"[a-z][a-z0-9_.-]*", word):
+            named.add(word)
+    for tool in sorted(named):
+        assert shutil.which(tool), f"例子里用了 {tool}，但它不在 PATH 上，照抄会失败"
 
 
 def test_the_board_docs_state_the_accepted_shapes(tmp_path: Path) -> None:
@@ -482,16 +425,6 @@ def test_the_board_docs_explain_that_the_file_name_is_the_label(
     section = _board_section(tmp_path)
     assert "标签" in section
     assert "修改时间" in section, "没说排序规则，模型不知道怎么控制顺序"
-
-
-def test_the_board_docs_say_pdf_shows_only_its_first_page(tmp_path: Path) -> None:
-    """PDF 在画布上只画第 1 页。
-
-    不说的话模型会把结论放在第 3 页，然后用户看到的是一页封面 —— 而这件事从
-    界面上看不出来是被截了。
-    """
-    assert "pdf" in _board_accepted_line(tmp_path), "白名单那一行里没写 pdf"
-    assert "第 1 页" in _board_section(tmp_path), "没说画布上只有第 1 页"
 
 
 def test_the_board_docs_point_at_typst_with_a_runnable_command(
