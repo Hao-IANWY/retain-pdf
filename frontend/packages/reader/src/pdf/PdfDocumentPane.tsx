@@ -20,7 +20,11 @@ import {
   type ProtectedPdfFile,
 } from "./useProtectedPdfFile.js";
 import { setupReactPdf } from "./setup-react-pdf.js";
-import { pageWidthFromShell } from "./reader-zoom.js";
+import {
+  pageWidthFromShell,
+  READER_WIDTH_SETTLE_MS,
+  resolveReaderWidthCommit,
+} from "./reader-zoom.js";
 import { DEFAULT_ASPECT, PdfPageSlot } from "./PdfPageSlot.js";
 import type { PageRowHeights } from "./usePageRowSync.js";
 import {
@@ -156,29 +160,46 @@ const PdfDocumentPaneInner = forwardRef<HTMLElement, PdfDocumentPaneProps>(
 
     useImperativeHandle(ref, () => paneEl as HTMLElement, [paneEl]);
 
-    // 单一 width 同步：初始 + ResizeObserver，避免双 effect 重复计算
+    // 单一 width 同步：初始 + ResizeObserver，避免双 effect 重复计算。
+    //
+    // **变化要等布局稳定再提交**，理由写在 resolveReaderWidthCommit 上：这个
+    // width 直接决定 react-pdf 重画 canvas，而 shell 宽度在开关面板（180ms 过渡）
+    // 和拖分栏（每帧）时是连续变化的。
+    //
+    // 这里原来两条分支的待遇不一样：ResizeObserver 那条有 80ms 防抖，而
+    // pageWidthOverride 那条是**立即提交、零防抖** —— 偏偏 override 恒有值
+    // （ReaderCompareGrid 总是传 pageWidthBasis），所以带防抖的那条从来不走，
+    // 而真正会连续变化的那条一点都没防。
     useEffect(() => {
-      const syncWidth = (w: number) => {
-        if (!Number.isFinite(w) || w < 80) return;
-        if (Math.abs(w - lastWidthRef.current) < 8) return;
+      const commit = (w: number) => {
         lastWidthRef.current = w;
         setPaneWidth(w);
       };
-      const initialW = pageWidthOverride && pageWidthOverride >= 80
-        ? pageWidthOverride
-        : (scrollRoot?.clientWidth || 0);
-      syncWidth(initialW);
-      if (!scrollRoot || typeof ResizeObserver === "undefined") return;
-      if (pageWidthOverride && pageWidthOverride >= 80) return;
-      const ro = new ResizeObserver((entries) => {
-        const w = entries[0]?.contentRect?.width ?? scrollRoot.clientWidth;
-        if (!Number.isFinite(w) || w < 80) return;
+      const syncWidth = (w: number) => {
+        const decision = resolveReaderWidthCommit(w, lastWidthRef.current);
+        if (decision === "ignore") return;
         if (widthTimerRef.current) clearTimeout(widthTimerRef.current);
-        widthTimerRef.current = setTimeout(() => syncWidth(w), 80);
-      });
-      ro.observe(scrollRoot);
+        if (decision === "immediate") {
+          commit(w);
+          return;
+        }
+        widthTimerRef.current = setTimeout(() => commit(w), READER_WIDTH_SETTLE_MS);
+      };
+      const hasOverride = Boolean(pageWidthOverride && pageWidthOverride >= 80);
+      syncWidth(hasOverride ? (pageWidthOverride as number) : (scrollRoot?.clientWidth || 0));
+
+      // **只有一个出口。** 原来这里有三条 return，每条都得自己记得清定时器，
+      // 而漏掉的那条的表现是「卸载之后 setState」—— 控制台一句警告，没有测试
+      // 会红。提前 return 换成条件挂载，清理只写一遍。
+      const observe = !hasOverride && scrollRoot && typeof ResizeObserver !== "undefined";
+      const ro = observe
+        ? new ResizeObserver((entries) => {
+            syncWidth(entries[0]?.contentRect?.width ?? scrollRoot.clientWidth);
+          })
+        : null;
+      if (ro && scrollRoot) ro.observe(scrollRoot);
       return () => {
-        ro.disconnect();
+        ro?.disconnect();
         if (widthTimerRef.current) clearTimeout(widthTimerRef.current);
       };
     }, [pageWidthOverride, scrollRoot, visible]);
