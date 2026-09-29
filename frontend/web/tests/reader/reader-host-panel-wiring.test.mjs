@@ -44,6 +44,7 @@ setReaderAdapters(adapters);
 const context = {
   sessionKey: "session-1",
   pendingInput: null,
+  onOpenBoard() {},
   onClose() {},
 };
 
@@ -96,4 +97,33 @@ test("keepMounted 的面板第一次打开前不挂载 —— 分包边界不能
   for (const panel of READER_HOST_PANELS) {
     assert.equal(renderShell(panel, null), "", `「${panel.label}」没开过就已经挂在树上了`);
   }
+});
+
+test("壳把 context 的每一个字段都转给了适配器 —— 漏一个就是「点了抛异常」", () => {
+  // 起因：壳里原来手抄了四个键，漏掉 onOpenBoard。于是「agent 写 HTML、点一下
+  // 在左边打开」整条路是死的 —— 点产物条抛 `onOpen is not a function`。
+  //
+  // tsc 抓不到：adapterKey 的类型是 AdapterKeysTaking<…> 推出来的宽联合
+  // （ReaderAdapters 里有 `(...args: any[]) => any` 这类成员也满足约束），
+  // 调用参数被 any 吃掉，对象字面量根本没被检查。
+  //
+  // 所以这条真渲染一遍，把适配器收到的 props 记下来和 context 对账。
+  const seen = [];
+  setReaderAdapters({
+    ...adapters,
+    renderReaderTerminal: (props) => { seen.push(props); return createElement("div", { "data-slot": "terminal" }); },
+  });
+  try {
+    renderToStaticMarkup(createElement(ReaderHostPanelShell, {
+      panel: READER_HOST_PANELS.find((p) => p.slot === "terminal"),
+      active: "terminal",
+      context,
+    }));
+  } finally {
+    setReaderAdapters(adapters);
+  }
+  assert.equal(seen.length, 1, "适配器没被调用，下面的对账没有判别力");
+  const missing = Object.keys(context).filter((k) => !(k in seen[0]));
+  assert.deepEqual(missing, [], `壳漏传了这些字段：${missing}`);
+  assert.ok("open" in seen[0], "壳没把 open 传下去");
 });

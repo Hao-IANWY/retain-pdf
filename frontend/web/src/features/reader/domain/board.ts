@@ -30,7 +30,14 @@ export type BoardListing = {
 };
 
 export function parseBoardListing(payload: unknown): BoardListing[] | null {
-  const raw = (payload as { items?: unknown } | null)?.items;
+  // 端点走 `ApiResponse::ok(...)`，也就是 `{code, message, data:{schema, items}}`。
+  // 第一版直接读 `payload.items` —— 恒为 undefined，列表永远是空的，agent 写完
+  // 文件说「好了」而用户那边什么都不出现，也没有任何报错。
+  //
+  // 同 feature 目录下 terminal-scope.ts 读的是 `data?.books`，是对的；这个仓库
+  // 知道信封长什么样，是我没看。两种都收下：裸对象让单测好写，真实响应能走通。
+  const envelope = payload as { data?: { items?: unknown }; items?: unknown } | null;
+  const raw = envelope?.data?.items ?? envelope?.items;
   if (!Array.isArray(raw)) return null;
   const items: BoardListing[] = [];
   for (const candidate of raw) {

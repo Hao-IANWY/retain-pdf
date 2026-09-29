@@ -23,6 +23,8 @@ export type ReaderHostPanelContext = {
         text: string;
         token: number;
     } | null;
+    /** agent 在 board/ 里写了个能看的东西，请求把它在左边打开。 */
+    onOpenBoard: (name: string) => void;
     onClose: () => void;
 };
 export declare function ReaderHostPanelShell({ panel, active, context, }: {

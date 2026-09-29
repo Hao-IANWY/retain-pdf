@@ -25,6 +25,8 @@ export type ReaderHostPanelContext = {
   /** 从选区问 AI 时要送进终端的那段文字。token 自增表示「这是新的一次注入」——
    * 不能拿文本判重，连着两次选同一段也得送两次。 */
   pendingInput: { text: string; token: number } | null;
+  /** agent 在 board/ 里写了个能看的东西，请求把它在左边打开。 */
+  onOpenBoard: (name: string) => void;
   onClose: () => void;
 };
 
@@ -53,12 +55,16 @@ export function ReaderHostPanelShell({
   // 宽联合时会塌成一个谁也满足不了的调用签名，第一版为此写了 `as never`，
   // 等于把类型检查关掉 —— 这个功能上一次白屏正是这么来的。
   const adapters = getReaderAdapters();
-  const content = adapters?.[panel.adapterKey]?.({
-    open,
-    sessionKey: context.sessionKey,
-    pendingInput: context.pendingInput,
-    onClose: context.onClose,
-  });
+  // **整个 context 展开下去，不手抄字段。**
+  //
+  // 第一版是手抄的四个键，漏了 onOpenBoard —— 于是「agent 写 HTML、点一下在
+  // 左边打开」整条路是死的：点产物条抛 `onOpen is not a function`。tsc 抓不到，
+  // 因为 AdapterKeysTaking 推出来的 adapterKey 是个宽联合（ReaderAdapters 里
+  // 有 `resolveReaderAnchor?: (...args: any[]) => any` 这类成员也满足约束），
+  // 调用参数被 any 吃掉，对象字面量根本没被检查。
+  //
+  // 展开之后，context 加字段就自动到位，不再依赖「记得同步两处」。
+  const content = adapters?.[panel.adapterKey]?.({ ...context, open });
   // 宿主没注册渲染器 = 这个面板根本不该存在（dock 也不会给它 tab）。
   if (content === undefined || content === null) return null;
 

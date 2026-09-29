@@ -6200,12 +6200,7 @@ function Wc({
   var i;
   const r = t === e.id, o = ro(r);
   if (!(e.keepMounted ? o : r)) return null;
-  const s = fe(), c = (i = s == null ? void 0 : s[e.adapterKey]) == null ? void 0 : i.call(s, {
-    open: r,
-    sessionKey: n.sessionKey,
-    pendingInput: n.pendingInput,
-    onClose: n.onClose
-  });
+  const s = fe(), c = (i = s == null ? void 0 : s[e.adapterKey]) == null ? void 0 : i.call(s, { ...n, open: r });
   return c == null ? null : /* @__PURE__ */ S(
     Sc,
     {
@@ -6219,7 +6214,7 @@ function Wc({
     }
   );
 }
-const Jc = lo(() => import("./ReaderMarkdownPanel-_bWgPwGb.js").then((e) => ({ default: e.ReaderMarkdownPanel })));
+const Jc = lo(() => import("./ReaderMarkdownPanel-BgzGGu3D.js").then((e) => ({ default: e.ReaderMarkdownPanel })));
 function Vc(e) {
   const t = e.sourceOnly || !e.translatedUrl, n = !!(e.overlayContentAvailable && e.liveTranslationVisible && !e.assistantOpen), o = e.assistantPdfPane || (e.assistantOpen && e.mode === "compare" ? "source" : e.mode), a = o === "compare", s = n || o !== "translated", c = o === "translated" || o === "compare", i = e.mode === "compare" && o !== "compare";
   return {
@@ -6416,4 +6411,4 @@ export {
   cl as f,
   dl as r
 };
-//# sourceMappingURL=ReaderApp-Bynu7k9T.js.map
+//# sourceMappingURL=ReaderApp-CDMrD1L7.js.map

@@ -89,19 +89,36 @@ test("原文一个字节都不改 —— 这不是消毒，是隔离", () => {
 
 // ------------------------------------------------------------------ 列表
 
+/** 端点真正返回的形状：`ApiResponse::ok(...)` 包成 {code, message, data}。 */
+const envelope = (items) => ({ code: 0, message: "ok", data: { schema: "ai_board_v1", items, skipped: 0 } });
+
+test("解析的是**真实响应信封**，不是裸对象", () => {
+  // 第一版这里喂的是裸 `{items:[…]}`，而端点返回的是 {code,message,data:{items}}。
+  // 于是 parseBoardListing 读 payload.items 恒为 undefined、列表永远是空的，
+  // 而测试因为喂的是我自己臆想的形状所以全绿 —— 测试和代码犯的是同一个错。
+  const parsed = parseBoardListing(envelope([{ name: "x.html", kind: "html", modified_ms: 1 }]));
+  assert.ok(parsed, "真实信封解析不出来 —— 产物条永远不会出现");
+  assert.deepEqual(parsed.map((i) => i.name), ["x.html"]);
+});
+
+test("信封的形状和后端保持一致 —— 漂了就是「我明明写进去了却不显示」", () => {
+  // 对着 Rust 那边真正的返回语句核，不在这里凭记忆写。
+  const rs = read("../../../../backend/api/src/routes/jobs/download.rs");
+  const fn = rs.slice(rs.indexOf("pub async fn list_ai_board"), rs.indexOf("pub async fn list_ai_board") + 400);
+  assert.match(fn, /ApiResponse::ok\(/, "后端换了返回方式，前端的解包要跟着改");
+});
+
 test("只列得出 HTML —— 别的类型没有渲染器，列了点不开", () => {
-  const items = parseBoardListing({
-    items: [
-      { name: "a.png", kind: "image", modified_ms: 1 },
-      { name: "b.html", kind: "html", modified_ms: 2 },
-      { name: "c.pdf", kind: "pdf", modified_ms: 3 },
-    ],
-  });
+  const items = parseBoardListing(envelope([
+    { name: "a.png", kind: "image", modified_ms: 1 },
+    { name: "b.html", kind: "html", modified_ms: 2 },
+    { name: "c.pdf", kind: "pdf", modified_ms: 3 },
+  ]));
   assert.deepEqual(openableBoardItems(items).map((i) => i.name), ["b.html"]);
 });
 
 test("html 是认得的 kind —— 否则后端发得出来、前端却过滤掉了", () => {
-  const items = parseBoardListing({ items: [{ name: "x.html", kind: "html", modified_ms: 1 }] });
+  const items = parseBoardListing(envelope([{ name: "x.html", kind: "html", modified_ms: 1 }]));
   assert.equal(items.length, 1, "html 被 KINDS 白名单挡掉了");
 });
 
