@@ -1740,7 +1740,9 @@ function Ms(e) {
   return {
     topBarPill: t && n !== "terminal",
     sourcePaneToggle: t && r,
-    overlayRenderable: t && r
+    // 和 resolveReaderPaneComposition 的 overlayOnSource 同一套条件，外加
+    // 「源文栏得在台面上」——否则叠层没有落脚的地方。
+    overlayRenderable: t && r && e.liveTranslationVisible && !e.assistantOpen
   };
 }
 const zn = [250, 500, 1e3, 2e3, 4e3], Ct = [80, 160, 320, 640, 1e3, 1500], Dn = [250, 500, 1e3, 2e3, 4e3, 5e3], As = /* @__PURE__ */ new Set(["succeeded", "failed", "cancelled", "canceled"]);
@@ -6214,7 +6216,7 @@ function Wc({
     }
   );
 }
-const Jc = lo(() => import("./ReaderMarkdownPanel-v1A7JLao.js").then((e) => ({ default: e.ReaderMarkdownPanel })));
+const Jc = lo(() => import("./ReaderMarkdownPanel-Bq5XS1E2.js").then((e) => ({ default: e.ReaderMarkdownPanel })));
 function Vc(e) {
   const t = e.sourceOnly || !e.translatedUrl, n = !!(e.overlayContentAvailable && e.liveTranslationVisible && !e.assistantOpen), o = e.assistantPdfPane || (e.assistantOpen && e.mode === "compare" ? "source" : e.mode), a = !t && (o === "translated" || o === "compare"), s = o === "compare" && a, c = n || o !== "translated" || !a, i = e.mode === "compare" && o !== "compare";
   return {
@@ -6244,7 +6246,9 @@ function Gc() {
   }), p = O(() => m(null), []), w = f ? uo({ jobId: o.jobId, name: f, onClose: p }) : null, M = Ms({
     hasOverlayContent: P,
     connection: e.liveTranslation.connection,
-    showSource: v.showSource
+    showSource: v.showSource,
+    liveTranslationVisible: g,
+    assistantOpen: b
   }), E = v.sourceViewOnly, z = v.visibleMode;
   $(() => {
     u(null), m(null), h(!1);
@@ -6411,4 +6415,4 @@ export {
   cl as f,
   dl as r
 };
-//# sourceMappingURL=ReaderApp-CnF0k9Sc.js.map
+//# sourceMappingURL=ReaderApp-BSrgT4VM.js.map

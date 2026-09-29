@@ -39,12 +39,8 @@
 @import "./selection-pop.css" layer(pages);
 @import "./panel-shell.css" layer(pages);
 @import "./float-markdown.css" layer(pages);
-@import "./float-ai.css" layer(pages);
-@import "./float-ai-aui.css" layer(pages);
 @import "./float-ai-md.css" layer(pages);
 @import "./float-ai-citations.css" layer(pages);
-@import "./float-ai-composer.css" layer(pages);
-@import "./float-ai-operations.css" layer(pages);
 @import "./hud.css" layer(pages);
 /* Markdown 悬浮预览（含 MathJax） */
 @import "./markdown.css" layer(pages);

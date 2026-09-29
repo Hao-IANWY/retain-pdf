@@ -1,6 +1,6 @@
 // reader — pure
 import { buildApiHeaders, unwrapEnvelope } from "./internal/runtime.js";
-import { buildJobDetailEndpoint, submitJson } from "./http.js";
+import { buildJobDetailEndpoint } from "./http.js";
 export async function fetchReaderRegions(jobId, apiPrefix) {
     const resp = await fetch(`${buildJobDetailEndpoint(jobId, apiPrefix)}/reader/regions`, { headers: buildApiHeaders() });
     if (!resp.ok) {
@@ -18,7 +18,4 @@ export async function fetchReaderMetadata(jobId, apiPrefix) {
         throw new Error(`读取阅读元数据失败，请稍后重试。(${resp.status})`);
     }
     return unwrapEnvelope(await resp.json());
-}
-export async function fetchReaderAiChat(jobId, payload, apiPrefix) {
-    return submitJson(`${buildJobDetailEndpoint(jobId, apiPrefix)}/reader/ai/chat`, payload);
 }

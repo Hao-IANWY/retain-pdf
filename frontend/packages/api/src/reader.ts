@@ -20,6 +20,3 @@ export async function fetchReaderMetadata(jobId: string, apiPrefix?: string): Pr
   return unwrapEnvelope(await resp.json());
 }
 
-export async function fetchReaderAiChat(jobId: string, payload: unknown, apiPrefix?: string): Promise<any> {
-  return submitJson(`${buildJobDetailEndpoint(jobId, apiPrefix)}/reader/ai/chat`, payload);
-}

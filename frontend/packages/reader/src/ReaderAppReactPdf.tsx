@@ -205,6 +205,8 @@ export function ReaderAppReactPdf() {
     hasOverlayContent,
     connection: c.liveTranslation.connection,
     showSource: paneComposition.showSource,
+    liveTranslationVisible,
+    assistantOpen,
   });
   const sourceViewOnly = paneComposition.sourceViewOnly;
   const visiblePdfMode = paneComposition.visibleMode;

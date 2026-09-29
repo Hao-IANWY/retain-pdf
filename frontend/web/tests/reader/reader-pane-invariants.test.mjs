@@ -19,6 +19,8 @@ import assert from "node:assert/strict";
 
 import { resolveReaderPaneComposition }
   from "../../../packages/reader/src/ReaderAppReactPdf.tsx";
+import { resolveLiveTranslationToggles }
+  from "../../../packages/reader/src/shared/data/live-translation-state.ts";
 
 function allCompositions() {
   const rows = [];
@@ -72,4 +74,50 @@ test("说要显示译文时，译文一定存在", () => {
 test("compareMode 和 showTranslated 不许脱钩", () => {
   // 脱钩就意味着栅格和内容各说各的 —— 正是这个 bug 的形状。
   violations("compareMode 真而 showTranslated 假", (o) => o.compareMode && !o.showTranslated);
+});
+
+test("overlayRenderable 名副其实 —— 它说「在画」就得真的在画", () => {
+  // 这个字段的注释写着「叠层此刻是否真的会画到屏幕上」，而它曾经只算
+  // `hasOverlayContent && showSource`，漏了 liveTranslationVisible 和
+  // assistantOpen —— 96 种组合里**有 24 行在撒谎**。
+  //
+  // 后果不只是注释不准：基于它的那条不变式（「叠层画得出来就至少有一个开关够
+  // 得着」）因此守的是一个名不副实的条件，在更宽松的谓词下恒真。反证时确认过
+  // 那条抓不到这个退化。
+  const lying = [];
+  for (const { input, out } of ROWS) {
+    if (input.assistantPdfPane !== null) continue; // 栏锁与叠加无关，减少噪声
+    const toggles = resolveLiveTranslationToggles({
+      hasOverlayContent: input.overlayContentAvailable,
+      connection: "live",
+      showSource: out.showSource,
+      liveTranslationVisible: input.liveTranslationVisible,
+      assistantOpen: input.assistantOpen,
+    });
+    if (toggles.overlayRenderable !== out.overlayOnSource) lying.push({ input, toggles, out });
+  }
+  assert.deepEqual(
+    lying.slice(0, 3).map((r) => JSON.stringify(r.input)),
+    [],
+    `overlayRenderable 和真实叠加状态不一致：${lying.length} 种组合`,
+  );
+});
+
+test("叠层画得出来时，至少有一个开关够得着", () => {
+  // 收掉顶栏 pill 的全部前提。用上面那个**名副其实**的谓词来问，否则这条会在
+  // 一堆「其实没在画」的组合上空转。
+  const stranded = [];
+  for (const { input, out } of ROWS) {
+    const toggles = resolveLiveTranslationToggles({
+      hasOverlayContent: input.overlayContentAvailable,
+      connection: "live",
+      showSource: out.showSource,
+      liveTranslationVisible: input.liveTranslationVisible,
+      assistantOpen: input.assistantOpen,
+    });
+    if (!toggles.overlayRenderable) continue;
+    if (!toggles.topBarPill && !toggles.sourcePaneToggle) stranded.push(input);
+  }
+  assert.deepEqual(stranded.slice(0, 3).map((x) => JSON.stringify(x)), [],
+    `叠层画得出来却关不掉：${stranded.length} 种组合`);
 });
