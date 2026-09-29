@@ -177,24 +177,43 @@ def build_collection_workspace_instructions(workspace: Path) -> str:
 
 ## 可以自由读写的地方
 
-**只有当前目录。** `books/` 下面是别的任务的产物,只读。
+**只有当前目录。** `books/` 下面是各本书的完整产物目录，**默认只读** —— 那些
+是花了钱和时间跑出来的（OCR 按量计费、翻译走大模型），改坏了要重跑重付。
+唯一的例外见下面一节。
 
-## 想给用户看什么,丢进 `./board/`
+## ⚠️ 写在**当前目录**的 `./board/` 里，用户看不到
 
-和单本书工作区同一套规则：**首选 `.html`**，写一份自包含网页（所有 CSS/JS/字体
-内联，自己定 background 和 color —— 页面在断网沙箱里跑，外链一律被挡）。
+这一条和单本书工作区不一样，别照抄。
+
+界面上那条产物列表只认 `/api/v1/jobs/<任务>/board`，也就是**某一本书**的画板。
+合集这一级**没有对应的端点**，所以 `./board/` 里的东西没有任何呈现路径 ——
+写进去等于白写，而且你不会收到任何错误。
+
+## 想给用户看什么：写进某一本书的画板
+
+    books/<书>/ai/board/<名字>.html
+
+**这是 `books/` 只读规则的唯一例外**：往画板里**新增**一个文件是叠加性的，
+不碰任何流水线产物。别改、别删那底下已有的东西。
+
+挑哪本书：跟这份结论关系最大的那本。用户会在**那本书的阅读页**看到它 ——
+所以名字里带上这是跨书结论，比如
+`books/<书>/ai/board/cross-5-papers-method-conflicts.html`，
+别叫 `summary.html`，否则看的人分不清这是这本书的还是整批的。
+
+格式和单本书那边一样：**首选 `.html`**，一份自包含网页（所有 CSS/JS/字体内联，
+自己定 background 和 color —— 页面在断网沙箱里跑，外链一律被挡）。
 
     认这些后缀   html · png jpg jpeg webp gif · pdf · md · json · txt csv
     不认         svg（能带脚本）、其它一律不显示
     文件名       只能是字母数字和 . _ -，不能有空格、中文、斜杠、开头的点
     大小         单个 16 MB 以内
 
-目前只有 `.html` 能在左边打开，别的类型还没有渲染器。
+目前只有 `.html` 能在左边打开，别的类型收得下但还没有渲染器。
 
 要排版就用 `typst`（中文直接出得来）：写 `.typ` 然后
-`typst compile report.typ ./board/report.pdf`,单条命令。
-
-**文件名就是标签**,`method-conflicts-across-5-papers.png` 比 `out.png` 有用得多。
+`typst compile report.typ books/<书>/ai/board/report.pdf`,单条命令。
+不过 PDF 打不开只能下载，除非确实要能存档的东西，否则写 `.html` 更顺手。
 """
 
 

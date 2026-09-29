@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 from retainpdf_ai.fx_workspace import (
+    build_collection_workspace_instructions,
     build_job_workspace_instructions,
     resolve_job_workspace,
 )
@@ -452,3 +453,78 @@ def test_the_board_docs_point_at_typst_with_a_runnable_command(
     assert any("./board/" in command for command in commands), (
         "例子没直接渲进 ./board/，模型会渲到别处再忘了搬"
     )
+
+
+def _collection_section(tmp_path: Path) -> str:
+    """合集工作区说明里讲产物呈现的那几节。"""
+    import json
+
+    workspace = tmp_path / "collections" / "col-1" / "ai"
+    (workspace / "books").mkdir(parents=True, exist_ok=True)
+    (workspace / "collection.v1.json").write_text(
+        json.dumps({"books": [{"dir": "A Book", "job_id": "job-a"}], "skipped": []}),
+        encoding="utf-8",
+    )
+    text = build_collection_workspace_instructions(workspace)
+    return text[text.index("## 可以自由读写的地方"):]
+
+
+def test_the_collection_docs_do_not_promise_an_endpoint_that_does_not_exist(
+    tmp_path: Path,
+) -> None:
+    """合集这一级没有 board 端点，说明书就不能说「丢进 ./board/ 就能看见」。
+
+    界面上那条产物列表只轮询 `/api/v1/jobs/<任务>/board`。合集的 cwd 是
+    `collections/<id>/ai`，它的 `./board/` 没有任何呈现路径 —— agent 照着写、
+    报告完成，而用户永远看不到，也不会收到任何错误。
+
+    这条断言**对着真实路由表核**，不靠记忆：collections 的路由文件里但凡出现
+    board，就说明端点加上了，那时这条门禁要跟着改。
+    """
+    import re
+    from pathlib import Path as _Path
+
+    here = _Path(__file__).resolve()
+    routes = None
+    for parent in here.parents:
+        candidate = parent / "backend/api/src/app/router/collections.rs"
+        if candidate.is_file():
+            routes = candidate.read_text(encoding="utf-8")
+            break
+    assert routes, "找不到 collections 的路由文件"
+    has_board_endpoint = re.search(r'"/api/v1/collections/[^"]*board', routes) is not None
+
+    section = _collection_section(tmp_path)
+    if has_board_endpoint:
+        assert "./board/" in section, "合集有 board 端点了，说明书该告诉 agent 用它"
+        return
+
+    # 没有端点：必须明确说当前目录的 board 看不到，并给出真正能显示的那条路。
+    assert "用户看不到" in section or "看不见" in section, (
+        "说明书没说清合集这一级的 ./board/ 不会被呈现"
+    )
+    assert "books/<书>/ai/board/" in section, (
+        "没给出真正能显示的落点 —— agent 会不知道该往哪写"
+    )
+
+
+def test_the_collection_docs_carve_the_read_only_exception_explicitly(
+    tmp_path: Path,
+) -> None:
+    """让 agent 往 books/ 底下写，就必须把这个例外说清楚。
+
+    那条「books/ 只读」是有分量的：底下是 OCR（按量计费）和翻译（大模型）的
+    产物，改坏了要重跑重付。现在唯一允许的是往画板里**新增**文件。
+    """
+    section = _collection_section(tmp_path)
+    # **不能只查「只读」两个字** —— 下面那段讲例外的句子里也有它（「books/ 只读
+    # 规则的唯一例外」），把规则本身整段删掉这条照样绿。反证时当场撞上了，
+    # 和今天在 CSS 注释、import 行、useState(960) 上踩的是同一个形状。
+    #
+    # 查的是只出现在那一段里的实质内容：为什么不能改（花了钱）。
+    assert "重跑" in section and "重付" in section, (
+        "没说清 books/ 底下是花钱跑出来的 —— 只说「只读」而不说代价，模型会自己权衡掉"
+    )
+    assert "例外" in section, "开了口子却没说这是例外"
+    assert "新增" in section or "叠加" in section, "没说清只能新增、不能改删"
+    assert "别改" in section or "别删" in section, "没说清例外之外仍然不许动"
