@@ -53,7 +53,18 @@ export function pickPageAtFocus(
       const r = el.getBoundingClientRect();
       return r.height >= 8 && r.width >= 8;
     });
-    best = first ?? pages[0] ?? null;
+    // **一个可见候选都没有就返回 null，不能退到 pages[0]。**
+    //
+    // 整栏被隐藏时（`.is-hidden { display:none }`，模式切换或从选区问 AI 锁栏
+    // 都会这样）每个页槽的 rect 都是 0，上面的循环全被 `height < 8` 跳过，
+    // `first` 也是 undefined。退到 pages[0] 就是拿隐藏栏的第 1 页当答案，
+    // 再算出 fraction = (focusY - 0) / 1 = 1 —— 一个**看起来合法的假答案**。
+    //
+    // 而调用方拿它去写阅读锚点和 URL：HUD 恒显示 1/N，localStorage 里 300 页
+    // 处的位置被改写成第 1 页，刷新就回到开头。两个调用方都正确处理 null
+    // （useCurrentPage 保持原值、measurePageScrollProgress 返回 null），所以
+    // 这里该说「我不知道」。
+    best = first ?? null;
     if (best) {
       const lastVisible = [...pages].reverse().find((el) => {
         const r = el.getBoundingClientRect();

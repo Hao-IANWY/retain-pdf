@@ -1240,7 +1240,7 @@ function Cr(e, t) {
   if (!n && (n = e.find((l) => {
     const d = l.getBoundingClientRect();
     return d.height >= 8 && d.width >= 8;
-  }) ?? e[0] ?? null, n)) {
+  }) ?? null, n)) {
     const l = [...e].reverse().find((d) => {
       const u = d.getBoundingClientRect();
       return u.height >= 8 && u.width >= 8;
@@ -1708,7 +1708,7 @@ function _r(e, t, n) {
   if (r < 0 || r === 0 && n.page_hash !== t.page_hash) return "retry";
   if (!e) return "accept";
   const o = xn(n, e);
-  return o < 0 ? "ignore" : o === 0 ? n.page_hash === e.pageHash ? "ignore" : "retry" : "accept";
+  return o < 0 || o === 0 && n.page_hash === e.pageHash ? "ignore" : "accept";
 }
 function Es(e, t, n) {
   if (t.seq <= e.lastSeq) return e;
@@ -6214,15 +6214,15 @@ function Wc({
     }
   );
 }
-const Jc = lo(() => import("./ReaderMarkdownPanel-BgzGGu3D.js").then((e) => ({ default: e.ReaderMarkdownPanel })));
+const Jc = lo(() => import("./ReaderMarkdownPanel-v1A7JLao.js").then((e) => ({ default: e.ReaderMarkdownPanel })));
 function Vc(e) {
-  const t = e.sourceOnly || !e.translatedUrl, n = !!(e.overlayContentAvailable && e.liveTranslationVisible && !e.assistantOpen), o = e.assistantPdfPane || (e.assistantOpen && e.mode === "compare" ? "source" : e.mode), a = o === "compare", s = n || o !== "translated", c = o === "translated" || o === "compare", i = e.mode === "compare" && o !== "compare";
+  const t = e.sourceOnly || !e.translatedUrl, n = !!(e.overlayContentAvailable && e.liveTranslationVisible && !e.assistantOpen), o = e.assistantPdfPane || (e.assistantOpen && e.mode === "compare" ? "source" : e.mode), a = !t && (o === "translated" || o === "compare"), s = o === "compare" && a, c = n || o !== "translated" || !a, i = e.mode === "compare" && o !== "compare";
   return {
     kind: n ? "live-overlay" : o === "compare" ? "final-compare" : o === "translated" ? "translated-only" : "source-only",
     visibleMode: o,
-    compareMode: a,
-    showSource: s,
-    showTranslated: c,
+    compareMode: s,
+    showSource: c,
+    showTranslated: a,
     overlayOnSource: n,
     sourceOnly: e.sourceOnly,
     sourceViewOnly: t,
@@ -6292,7 +6292,7 @@ function Gc() {
       children: "译文"
     }
   ) : null, [M.sourcePaneToggle, g]), N = O((B) => {
-    c(B);
+    c(B), l(null);
   }, []), L = G(() => ({
     sessionKey: o.jobId || o.documentId || "reader",
     pendingInput: d,
@@ -6411,4 +6411,4 @@ export {
   cl as f,
   dl as r
 };
-//# sourceMappingURL=ReaderApp-CDMrD1L7.js.map
+//# sourceMappingURL=ReaderApp-CnF0k9Sc.js.map

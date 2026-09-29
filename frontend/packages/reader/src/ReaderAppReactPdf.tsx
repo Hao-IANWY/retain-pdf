@@ -106,9 +106,17 @@ export function resolveReaderPaneComposition(input: {
   const visibleMode = pdfMode;
   // 对照态叠加不再「消栏」：overlay 只在源栏叠加流式画布，右栏（最终译文）
   // 照常保留。compareMode / showTranslated 不再被 overlay 强制关闭。
-  const compareMode = visibleMode === "compare";
-  const showSource = overlayOnSource || visibleMode !== "translated";
-  const showTranslated = visibleMode === "translated" || visibleMode === "compare";
+  //
+  // **但要看有没有最终译文可挂。** 这两个值原来完全不看 sourceViewOnly，而真正
+  // 挂载右栏的闸在别处（use-reader-pane-model 的 `mountTranslated = … && !sourceOnly`）。
+  // 于是翻译还在跑、最终译文 PDF 还不存在时点「对照」：栅格按两列排
+  // （minmax(0,1fr) 两份），第二列一个子元素都没有 —— 不是空状态文案，是**半个
+  // 屏幕纯白**。而这正是翻译期间点对照的默认路径（pill 在时对照页签是放开的，
+  // changeWorkspace 还会自动打开叠加）。
+  const showTranslated = !sourceViewOnly
+    && (visibleMode === "translated" || visibleMode === "compare");
+  const compareMode = visibleMode === "compare" && showTranslated;
+  const showSource = overlayOnSource || visibleMode !== "translated" || !showTranslated;
   // 降级发生在「会话想要对照，可见台面却不是对照」时。assistantPdfPane 锁栏
   // （从选区问 AI）也算 —— 那条路同样会让右栏无声消失。
   const compareDegradedByAssistant = input.mode === "compare" && visibleMode !== "compare";
@@ -295,6 +303,12 @@ export function ReaderAppReactPdf() {
 
   const selectAssistant = useCallback((next: ReaderAssistantPanel) => {
     setAssistantPanel(next);
+    // 栏锁的语义是「这一次从某栏的选区问 AI」，生命周期跟着那次提问。
+    //
+    // 清它的路原来覆盖了「关面板」「切顶栏页签」「换文档」，**唯独漏了换面板**
+    // —— 而换面板是 dock 上最常用的动作。漏掉的表现：在译文栏问过 AI 之后点
+    // Markdown，面板换了，PDF 那半边却还只剩译文栏，顶栏还挂着「对照被面板挤掉」。
+    setAssistantPdfPane(null);
   }, []);
 
   const hostPanelContext = useMemo(() => ({

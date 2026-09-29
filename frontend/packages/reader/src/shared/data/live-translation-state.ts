@@ -69,7 +69,17 @@ export function decideLiveTranslationSnapshot(
   const againstCurrent = compareVersion(snapshot, current);
   if (againstCurrent < 0) return "ignore";
   if (againstCurrent === 0) {
-    return snapshot.page_hash === current.pageHash ? "ignore" : "retry";
+    // 同版本、hash 对不上 → **以后端为准**，不能 retry。
+    //
+    // 走到这一行时快照已经过了对事件的全部校验（版本不低于事件，且同版本时
+    // hash 与事件一致），也就是后端给的就是权威答案。而 retry 会去重读**同一个
+    // 不可变端点** 9 次（SNAPSHOT_RETRY_MS 累计 8.2s），后端那三个字段来自同一行
+    // DB 记录，9 次的答案必然完全相同 —— 这条 retry 在物理上不可能成功。
+    //
+    // 代价是实打实的：那 8.2 秒里 onEvent 被 await 堵着，**后面所有页的译文一起
+    // 停**；9 次之后放弃这一页并推进 lastSeq，而重连用 afterSeq，这个事件再也不会
+    // 被重放 —— 该页于本次会话内永久停在旧版本。
+    return snapshot.page_hash === current.pageHash ? "ignore" : "accept";
   }
   return "accept";
 }
