@@ -263,6 +263,19 @@
     right: var(--reader-ai-split-width);
   }
 
+  /* ≤899px 下 assistant-dock.css 把面板改成全宽（inset: 106px 0 0）、dock 头改成
+     top:58px 全宽。产物面如果还按桌面那套（右边只让出 30–65vw、顶边 60px），
+     结果是：它横跨在全宽面板之上，把面板里**每一个控件**都盖住（产物条、终端
+     标签、两个关闭、新建、作用域条、提示 chip 全部覆盖），而它自己的关闭条又
+     落在全宽 dock 头底下 —— 唯一的退路是连面板一起关掉。真浏览器逐控件命中
+     测过。 */
+  @media (max-width: 899px) {
+    .reader-react-root.is-assistant-open .reader-board-pane {
+      right: 0;
+      top: 106px;
+    }
+  }
+
   .reader-board-bar {
     display: flex;
     align-items: center;

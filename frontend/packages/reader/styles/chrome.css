@@ -4,6 +4,21 @@
  * .reader-workspace-bar / .reader-workspace-tabs / .reader-workspace-tab
  * 取代（ReaderWorkspaceTabs.tsx），且无任何 JS/TSX 写入者，删除防复活。 */
 
+/* 顶栏右上角那一组（下载 + 关闭）的宽度。
+ *
+ * 它是 `position: fixed` 且 z-index 比顶栏高，会**压在**顶栏上。顶栏里的东西
+ * 靠 `justify-content: center` 居中，窄屏下就会滑到它底下 —— 用真浏览器扫过：
+ * 465px 起「点此关闭面板恢复对照」被下载组接走点击，420px 起「翻译文件」页签
+ * 也点不到（iPhone SE 的 375px 在最坏那一档）。
+ *
+ * 原来靠各个控件自己算 max-width 来躲（见下面 .reader-compare-degraded 那条
+ * 注释：「压上了的表现不是难看，是这条提示点不动」），而 ≤900px 那段又把那条
+ * 护栏撤了。一个一个控件去算是守不住的，改成顶栏统一给托盘留位。
+ */
+.reader-react-root {
+  --reader-tray-width: 300px;
+}
+
 /* Reader 顶栏只放场景预设；窗格的自由组合由各自的小选择器负责。 */
 .reader-workspace-bar {
   position: fixed;
@@ -14,7 +29,9 @@
   justify-content: center;
   gap: 10px;
   height: 60px;
-  padding: 0 72px;
+  /* 右边给托盘留位。居中因此不是相对视口而是相对「除去托盘的那块」——
+     这正是想要的：托盘本来就压在上面。 */
+  padding-inline: 72px var(--reader-tray-width, 300px);
   border-bottom: 1px solid color-mix(in srgb, var(--ink) 8%, transparent);
   background: color-mix(in srgb, var(--paper) 94%, transparent);
   box-shadow: 0 1px 0 color-mix(in srgb, var(--paper) 72%, transparent);
@@ -32,9 +49,22 @@
   background: color-mix(in srgb, var(--ink) 3%, transparent);
 }
 
-.reader-live-translation-toggle {
+/* 这条**只给顶栏那颗 pill**。
+ *
+ * 同一个 class 还被源栏右上角那个「译文」叠加开关复用
+ * （ReaderAppReactPdf 的 sourcePaneAction，容器是 .reader-react-pdf-pane-action，
+ * 本身已经 position:absolute; top:8; right:8）。不加作用域的话这里的
+ * `position:absolute; left:…` 会原样生效：容器唯一的子元素绝对定位之后宽度塌成
+ * 0，按钮再 left:28px 就落到 PDF 栏**右边缘之外**，被 overflow-x 裁掉 ——
+ * 而那条横向滚动条是刻意藏掉的，于是既看不见也点不到。
+ *
+ * 那颗按钮是打开实时译文叠加的**唯一入口**（顶栏 pill 在任务终态不渲染）。 */
+.reader-workspace-bar .reader-live-translation-toggle {
   position: absolute;
   left: clamp(12px, 2.2vw, 28px);
+}
+
+.reader-live-translation-toggle {
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -145,8 +175,19 @@
   .reader-compare-degraded {
     padding: 0 8px;
     /* 只剩图标就不再受上面那条上限管 —— 那条是按整句话的宽度算的，
-       套在 30px 的图标上会把图标本身挤扁。 */
+       套在 30px 的图标上会把图标本身挤扁。
+       撤掉它安全了：顶栏现在统一给托盘留位（--reader-tray-width），
+       不再靠单个控件自己算上限去躲。 */
     max-width: none;
+  }
+
+  /* ≤900px 下载组只剩图标，托盘窄很多；同时左边也收一收，给中间的页签留地方。 */
+  .reader-react-root {
+    --reader-tray-width: 200px;
+  }
+
+  .reader-workspace-bar {
+    padding-inline: 12px var(--reader-tray-width, 200px);
   }
 }
 

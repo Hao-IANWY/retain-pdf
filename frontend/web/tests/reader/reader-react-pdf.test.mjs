@@ -273,11 +273,30 @@ test("reader view state rejects malformed layouts and clamps recoverable values"
   });
 });
 
-test("AI split keeps 50% zoom filling the document half", () => {
-  assert.equal(resolveReaderPageWidthBasis(600, true), 1200);
-  assert.equal(resolveReaderPageWidthBasis(1200, true, 1200), 1200);
-  assert.equal(resolveReaderPageWidthBasis(600, true, 1200), 1200);
+test("开着侧栏时，50% 缩放在**整个拖拽区间**都铺满 PDF 栏", () => {
+  // 原来这条只钉了三个数字，其中正好只覆盖分栏 50% 那一个点。而分栏是可拖的
+  // （reader-assistant-split-constraints：30%–65%），basis 里那个
+  // `Math.min(shellWidth * 2, viewportWidth)` 在 30%–50% 区间把基准钳成常量：
+  //
+  //   面板 30%  shell 1344  基准封顶 1920  50%页宽 936  栏宽 1344  ← 差 400px
+  //
+  // 用户看到的是「把分隔条往右拖给 PDF 更多地方，页面一点都不变大」。
+  // 挑点测抓不到，所以这里扫整个区间。
+  const V = 1920;
+  for (const assistantPercent of [30, 35, 40, 45, 50, 55, 60, 65]) {
+    const shell = (V * (100 - assistantPercent)) / 100;
+    const basis = resolveReaderPageWidthBasis(shell, true, V);
+    const pageWidth = pageWidthFromShell(basis, 0.5);
+    // fitContentWidth 恒扣 24px 的 padding，所以留一点余量。
+    assert.ok(
+      Math.abs(pageWidth - shell) <= 30,
+      `面板 ${assistantPercent}% 时页宽 ${Math.round(pageWidth)} 没铺满栏宽 ${Math.round(shell)}`,
+    );
+  }
+  // 没有侧栏时基准就是 shell 宽（50% = 半栏，这是默认阅读的样子）。
   assert.equal(resolveReaderPageWidthBasis(600, false), 600);
+  // shell 还没量出来时才用 viewport 兜底，别算成 0。
+  assert.equal(resolveReaderPageWidthBasis(0, true, 1200), 1200);
 });
 
 test("assistant dock keeps the PDF mounted and owns Markdown or AI independently", () => {

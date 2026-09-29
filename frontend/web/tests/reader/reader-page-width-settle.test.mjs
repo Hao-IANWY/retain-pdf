@@ -32,7 +32,17 @@ import {
 } from "../../../packages/reader/src/pdf/reader-zoom.ts";
 
 const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), "utf8");
+/** 剥掉注释再比。
+ *
+ * 今天在这个仓库里第五次栽在同一个形状上：**负向断言命中了自己的解释性注释**。
+ * 解释一处错误时往往要引用那句错话（`useState(960)`、`.reader-notes-count`、
+ * `CSP 把出网整个关掉`…），于是 doesNotMatch 永远红。
+ *
+ * 所以凡是「这段代码里不该出现 X」的断言，一律先过这个。 */
+const code = (src) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*/g, "");
 const PANE = read("../../../packages/reader/src/pdf/PdfDocumentPane.tsx");
+const SHELL = read("../../../packages/reader/src/hooks/use-reader-shell.ts");
+const GRID = read("../../../packages/reader/src/components/react-pdf/ReaderCompareGrid.tsx");
 const CSS = read("../../../packages/reader/styles/react-pdf.css");
 
 test("第一次拿到宽度必须立刻给 —— 等 200ms 就是白屏 200ms", () => {
@@ -131,4 +141,28 @@ test("settle 时长要盖过 shell 的过渡 —— 不然过渡没完就提交�
     READER_WIDTH_SETTLE_MS >= Number(match[1]),
     `settle ${READER_WIDTH_SETTLE_MS}ms 短于过渡 ${match[1]}ms`,
   );
+});
+
+test("首屏交上去的第一个宽度必须是真实测量，不能是硬编码的种子", () => {
+  // shellWidth 原来 `useState(960)`。React 的提交顺序是死的：
+  //
+  //   commit 1  Grid 用 960 渲染出 basis；bindShell 在 ref 阶段 setShellEl，
+  //             但本轮 RO effect 闭包里 shellEl 还是 null，一次都没量。
+  //   同一轮    PdfDocumentPane 的宽度 effect 跑：lastWidthRef 是 0 →
+  //             resolveReaderWidthCommit 返回 "immediate" → 把 960 推出来的
+  //             宽度当成权威值提交。
+  //   之后      真实宽度到达时 lastWidthRef 已非 0 → 判成 "settle" → 等 200ms。
+  //
+  // 于是在任何不是 960px 宽的阅读区（几乎所有屏）第一次画错，200ms 后整页跳一次。
+  // 那个 "immediate" 分支本来是为「第一次真正量到」准备的，被假种子用掉了。
+  //
+  // 上面那几条纯函数测试抓不到这个 —— 它们测的是判断本身，不是初值的时序。
+  assert.doesNotMatch(code(SHELL), /useState\(\s*\d{2,}\s*\)/,
+    "shellWidth 用了一个看起来合理的假初值");
+  assert.match(SHELL, /const UNMEASURED_SHELL_WIDTH = 0;/,
+    "「还没量到」得用 0 表示，调用方才能据此让出 override");
+  assert.match(SHELL, /useState\(UNMEASURED_SHELL_WIDTH\)/);
+  // 而且调用方真的据此让出了 override，否则上面改了也没用。
+  assert.match(GRID, /shellMeasured\s*\?/, "Grid 没有在「还没量到」时让出 pageWidthOverride");
+  assert.match(GRID, /:\s*null;/, "让出时得传 null，不是一个兜底数字");
 });

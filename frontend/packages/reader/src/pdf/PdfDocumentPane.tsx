@@ -433,7 +433,18 @@ const PdfDocumentPaneInner = forwardRef<HTMLElement, PdfDocumentPaneProps>(
     // 地方的批注比没有批注更糟，而且你看不出它贴错了。
     const windowedSet = useMemo(() => {
       if (numPages === 0) return new Set<number>();
-      const canWindow = !!scrollRoot && typeof IntersectionObserver !== "undefined" && visible;
+      // **不可见时收到最小集，而不是关掉虚拟化。**
+      //
+      // 原来 visible 参与 canWindow，于是「这一栏看不见」的效果是把窗口开到
+      // 全书：500 页的书切一次模式，另一栏立刻挂载几百个 PdfPageSlot，各自带
+      // ReaderTextHoverLayer / ReaderStructureSelectionLayer 和一个 useMemo ——
+      // 而这一栏一个像素都不显示。canvas 确实没挂，但几百个组件的同步渲染是
+      // 实打实的卡顿。
+      //
+      // 顺带：第 1 条阅读锚点的 bug 能成立正是靠这个 —— 隐藏栏的页槽全在 DOM
+      // 里，measurePageScrollProgress 才过得了 `pages.length` 那道闸。
+      if (!visible) return new Set<number>();
+      const canWindow = !!scrollRoot && typeof IntersectionObserver !== "undefined";
       if (!canWindow) return new Set(pageNumbers);
       if (nearPages.size === 0) {
         const end = Math.min(numPages, OVERSCAN * 2 + 1);
