@@ -38,18 +38,17 @@ test("keepMounted 真的从注册表传到了壳", () => {
   assert.match(host, /keepMounted=\{panel\.keepMounted\}/);
 });
 
-test("隐藏不能用 display:none —— xterm 会把 0 尺寸容器算成 1 行", () => {
-  // 切回来那段输出全挤在一行里。挪到视口外是唯一既看不见又保住布局的做法。
+test("组件把 data-hidden 打上去了 —— CSS 那半边由层叠门禁守", () => {
+  // 这里只管「属性有没有打上去」。**规则有没有赢下层叠是另一回事**，那条在
+  // reader-hidden-panel-cascade.test.mjs 里真算层叠。
+  //
+  // 原来这条测试是 `css.indexOf(".reader-notes-panel[data-hidden]")` 然后对那
+  // 200 个字符做正则 —— 它只证明「有人写过这条规则」。而那条规则的特异性
+  // (0,2,0) 被 panel-shell.css 里同为 (0,2,0) 且排在后面的
+  // `.reader-notes-panel--workspace.is-pane-right` 顶掉了，**这套隐藏从来没
+  // 生效过**，而这条测试一直是绿的。和圆钮那次一模一样。
   const shell = read("components/react-pdf/ReaderPanelShell.tsx");
   assert.match(shell, /data-hidden=\{!open \? "" : undefined\}/);
-  const css = read("../styles/react-pdf.css");
-  const block = css.slice(css.indexOf(".reader-notes-panel[data-hidden]"));
-  assert.ok(block, "CSS 里没有 [data-hidden] 规则，面板会照常显示");
-  const rule = block.slice(0, 200);
-  assert.match(rule, /position:\s*absolute/);
-  assert.match(rule, /left:\s*-\d+vw/);
-  assert.doesNotMatch(rule, /display:\s*none/, "display:none 会让 xterm 算成 1 行");
-  assert.doesNotMatch(rule, /visibility:\s*hidden/, "visibility:hidden 同样丢尺寸");
 });
 
 test("藏起来的面板不参与 Tab、不被读屏念出来", () => {

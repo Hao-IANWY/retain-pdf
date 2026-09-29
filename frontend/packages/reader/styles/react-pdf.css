@@ -633,10 +633,27 @@
  * 又保住布局的做法。
  *
  * 配合组件上的 inert + aria-hidden：藏起来的面板不参与 Tab，也不被读屏念出来。
+ *
+ * # 为什么是三个类而不是两个
+ *
+ * 这条规则曾经写成 `.reader-notes-panel[data-hidden]`，特异性 (0,2,0)。而
+ * panel-shell.css 里 `.reader-notes-panel--workspace.is-pane-right` 也是
+ * (0,2,0) 且 `@import` 排在本文件**之后**（entry.css:37 vs :40），于是
+ * `inset-inline: auto 0` 赢，`left: -200vw` 被顶掉 —— **这套「藏起来但不卸载」
+ * 从来没有生效过**。表现：开过一次 AI 面板再关掉，右半个阅读区一直盖着一块
+ * 不透明白板（z-index 24），上面印着上次的终端内容；pointer-events:none 让
+ * 鼠标穿过去，所以底下的 PDF 还能滚能选，只是看不见。
+ *
+ * 所以这里不靠顺序，靠特异性。要压过的不止一条 —— assistant-dock.css:264
+ * 的 `.reader-react-root.is-assistant-open .reader-notes-panel--workspace`
+ * 也在定位这个面板，同样是 (0,3,0)。所以写到 (0,4,0)，谁先谁后都赢。
+ *
+ * 属性也从 `left` 换成 `inset-inline` —— 和顶掉它的那两条是同一个逻辑属性，
+ * 混着写会让「谁赢」变成还要想一遍的事。
  */
-.reader-notes-panel[data-hidden] {
+.reader-react-root .reader-notes-panel.reader-notes-panel--workspace[data-hidden] {
   position: absolute;
-  left: -200vw;
+  inset-inline: -200vw auto;
   top: 0;
   pointer-events: none;
 }
