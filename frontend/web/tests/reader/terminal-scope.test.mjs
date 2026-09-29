@@ -130,8 +130,15 @@ test("没有文件夹的人看到的终端和以前一样", () => {
 test("换作用域要换 fx 会话", () => {
   // 两个作用域的对话不该串 —— 单本书那边的上下文里没有 books/。
   // 每条终端各自算自己的会话键 —— 作用域现在是每条标签各自的。
-  assert.match(PANEL, /const sessionKey = sessionKeyForScope\(tab\.scope\)/);
-  assert.match(PANEL, /\[baseUrl, apiKey, sessionKey\]/, "session 没跟着作用域变");
+  assert.match(PANEL, /sessionKeyForScope\(tab\.scope\)/);
+  // 原来查的是 TerminalInstance 里 useMemo 的依赖数组 `[baseUrl, apiKey, sessionKey]`。
+  // session 已经提到面板里按 tab 缓存（为了让「问 AI」能按 activeId 现查现用），
+  // 那个 useMemo 没了。守同一个不变式的现在是缓存键的比较。
+  const forFn = PANEL.slice(PANEL.indexOf("const sessionFor = useCallback"),
+    PANEL.indexOf("const sendToActive"));
+  assert.ok(forFn.length > 0, "sessionFor 不见了，这条门禁守错了地方");
+  assert.match(forFn, /cached\.key === key/, "作用域变了不换 session，两边对话会串");
+  assert.match(forFn, /websocketTerminalSession\(\{ baseUrl, apiKey, session: key \}\)/);
 });
 
 test("当前作用域要看得出来", () => {

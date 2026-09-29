@@ -121,7 +121,7 @@ test("选区问 AI 开的是终端，且用 token 而不是文本判重", () => 
 test("注入不替用户回车", () => {
   // 由页面选区拼出来的一条命令直接开跑太意外了。
   const inject = TERMINAL.slice(TERMINAL.indexOf("sentTokenRef"), TERMINAL.indexOf("const themeId"));
-  assert.match(inject, /sendToActive\.current\(pendingInput\.text\)/, "宿主没把选区送进终端");
+  assert.match(inject, /sendToActive\(pendingInput\.text\)/, "宿主没把选区送进终端");
   assert.doesNotMatch(inject, /\\r|\\n/, "注入时带了回车，agent 会直接跑起来");
   assert.match(inject, /sentTokenRef\.current === pendingInput\.token/, "没按 token 去重，会重复注入");
   assert.match(inject, /if \(!open/, "面板没开时也送 —— 那会静默丢掉");

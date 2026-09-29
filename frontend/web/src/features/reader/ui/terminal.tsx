@@ -6,10 +6,11 @@
  * 端点解析不到（apiBase 或 xApiKey 没配）时返回 null —— dock 里就不会出现
  * 终端那个 tab。点了没反应的 tab 比没有这个功能更糟。
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReaderTerminalSlotProps } from "@retainpdf/reader/adapters";
 
 import { FxTerminal, websocketTerminalSession } from "@/features/fx-terminal/index.js";
+import type { TerminalSession } from "@/features/fx-terminal/index.js";
 import { apiBase, frontendApiKey } from "@/platform/config/runtime.js";
 
 import { sessionKeyForScope } from "../domain/terminal-scope.js";
@@ -72,7 +73,36 @@ function ReaderTerminalPanel({ open, sessionKey, pendingInput, onOpenBoard, base
     () => terminalRefs.current.get(tabs.activeId)?.focus(),
     [tabs.activeId],
   );
-  const sendToActive = useRef<(data: string) => void>(() => {});
+  // 每条终端的 session 由**面板**持有，不由 TerminalInstance 自己 useMemo。
+  //
+  // 原来是「空函数占位 + onReady 时替换」，两个后果：
+  //
+  // 1. **第一次点「问 AI」必然静默丢失**。askSelectedRegion 同一次渲染里设了
+  //    pendingInput 又把面板切过来，注入 effect 立刻跑；而 onReady 要等 xterm
+  //    的动态 import（~500KB）落地才执行，那时 sendToActive 还是空函数。
+  //    更糟的是 sentTokenRef 已经先记上了，同一个 token 不会重试。
+  // 2. **切/关标签后字进了别条终端**。onReady 只在挂载时触发一次，而
+  //    activateTab 只改 state 不重挂载，所以 sendToActive 永远指着「最后一次
+  //    挂载时恰好是当前」的那条。focusActive 是按 activeId 查的，于是光标在你
+  //    看的那条里闪、字去了另一条 —— 最难自查的形态。
+  //
+  // 现在按 activeId 现查现用。握手期不怕：websocket-session 自己会把输入攒进
+  // pendingInput，socket 一开就冲出去（见 websocket-session.ts 的 pendingInput）。
+  const sessionsRef = useRef(new Map<string, { key: string; session: TerminalSession }>());
+  const sessionFor = useCallback((tab: TerminalTab): TerminalSession => {
+    const key = sessionKeyForScope(tab.scope);
+    const cached = sessionsRef.current.get(tab.id);
+    // 作用域换了就得换 session（连的是另一个 fx 会话）。
+    if (cached && cached.key === key) return cached.session;
+    const session = websocketTerminalSession({ baseUrl, apiKey, session: key });
+    sessionsRef.current.set(tab.id, { key, session });
+    return session;
+  }, [apiKey, baseUrl]);
+  const sendToActive = useCallback((data: string) => {
+    const tab = tabs.tabs.find((item) => item.id === tabs.activeId) ?? tabs.tabs[0];
+    if (!tab) return;
+    sessionFor(tab).send(data);
+  }, [sessionFor, tabs.activeId, tabs.tabs]);
 
   // 「从选区问 AI」把选中的那段送进当前这条终端。
   //
@@ -80,16 +110,16 @@ function ReaderTerminalPanel({ open, sessionKey, pendingInput, onOpenBoard, base
   // - **不回车**。由页面选区拼出来的一条命令直接开跑太意外，得让人先看见。
   // - **认 token 不认文本**。连着两次选同一段，两次都该送；拿文本判重第二次
   //   会被吞掉，而且看不出为什么。
-  // - **面板没开时不送**。没开时 sendToActive 还指着那个空函数，送了会静默
-  //   丢掉；包那边在设 pendingInput 的同时会把面板切过来，这里等它开。
+  // - **面板没开时不送**。包那边在设 pendingInput 的同时会把面板切过来，这里
+  //   等它开；没开时送等于丢进一条用户没在看的终端。
   const sentTokenRef = useRef<number | null>(null);
   useEffect(() => {
     if (!open || !pendingInput || !pendingInput.text) return;
     if (sentTokenRef.current === pendingInput.token) return;
     sentTokenRef.current = pendingInput.token;
-    sendToActive.current(pendingInput.text);
+    sendToActive(pendingInput.text);
     focusActive();
-  }, [focusActive, open, pendingInput]);
+  }, [focusActive, open, pendingInput, sendToActive]);
 
   const themeId = useThemeId();
   return (
@@ -113,6 +143,9 @@ function ReaderTerminalPanel({ open, sessionKey, pendingInput, onOpenBoard, base
         onAdd={() => setTabs((state) => addTab(state, nextId))}
         onClose={(id) => {
           terminalRefs.current.delete(id);
+          // session 也要丢掉。实例卸载时 FxTerminal 的 effect 清理会断开
+          // WebSocket，但这张表不清就会一直攒着已经断开的 session 对象。
+          sessionsRef.current.delete(id);
           setTabs((state) => closeTab(state, id));
         }}
       />
@@ -131,7 +164,7 @@ function ReaderTerminalPanel({ open, sessionKey, pendingInput, onOpenBoard, base
         onOpen={onOpenBoard}
       />
       <TerminalSuggestions
-        session={{ send: (data) => sendToActive.current(data) }}
+        session={{ send: sendToActive }}
         focusTerminal={focusActive}
       />
       {tabs.tabs.map((tab) => (
@@ -139,13 +172,9 @@ function ReaderTerminalPanel({ open, sessionKey, pendingInput, onOpenBoard, base
           key={tab.id}
           tab={tab}
           active={tab.id === tabs.activeId}
-          baseUrl={baseUrl}
-          apiKey={apiKey}
           themeId={themeId}
-          onReady={(handle, send) => {
-            terminalRefs.current.set(tab.id, handle);
-            if (tab.id === tabs.activeId) sendToActive.current = send;
-          }}
+          session={sessionFor(tab)}
+          onReady={(handle) => terminalRefs.current.set(tab.id, handle)}
         />
       ))}
     </div>
@@ -161,28 +190,21 @@ function ReaderTerminalPanel({ open, sessionKey, pendingInput, onOpenBoard, base
 function TerminalInstance({
   tab,
   active,
-  baseUrl,
-  apiKey,
+  session,
   themeId,
   onReady,
 }: {
   tab: TerminalTab;
   active: boolean;
-  baseUrl: string;
-  apiKey: string;
+  /** session 由面板持有并按 tab 缓存 —— 这里不能自己造，否则「按 activeId
+   * 现查现用」拿到的会是另一个对象。 */
+  session: TerminalSession;
   themeId: string;
-  onReady: (handle: { focus(): void }, send: (data: string) => void) => void;
+  onReady: (handle: { focus(): void }) => void;
 }) {
-  const sessionKey = sessionKeyForScope(tab.scope);
-  // useMemo 而不是每次渲染新建：FxTerminal 的 effect 依赖 session，
-  // 每次渲染换一个新对象会把 WebSocket 和 PTY 反复拆了重建。
-  const session = useMemo(
-    () => websocketTerminalSession({ baseUrl, apiKey, session: sessionKey }),
-    [baseUrl, apiKey, sessionKey],
-  );
   const handleReady = useCallback(
-    (handle: { focus(): void }) => onReady(handle, (data) => session.send(data)),
-    [onReady, session],
+    (handle: { focus(): void }) => onReady(handle),
+    [onReady],
   );
   return (
     <div
