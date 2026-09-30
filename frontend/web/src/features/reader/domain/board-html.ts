@@ -82,16 +82,20 @@ export const BOARD_HTML_CSP = [
  * **必须插在任何 `<script>` 之前**：meta CSP 只约束它之后的内容，插晚了前面的
  * 脚本已经跑过了。
  *
- * # 前面要带 doctype —— 我原来漏了这个
+ * # 前面带一个 doctype，但**不是**因为 quirks mode
  *
- * 原来直接把 meta 怼在最前，注释写「位置在 doctype 之前也没关系，浏览器照样
- * 解析」。解析是没问题，**但模式变了**：HTML 解析器在 initial insertion mode
- * 见到 `<meta>` 这种开始标签会走 "anything else" 分支，**打开 quirks 标志**，
- * 而 agent 自己那个 `<!doctype html>` 随后出现在 in-head 阶段会被直接忽略。
- * 后果是 agent 本地看着对的 `height:100%` 链、表格、box-sizing 到了这里变形。
+ * 曾经有过一轮说法：meta 怼在 doctype 之前会让解析器在 initial insertion mode
+ * 打开 quirks 标志，agent 的排版会变形。**实测下来那是错的** —— srcdoc 文档在
+ * Chromium 里永远是标准模式（CSS1Compat），四种组合都量过：
  *
- * 所以自己先写一个 doctype。原文里多出来的第二个会被忽略，「CSP 一定最早」
- * 这条不变。
+ *     父标准 + 子有 doctype   子 = CSS1Compat
+ *     父标准 + 子无 doctype   子 = CSS1Compat
+ *     父quirks + 子有 doctype 子 = CSS1Compat
+ *     父quirks + 子无 doctype 子 = CSS1Compat
+ *
+ * 所以这里的 doctype 是卫生习惯，不是在修 bug：真正要紧的只有「CSP 在任何
+ * 脚本之前」。留着它的唯一实际理由是，万一哪天这块改成 `src=` 指向真实端点
+ * （不再用 srcdoc），那条路是会认 doctype 的。
  */
 export function withBoardHtmlCsp(html: string): string {
   return `<!doctype html>\n<meta http-equiv="Content-Security-Policy" content="${BOARD_HTML_CSP}">\n${html}`;

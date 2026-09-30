@@ -79,9 +79,9 @@ test("doctype 在最前，CSP 紧随其后且在任何脚本之前", () => {
     out.indexOf("Content-Security-Policy") < out.indexOf("<script>"),
     "CSP 插在了脚本后面，对它无效",
   );
-  // **doctype 必须在 meta 之前。** 原来直接把 meta 怼在最前，解析器在 initial
-  // insertion mode 见到开始标签会打开 quirks 标志，agent 自己那个 doctype 随后
-  // 在 in-head 阶段被忽略 —— 它本地看着对的排版到了这里会变形。
+  // doctype 在 meta 之前。**这不是在防 quirks mode** —— 实测 srcdoc 文档永远是
+  // 标准模式（见 tests/layout/board-html-sandbox.test.mjs 里那段实测记录）。
+  // 守的是顺序本身的稳定：将来若改成 src= 指真实端点，那条路会认 doctype。
   assert.ok(/^<!doctype html>/i.test(out), "开头不是 doctype —— 页面会进 quirks mode");
   assert.ok(
     out.toLowerCase().indexOf("<!doctype") < out.indexOf("<meta"),
