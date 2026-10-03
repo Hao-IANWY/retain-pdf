@@ -15,6 +15,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { code } from "../helpers/source-text.mjs";
 
 import {
   READER_ASSISTANT_PANEL_IDS,
@@ -37,11 +38,14 @@ test("dock 收到只剩 Markdown 和 AI", () => {
 });
 
 test("选区浮条上不再有批注入口 —— 面板没了按钮还在等于点了没反应", () => {
-  const toolbar = read("../../../packages/reader/src/components/react-pdf/ReaderSelectionToolbar.tsx");
+  // 必须先剥注释。这个文件里「问 AI」在**三处注释**里出现（:13 文件头、:133、:187），
+  // 不剥的话正对照被注释满足 —— 把整个 onAskAi 分支删掉，1953 条全绿（子 agent 实测）。
+  const toolbar = code(read("../../../packages/reader/src/components/react-pdf/ReaderSelectionToolbar.tsx"));
   assert.doesNotMatch(toolbar, /onAddNote/, "浮条还在往外发批注回调");
   assert.doesNotMatch(toolbar, /添加批注/, "浮条上还有「添加批注」按钮");
-  // 正对照：浮条本身还活着，上面两条不是因为文件空了才绿。
-  assert.match(toolbar, /问 AI/, "浮条连「问 AI」都没了，上面两条没有判别力");
+  // 正对照盯的是**渲染出来的那个按钮**，不是文件里有没有这个串。
+  assert.match(toolbar, /<span>问 AI<\/span>/, "浮条上「问 AI」那个按钮没了，上面两条没有判别力");
+  assert.match(toolbar, /onClick=\{\(\) => onAskAi\(selection\)\}/, "「问 AI」按钮没接上 onAskAi");
 });
 
 test("批注的样式和外壳样式分开了 —— 外壳是所有面板共用的，不能一起删", () => {

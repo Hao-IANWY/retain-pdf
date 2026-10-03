@@ -2173,7 +2173,14 @@ async fn document_jobs_list_carries_structured_failure() {
             "root_cause": "MinerU batch task failed: parsing failed, please try again later",
             "retryable": true,
             "provider": "mineru",
-            "suggestion": "查看 log_tail 和完整错误日志进一步排查"
+            "suggestion": "查看 log_tail 和完整错误日志进一步排查",
+            // **重字段必须真的在夹具里。** 原来一个都没放，于是下面那条「列表不驮
+            // traceback」在任何实现下都绿 —— 往 JobFailureBriefView 里加一个带
+            // skip_serializing_if 的 raw_excerpt 照样过。
+            "last_log_line": "RuntimeError: parsing failed",
+            "raw_excerpt": "Traceback (most recent call last):\n  File \"ocr.py\", line 1",
+            "raw_error_excerpt": "parsing failed",
+            "raw_diagnostic": { "traceback": "Traceback (most recent call last):\n  ..." }
         }),
     );
 
@@ -2207,12 +2214,23 @@ async fn document_jobs_list_carries_structured_failure() {
 
     // **列表不驮 traceback**：每 2 秒轮询一次，raw_excerpt / traceback 这类大字段
     // 要留给详情端点按需取。
-    for heavy in ["traceback", "raw_excerpt", "raw_diagnostic", "last_log_line"] {
-        assert!(
-            failure.get(heavy).is_none(),
-            "{heavy} 进了列表 —— 2 秒一次的轮询不该驮着它"
-        );
-    }
+    // 列表那份简报是**精简版**，键集合钉死：加任何字段都要在这里显式放行。
+    // 原来这里循环断言 traceback / raw_excerpt「不在」，而夹具从没放过它们 ——
+    // 空转。顺带，"traceback" 从来不是顶层字段（它住在 raw_diagnostic 里）。
+    let mut keys: Vec<&str> = failure
+        .as_object()
+        .expect("failure 不是对象")
+        .keys()
+        .map(String::as_str)
+        .collect();
+    keys.sort_unstable();
+    assert_eq!(
+        keys,
+        [
+            "category", "provider", "retryable", "root_cause", "stage", "suggestion", "summary",
+        ],
+        "列表里那份失败简报的字段集合变了 —— 2 秒一次的轮询不该驮新东西"
+    );
 }
 
 #[tokio::test]

@@ -72,18 +72,33 @@ test("翻译进行中 pill 还在 —— 它报的是进度", () => {
 });
 
 test("叠层画得出来，就一定至少有一个开关够得着", () => {
-  // 这是收掉顶栏 pill 的**全部前提**。穷举三个输入。
+  // 这是收掉顶栏 pill 的**全部前提**。穷举五个输入。
+  //
+  // 原来这条漏传 liveTranslationVisible / assistantOpen 两个必填项 —— .mjs 不过 tsc，
+  // 于是 `input.liveTranslationVisible` 恒为 undefined、overlayRenderable 恒假，
+  // **24 次循环一条断言都没执行过**（子 agent 实测打点）。所以最后要数一下。
   const connections = ["idle", "connecting", "live", "reconnecting", "terminal", "unavailable"];
+  let checked = 0;
   for (const hasOverlayContent of [true, false]) {
     for (const connection of connections) {
       for (const showSource of [true, false]) {
-        const live = resolveLiveTranslationToggles({ hasOverlayContent, connection, showSource });
-        if (!live.overlayRenderable) continue;
-        assert.ok(live.topBarPill || live.sourcePaneToggle,
-          `叠层能画出来却没有任何开关：${JSON.stringify({ hasOverlayContent, connection, showSource })}`);
+        for (const liveTranslationVisible of [true, false]) {
+          for (const assistantOpen of [true, false]) {
+            const live = resolveLiveTranslationToggles({
+              hasOverlayContent, connection, showSource, liveTranslationVisible, assistantOpen,
+            });
+            if (!live.overlayRenderable) continue;
+            checked += 1;
+            assert.ok(live.topBarPill || live.sourcePaneToggle,
+              `叠层能画出来却没有任何开关：${JSON.stringify({
+                hasOverlayContent, connection, showSource, liveTranslationVisible, assistantOpen,
+              })}`);
+          }
+        }
       }
     }
   }
+  assert.ok(checked > 0, "一条断言都没执行 —— overlayRenderable 在整个输入空间上恒假");
 });
 
 test("两个开关都真的接在这个函数上 —— 否则上面那条守的是没人调的代码", () => {

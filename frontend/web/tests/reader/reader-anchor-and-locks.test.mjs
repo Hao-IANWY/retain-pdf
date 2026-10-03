@@ -52,17 +52,25 @@ test("正对照：栏没被隐藏时照常挑得出页", () => {
 // ---------------------------------------------------------------- 栏锁
 
 test("换面板时清掉栏锁 —— 它的语义是「这一次提问」", () => {
-  const fn = APP.slice(APP.indexOf("const selectAssistant = useCallback"),
-    APP.indexOf("const selectAssistant = useCallback") + 700);
-  assert.match(fn, /setAssistantPdfPane\(null\)/,
-    "换面板不清栏锁 —— 在译文栏问过 AI 之后点 Markdown，PDF 还只剩译文栏");
-  // 另外三条路也得在，否则这条是孤立的。
-  for (const [where, needle] of [
-    ["关面板", "const closeAssistant = useCallback"],
-    ["切顶栏页签", "const changeWorkspace = useCallback"],
+  // 定长窗口是假的：`closeAssistant` 那条原来取 +700 字符，而它的真实函数体只有 4 行 ——
+  // 窗口越过边界，把**下一个** useCallback（changeWorkspace）里的同一行包了进来，
+  // 于是删掉 closeAssistant 里那行、1953 条全绿（子 agent 实测）。
+  // 改成「到下一个 useCallback / useMemo 之前」。
+  const callbackBody = (name) => {
+    const start = APP.indexOf(`const ${name} = useCallback`);
+    assert.ok(start >= 0, `${name} 不见了，这条门禁守错了地方`);
+    const rest = APP.slice(start + 1);
+    const end = rest.search(/\n {2}const \w+ = use(?:Callback|Memo)\(/);
+    assert.ok(end > 0, `找不到 ${name} 的结尾`);
+    return rest.slice(0, end);
+  };
+  for (const [where, name] of [
+    ["换面板", "selectAssistant"],
+    ["关面板", "closeAssistant"],
+    ["切顶栏页签", "changeWorkspace"],
   ]) {
-    const body = APP.slice(APP.indexOf(needle), APP.indexOf(needle) + 700);
-    assert.match(body, /setAssistantPdfPane\(null\)/, `${where}没清栏锁`);
+    assert.match(callbackBody(name), /setAssistantPdfPane\(null\)/,
+      `${where}没清栏锁 —— 在译文栏问过 AI 之后${where}，PDF 还只剩译文栏`);
   }
 });
 

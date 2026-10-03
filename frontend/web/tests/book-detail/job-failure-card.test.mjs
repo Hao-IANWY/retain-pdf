@@ -38,7 +38,6 @@ test("每个真实分类都有自己的说法，不是一句通用废话", () =>
   for (const category of ["provider", "timeout", "translation", "render", "internal"]) {
     const advice = failureAdvice({ ...mineru, category });
     assert.ok(advice.title && advice.action, `${category} 没有建议`);
-    assert.doesNotMatch(advice.summary ?? "", /暂未识别出明确根因/);
     seen.add(advice.action);
   }
   assert.equal(seen.size, 5, "五个分类给的是同一句话，等于没分类");
@@ -128,6 +127,18 @@ test("没给 loadDetail 就不画「展开完整错误」", () => {
   assert.doesNotMatch(body.textContent, /展开完整错误/);
   const withLoad = render({ failure: mineru, jobId: "job-1", loadDetail: async () => "x" });
   assert.match(withLoad.textContent, /展开完整错误/);
+});
+
+test("卡片不把后端那句无信息量的 summary 摆给用户", () => {
+  // 原来这条写的是 `doesNotMatch(advice.summary ?? "", /暂未识别出明确根因/)`，而
+  // **FailureAdvice 上没有 summary 字段** —— 恒为 undefined，断言在任何实现下都绿。
+  // 把 `{failure?.summary}` 加进卡片，1953 条照样全绿（子 agent 实测）。
+  // 守的东西在 DOM 上：用户看不到那句话。
+  assert.match(mineru.summary, /暂未识别出明确根因/, "正对照：fixture 里得真带着那句话");
+  const body = render({ failure: mineru, jobId: "job-1" });
+  assert.doesNotMatch(body.textContent, /暂未识别出明确根因/,
+    "卡片把后端那句「暂未识别出明确根因」摆上去了 —— 对用户零信息量");
+  assert.match(body.textContent, /上游服务没能处理这份文件/, "该说的分类建议没说");
 });
 
 test("复制按钮永远在 —— 它不依赖任何回调", () => {
