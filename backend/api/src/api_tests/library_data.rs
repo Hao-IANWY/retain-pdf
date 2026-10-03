@@ -2124,3 +2124,118 @@ async fn delete_document_rolls_back_rows_and_keeps_files_when_a_step_fails() {
     );
 }
 
+
+/// 失败的结构化信息必须出现在**列表**里。
+///
+/// 起因：DB 里 17/17 的失败都有 failure_json（category / retryable / summary /
+/// suggestion / provider 全都有），job 详情端点也带 `failure`，**但书籍详情页
+/// 只吃 document jobs 列表、从不打详情端点**。于是用户看到的只有「失败」两个字，
+/// 而「MinerU 解析失败 / 上游问题 / 可重试 / 建议」全被截在后端。
+fn seed_failed_job_for_document(
+    state: &crate::AppState,
+    document_id: &str,
+    job_id: &str,
+    failure: serde_json::Value,
+) {
+    let mut job = JobSnapshot::new(
+        job_id.to_string(),
+        CreateJobInput::default(),
+        vec!["python".to_string()],
+    );
+    job.status = JobStatusKind::Failed;
+    job.error = Some("MinerU batch task failed: parsing failed, please try again later".into());
+    job.failure = serde_json::from_value(failure).expect("failure info");
+    job.sync_runtime_state();
+    state.db.save_job(&job).expect("save job");
+    let conn = rusqlite::Connection::open(state.config.jobs_db_path.clone()).expect("open db");
+    conn.execute(
+        "UPDATE jobs SET document_id = ?1 WHERE job_id = ?2",
+        rusqlite::params![document_id, job_id],
+    )
+    .expect("link job to document");
+}
+
+#[tokio::test]
+async fn document_jobs_list_carries_structured_failure() {
+    let state = test_state("document-jobs-failure");
+    let document_id = seed_document(&state, b"failing doc");
+    // 字段取自真实数据：一条 MinerU 解析失败。
+    seed_failed_job_for_document(
+        &state,
+        &document_id,
+        "job-failed-1",
+        serde_json::json!({
+            "stage": "ocr",
+            "category": "unknown",
+            "failed_stage": "ocr",
+            "failure_category": "provider",
+            "summary": "任务失败，但暂未识别出明确根因",
+            "root_cause": "MinerU batch task failed: parsing failed, please try again later",
+            "retryable": true,
+            "provider": "mineru",
+            "suggestion": "查看 log_tail 和完整错误日志进一步排查"
+        }),
+    );
+
+    let response = build_app(state.clone())
+        .oneshot(
+            Request::builder()
+                .uri(format!("/api/v1/documents/{document_id}/jobs"))
+                .header("X-API-Key", "test-key")
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    let payload = json_response(response).await;
+    let item = &payload["data"]["items"][0];
+
+    // 正对照：确实取到了那条任务，否则下面全是在断言 null。
+    assert_eq!(item["job_id"], "job-failed-1");
+    assert_eq!(item["status"], "failed");
+
+    let failure = &item["failure"];
+    assert!(!failure.is_null(), "列表项没有带 failure —— 用户只能看到「失败」两个字");
+    // **分类取更准的那一套**：真实数据里 6 条 MinerU 失败的 category 都是
+    // "unknown"，而 failure_category 是 "provider"。用错的那个等于没分类。
+    assert_eq!(failure["category"], "provider", "用了旧的 category 字段（unknown）");
+    assert_eq!(failure["stage"], "ocr");
+    assert_eq!(failure["retryable"], true, "retryable 没传出来，一键重试就没有依据");
+    assert_eq!(failure["provider"], "mineru");
+    assert!(failure["suggestion"].as_str().is_some_and(|s| !s.is_empty()));
+    assert!(failure["root_cause"].as_str().is_some_and(|s| s.contains("MinerU")));
+
+    // **列表不驮 traceback**：每 2 秒轮询一次，raw_excerpt / traceback 这类大字段
+    // 要留给详情端点按需取。
+    for heavy in ["traceback", "raw_excerpt", "raw_diagnostic", "last_log_line"] {
+        assert!(
+            failure.get(heavy).is_none(),
+            "{heavy} 进了列表 —— 2 秒一次的轮询不该驮着它"
+        );
+    }
+}
+
+#[tokio::test]
+async fn document_jobs_list_omits_failure_for_healthy_jobs() {
+    let state = test_state("document-jobs-no-failure");
+    let document_id = seed_document(&state, b"ok doc");
+    seed_succeeded_job_for_document(&state, &document_id, "job-ok-1");
+
+    let response = build_app(state.clone())
+        .oneshot(
+            Request::builder()
+                .uri(format!("/api/v1/documents/{document_id}/jobs"))
+                .header("X-API-Key", "test-key")
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    let payload = json_response(response).await;
+    let item = &payload["data"]["items"][0];
+    assert_eq!(item["status"], "succeeded", "正对照：取到的是那条成功任务");
+    assert!(
+        item.get("failure").is_none(),
+        "成功的任务也带了 failure 字段 —— 前端会据此画出失败卡片"
+    );
+}

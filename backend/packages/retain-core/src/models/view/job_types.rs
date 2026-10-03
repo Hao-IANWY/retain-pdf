@@ -511,6 +511,65 @@ pub struct JobListItemView {
     pub updated_at: String,
     pub detail_path: String,
     pub detail_url: String,
+    /// 失败时才有。成功/进行中的任务这个字段整个不出现。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub failure: Option<JobFailureBriefView>,
+}
+
+/// 列表里那份**精简**失败信息。
+///
+/// 为什么不直接塞 `JobFailureInfo`：document jobs 列表每 2 秒轮询一次
+/// （DOCUMENT_JOBS_REFRESH_INTERVAL_MS），而 JobFailureInfo 带着 raw_excerpt、
+/// traceback、raw_diagnostic —— 一条 Python traceback 就是好几 KB，乘以轮询频率
+/// 和列表长度（有一本书累积了 20 个任务）不划算。
+///
+/// 这里只放「一眼能判断该怎么办」的那几项。要看完整错误和 traceback 时，前端
+/// 按需去打 job 详情端点（那边本来就带 `failure`），而不是让每一帧都驮着它。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct JobFailureBriefView {
+    /// 面向用户的分类：provider / translation / timeout / render / internal …
+    pub category: String,
+    /// 失败发生在哪一段：ocr / translation / render
+    pub stage: String,
+    /// 能不能重试。实测 17/17 的失败都是 true —— 这个字段早就有，只是从没传到前端。
+    pub retryable: bool,
+    /// 一句话结论。
+    pub summary: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub root_cause: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub suggestion: Option<String>,
+    /// 上游是谁（mineru / deepseek …），排查时第一眼要看的。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider: Option<String>,
+}
+
+impl JobFailureBriefView {
+    /// 从完整的 `JobFailureInfo` 裁出来。
+    ///
+    /// category / stage 优先取「正式字段」（failure_category / failed_stage）——
+    /// 那两个是后来加的、更准的一套，旧的 category / stage 在一部分任务上是
+    /// "unknown"（实测：6 条 MinerU 失败的 category 都是 unknown，而
+    /// failure_category 是 provider）。
+    pub fn from_failure(failure: &JobFailureInfo) -> Self {
+        let pick = |formal: &Option<String>, legacy: &str| -> String {
+            formal
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty() && *value != "unknown")
+                .unwrap_or(legacy)
+                .to_string()
+        };
+        Self {
+            category: pick(&failure.failure_category, &failure.category),
+            stage: pick(&failure.failed_stage, &failure.stage),
+            retryable: failure.retryable,
+            summary: failure.summary.clone(),
+            root_cause: failure.root_cause.clone(),
+            suggestion: failure.suggestion.clone(),
+            provider: failure.provider.clone(),
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Default)]
@@ -527,6 +586,9 @@ pub struct OcrJobSummaryView {
     pub provider_trace_id: Option<String>,
     pub detail_path: String,
     pub detail_url: String,
+    /// 失败时才有。成功/进行中的任务这个字段整个不出现。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub failure: Option<JobFailureBriefView>,
 }
 
 #[derive(Debug, Serialize)]

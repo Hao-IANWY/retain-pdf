@@ -130,20 +130,62 @@ impl MineruClient {
         })
     }
 
+    /// 把源文件 PUT 到预签名地址。
+    ///
+    /// # 为什么这里要重试
+    ///
+    /// MinerU 这个 client 的轮询、bundle 下载、bundle 就绪都各有重试上限，
+    /// **只有上传是一次性的** —— 一次传输抖动就让整个任务在 OCR 阶段死掉，用户
+    /// 只能重新提交。实测：最近 4 次任务失败里 3 次是 `failed to upload file`，
+    /// 分类是 timeout/ocr。
+    ///
+    /// # 只重试传输错误，不重试 HTTP 错误码
+    ///
+    /// 和 paddle client 的 `is_retryable_transport_error` 同一套判断。错误码
+    /// （预签名地址过期的 403、对象存储拒绝的 4xx）重试多少次都一样，而且会
+    /// 白白多等几轮 —— `error_for_status()` 的失败不进重试循环。
+    ///
+    /// # 为什么重试是安全的
+    ///
+    /// PUT 到同一个预签名地址、同样的字节，是幂等的：对象存储的语义是整体替换，
+    /// 重传不会产生第二份。（paddle 那边把重试限定在幂等调用上，非幂等的提交走
+    /// send_once —— 同一个原则。）
     pub async fn upload_file(&self, upload_url: &str, file_path: &Path) -> Result<()> {
         let bytes = tokio::fs::read(file_path)
             .await
             .with_context(|| format!("failed to read upload file {}", file_path.display()))?;
-        self.http
-            .put(upload_url)
-            .timeout(Duration::from_secs(self.runtime.upload_timeout_secs))
-            .body(bytes)
-            .send()
-            .await
-            .context("MinerU file upload request failed")?
-            .error_for_status()
-            .context("MinerU file upload returned error status")?;
-        Ok(())
+        let attempts = self.runtime.upload_retry_attempts.max(1);
+        let mut last_error: Option<reqwest::Error> = None;
+        for attempt in 1..=attempts {
+            match self
+                .http
+                .put(upload_url)
+                .timeout(Duration::from_secs(self.runtime.upload_timeout_secs))
+                .body(bytes.clone())
+                .send()
+                .await
+            {
+                Ok(response) => {
+                    response
+                        .error_for_status()
+                        .context("MinerU file upload returned error status")?;
+                    return Ok(());
+                }
+                Err(err) => {
+                    let retryable = is_retryable_upload_error(&err);
+                    last_error = Some(err);
+                    if !retryable || attempt >= attempts {
+                        break;
+                    }
+                    tokio::time::sleep(Duration::from_secs(
+                        self.runtime.upload_retry_base_delay_secs * attempt as u64,
+                    ))
+                    .await;
+                }
+            }
+        }
+        let err = last_error.expect("upload retry loop should capture the last error");
+        Err(anyhow::Error::new(err)).context("MinerU file upload request failed")
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -572,4 +614,16 @@ mod tests {
         assert_eq!(payload["data_id"], "data-2");
         assert_eq!(payload["extra_formats"][0], "html");
     }
+}
+
+/// 哪些上传失败值得重传。
+///
+/// 和 paddle client 的同名判断保持一致：连接、超时、响应体中断，以及 hyper 在
+/// 「连上了但一个响应头都没收到」时报的那种 request 错误。**不含 HTTP 错误码**
+/// —— 那种重试只是白等。
+fn is_retryable_upload_error(err: &reqwest::Error) -> bool {
+    err.is_connect()
+        || err.is_timeout()
+        || err.is_body()
+        || (err.is_request() && err.status().is_none())
 }

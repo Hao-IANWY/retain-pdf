@@ -8,10 +8,12 @@ use super::helpers::{cover_url, derive_display_name, job_path_prefix};
 use super::helpers::{page_count_for_job, source_file_name, thumbnail_url, upload_id};
 use crate::config::limits::MAX_JOB_LIMIT;
 use crate::db::Db;
+use crate::job_failure::classify_job_failure;
+use crate::models::JobFailureInfo;
 use crate::error::AppError;
 use crate::models::api::{
-    summarize_list_invocation, to_absolute_url, DocumentJobListView, JobListItemView, JobListView,
-    ListDocumentJobsQuery, ListJobsQuery,
+    summarize_list_invocation, to_absolute_url, DocumentJobListView, JobFailureBriefView,
+    JobListItemView, JobListView, ListDocumentJobsQuery, ListJobsQuery,
 };
 use crate::models::domain::{JobSnapshot, UploadRecord};
 
@@ -148,5 +150,24 @@ fn build_job_list_item_view(
         updated_at: job.updated_at.clone(),
         detail_url: to_absolute_url(base_url, &detail_path),
         detail_path,
+        // 失败的结构化信息一直只在 job 详情里。而书籍详情页只吃这个列表，
+        // 从不打详情端点 —— 于是 DB 里躺着「MinerU 解析失败 / 上游 / 可重试 /
+        // 建议」，用户看到的只有「失败」两个字。
+        //
+        // 这里给的是精简版（不含 traceback，列表 2 秒轮询一次）。
+        failure: build_list_failure_brief(job),
     }
+}
+
+/// 列表项里那份失败简报。
+///
+/// 和详情端点走同一条分类：优先用任务自己存的 `failure`，没有就现场 classify ——
+/// 否则同一个任务在列表和详情里会给出两种说法。
+fn build_list_failure_brief(job: &JobSnapshot) -> Option<JobFailureBriefView> {
+    job.failure
+        .clone()
+        .map(JobFailureInfo::with_formal_fields)
+        .or_else(|| classify_job_failure(job).map(JobFailureInfo::with_formal_fields))
+        .as_ref()
+        .map(JobFailureBriefView::from_failure)
 }

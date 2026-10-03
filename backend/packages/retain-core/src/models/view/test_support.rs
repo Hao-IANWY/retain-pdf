@@ -24,6 +24,8 @@ pub(super) fn build_ocr_job_summary(
         provider_trace_id: artifacts.ocr_provider_trace_id.clone(),
         detail_path: detail_path.clone(),
         detail_url: to_absolute_url(base_url, &detail_path),
+            // 夹具：这里不构造失败。真实填充在 presentation/listing.rs 与 helpers.rs。
+        failure: None,
     })
 }
 

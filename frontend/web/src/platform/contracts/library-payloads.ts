@@ -46,6 +46,21 @@ export type LibraryBookSummary = {
   [key: string]: unknown;
 };
 
+/** 列表里那份失败简报。字段和后端 JobFailureBriefView 一一对应。 */
+export type JobFailureBrief = {
+  /** provider / translation / timeout / render / internal … */
+  category: string;
+  /** 失败发生在哪一段：ocr / translation / render */
+  stage: string;
+  /** 能不能重试。真实数据里 17/17 都是 true。 */
+  retryable: boolean;
+  summary: string;
+  root_cause?: string;
+  suggestion?: string;
+  /** 上游是谁（mineru / deepseek …）。 */
+  provider?: string;
+};
+
 export type LibraryCardItem = {
   // 身份
   job_id?: string;
@@ -72,6 +87,16 @@ export type LibraryCardItem = {
   reading_status?: string;
   source_pdf_url?: string;
   bytes?: number | null;
+
+  /** 失败任务的结构化诊断。只有 status=failed 时存在。
+   *
+   * 这是 2026-10 补上的一截链路：DB 里 17/17 的失败一直都有完整的 failure_json，
+   * job 详情端点也带，**但书籍详情页只吃 document jobs 列表、从不打详情端点**，
+   * 于是用户看到的只有「失败」两个字。
+   *
+   * 列表里是精简版（后端 JobFailureBriefView）：不含 traceback / raw_excerpt ——
+   * 那些留给展开时按需打详情端点，列表每 2 秒轮询一次，不该驮着它们。 */
+  failure?: JobFailureBrief;
 
   // job 状态 / stage
   status?: string;

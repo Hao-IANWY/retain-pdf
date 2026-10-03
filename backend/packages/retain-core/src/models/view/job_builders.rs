@@ -433,6 +433,8 @@ pub fn job_to_list_item(
         updated_at: job.updated_at.clone(),
         detail_path: detail_path.clone(),
         detail_url: to_absolute_url(base_url, &detail_path),
+            // 夹具：这里不构造失败。真实填充在 presentation/listing.rs 与 helpers.rs。
+        failure: None,
     }
 }
 

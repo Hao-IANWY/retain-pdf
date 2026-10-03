@@ -3,6 +3,9 @@
 
 import { BookTranslationWorkflowPanel } from "../panels/translate/WorkflowPanel.jsx";
 import { ProcessingPipelineRail } from "../panels/processing/ProcessingPipelineRail.jsx";
+import { JobFailureCard } from "../panels/processing/JobFailureCard.js";
+import { loadJobFailureDetail } from "../../domain/job-failure-detail.js";
+import type { JobFailureBrief } from "@/platform/contracts/library-payloads.js";
 import { ProcessingJobSummary } from "../panels/processing/ProcessingJobSummary.jsx";
 import { btn } from "../panels/ui.jsx";
 import { documentJobPresentation, isDocumentJobActive } from "../use-document-jobs.js";
@@ -99,6 +102,11 @@ export function BookDetailProcessingTab({ ocr, translation, loading = false, err
   const ocrJobId = `${ocrJob?.job_id || ocrJob?.id || ""}`.trim();
   const ocrJobIsReal = Boolean(ocrJobId) && !ocrJob?.ocr_status_derived && !ocrJobId.startsWith("doc:");
   const ocrCancelable = ocrActive && ocrJobIsReal && !translationActive;
+  // 失败简报来自 document jobs 列表（后端 JobFailureBriefView）。合成的 OCR 任务
+  // （ocr_status_derived）其实指向翻译任务，它的 failure 属于翻译那一段，不能
+  // 在 OCR 段重复画一遍。
+  const ocrFailure = ocrJobIsReal ? (ocrJob as { failure?: JobFailureBrief })?.failure ?? null : null;
+  const translationFailure = (translationItem as { failure?: JobFailureBrief })?.failure ?? null;
   // OCR 动作与「翻译整本」同排，避免出现两行能力按钮。
   const ocrAction = (
     <>
@@ -223,6 +231,19 @@ export function BookDetailProcessingTab({ ocr, translation, loading = false, err
           ) : null}
         </div>
 
+        {/* 失败诊断。OCR 和翻译各占全部失败的一半左右（6 和 4，外加 3 次上传超时
+            也记在 OCR 段），所以两段都要能出卡片 —— 只做一边等于一半的失败仍然
+            只有「失败」两个字。 */}
+        {ocrFailure ? (
+          <JobFailureCard
+            failure={ocrFailure}
+            jobId={ocrJobIsReal ? ocrJobId : ""}
+            onRetry={ocr?.onOcr}
+            retrying={Boolean(ocr?.pending)}
+            loadDetail={loadJobFailureDetail}
+          />
+        ) : null}
+
         {/* 翻译细化：状态卡/阶段动作/选项/发起表单由 WorkflowPanel 承载（轨道已展示阶段）。
             唯一的行动行：OCR 按钮与「翻译整本 / 继续翻译」同排。 */}
         <div className="book-detail-processing-segment" data-processing-region="translation">
@@ -233,6 +254,15 @@ export function BookDetailProcessingTab({ ocr, translation, loading = false, err
             canTranslate={bootstrapping ? false : translation.canTranslate}
             ocrActionSlot={ocrAction}
           />
+          {translationFailure ? (
+            <JobFailureCard
+              failure={translationFailure}
+              jobId={translationJobId}
+              onRetry={translation?.onTranslate}
+              retrying={Boolean(translation?.busy)}
+              loadDetail={loadJobFailureDetail}
+            />
+          ) : null}
         </div>
 
         {/* 结果操作行（下载 / 对照阅读）。原挂在已下线的主页状态卡上，

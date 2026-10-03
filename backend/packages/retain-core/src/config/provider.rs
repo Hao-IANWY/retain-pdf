@@ -29,6 +29,11 @@ pub struct MineruRuntimeConfig {
     pub default_base_url: String,
     pub request_timeout_secs: u64,
     pub upload_timeout_secs: u64,
+    /// 上传的重试次数。轮询、bundle 下载、bundle 就绪本来都有各自的重试上限，
+    /// **只有上传没有** —— 一次传输抖动就让整个任务在 OCR 阶段死掉。
+    /// 实测：最近 4 次失败里 3 次是 `failed to upload file`（timeout/ocr）。
+    pub upload_retry_attempts: usize,
+    pub upload_retry_base_delay_secs: u64,
     pub download_timeout_secs: u64,
     pub poll_retry_limit: usize,
     pub poll_retry_base_delay_secs: u64,
@@ -102,6 +107,11 @@ impl MineruRuntimeConfig {
             default_base_url: env_string("RUST_API_MINERU_BASE_URL", "https://mineru.net"),
             request_timeout_secs: env_u64("RUST_API_MINERU_REQUEST_TIMEOUT_SECS", 120),
             upload_timeout_secs: env_u64("RUST_API_MINERU_UPLOAD_TIMEOUT_SECS", 300),
+            // 3 次：和 paddle 的 request_retry_attempts 一致。上传超时默认 300s，
+            // 所以最坏情况是 3×300s + 退避 ≈ 15 分钟才放弃 —— 后台任务可以接受，
+            // 而且传输错误通常在连接阶段就快速失败，不会真的每次都耗满。
+            upload_retry_attempts: env_usize("RUST_API_MINERU_UPLOAD_RETRY_ATTEMPTS", 3),
+            upload_retry_base_delay_secs: env_u64("RUST_API_MINERU_UPLOAD_RETRY_BASE_DELAY_SECS", 2),
             download_timeout_secs: env_u64("RUST_API_MINERU_DOWNLOAD_TIMEOUT_SECS", 300),
             poll_retry_limit: env_usize("RUST_API_MINERU_POLL_RETRY_LIMIT", 5),
             poll_retry_base_delay_secs: env_u64("RUST_API_MINERU_POLL_RETRY_BASE_DELAY_SECS", 2),

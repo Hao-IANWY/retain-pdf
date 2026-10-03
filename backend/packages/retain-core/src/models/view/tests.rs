@@ -305,6 +305,7 @@ fn summarize_list_invocation_counts_stage_spec_and_unknown() {
             updated_at: "2026-01-01T00:00:00Z".to_string(),
             detail_path: "/api/v1/jobs/job-1".to_string(),
             detail_url: "https://api.example/api/v1/jobs/job-1".to_string(),
+                    failure: None,
         },
         JobListItemView {
             job_id: "job-2".to_string(),
@@ -335,6 +336,7 @@ fn summarize_list_invocation_counts_stage_spec_and_unknown() {
             updated_at: "2026-01-01T00:00:00Z".to_string(),
             detail_path: "/api/v1/jobs/job-2".to_string(),
             detail_url: "https://api.example/api/v1/jobs/job-2".to_string(),
+                    failure: None,
         },
     ];
 

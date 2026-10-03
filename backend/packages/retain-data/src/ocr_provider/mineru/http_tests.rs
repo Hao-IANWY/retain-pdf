@@ -122,3 +122,110 @@ async fn mineru_query_accepts_numeric_and_string_success_codes() {
         server.await.unwrap();
     }
 }
+
+/// 前 `fail_times` 次连接直接断掉（不回任何响应），之后正常返回 200。
+///
+/// 这模拟的是真实失败：`failed to upload file`，分类 timeout/ocr —— 传输层断了，
+/// 不是服务端回了错误码。
+async fn serve_upload_flaky(fail_times: usize) -> (String, tokio::task::JoinHandle<usize>) {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}", listener.local_addr().unwrap());
+    let server = tokio::spawn(async move {
+        let mut seen = 0usize;
+        loop {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            seen += 1;
+            if seen <= fail_times {
+                // 连上就断：reqwest 侧表现为传输错误，而不是 HTTP 错误码。
+                drop(socket);
+                continue;
+            }
+            let mut sink = [0u8; 4096];
+            let _ = socket.read(&mut sink).await;
+            socket
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+                .await
+                .unwrap();
+            return seen;
+        }
+    });
+    (url, server)
+}
+
+fn tmp_upload_file(name: &str) -> std::path::PathBuf {
+    let path = std::env::temp_dir().join(format!("mineru-upload-{}-{}", name, fastrand::u64(..)));
+    std::fs::write(&path, b"%PDF-1.7\n").unwrap();
+    path
+}
+
+/// 上传抖一下不该让整个任务死掉。
+///
+/// 这个 client 的轮询、bundle 下载、bundle 就绪都各有重试上限，**只有上传曾经是
+/// 一次性的**。实测：最近 4 次任务失败里 3 次是 `failed to upload file`。
+#[tokio::test]
+async fn mineru_upload_retries_transport_failures() {
+    let (url, server) = serve_upload_flaky(2).await;
+    let file = tmp_upload_file("retry");
+    let client = MineruClient::new("http://unused.invalid".to_string(), "fixture-token");
+    let result = client.upload_file(&url, &file).await;
+    let attempts = server.await.unwrap();
+    let _ = std::fs::remove_file(&file);
+
+    assert!(result.is_ok(), "前两次传输中断之后应当重传成功: {result:?}");
+    assert_eq!(attempts, 3, "重试次数不对 —— 期望前 2 次断、第 3 次成功");
+}
+
+/// 正对照：重试是有上限的，不会无限重传。
+#[tokio::test]
+async fn mineru_upload_gives_up_after_the_configured_attempts() {
+    // 断的次数超过上限（默认 3 次）。
+    let (url, server) = serve_upload_flaky(99).await;
+    let file = tmp_upload_file("giveup");
+    let client = MineruClient::new("http://unused.invalid".to_string(), "fixture-token");
+    let result = client.upload_file(&url, &file).await;
+    let _ = std::fs::remove_file(&file);
+    server.abort();
+
+    assert!(result.is_err(), "一直断也该放弃，不能无限重传");
+    let message = format!("{:#}", result.unwrap_err());
+    assert!(
+        message.contains("MinerU file upload request failed"),
+        "放弃时的错误文案变了，任务失败分类会跟着漂: {message}"
+    );
+}
+
+/// HTTP 错误码**不该**重试 —— 预签名地址过期的 403 重试多少次都一样，
+/// 白白多等几轮退避。
+#[tokio::test]
+async fn mineru_upload_does_not_retry_http_error_status() {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}", listener.local_addr().unwrap());
+    let server = tokio::spawn(async move {
+        let mut seen = 0usize;
+        loop {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            seen += 1;
+            let mut sink = [0u8; 4096];
+            let _ = socket.read(&mut sink).await;
+            socket
+                .write_all(b"HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+                .await
+                .unwrap();
+            if seen >= 2 {
+                return seen;
+            }
+        }
+    });
+    let file = tmp_upload_file("forbidden");
+    let client = MineruClient::new("http://unused.invalid".to_string(), "fixture-token");
+    let result = client.upload_file(&url, &file).await;
+    let _ = std::fs::remove_file(&file);
+    server.abort();
+
+    assert!(result.is_err(), "403 应当直接失败");
+    let message = format!("{:#}", result.unwrap_err());
+    assert!(
+        message.contains("returned error status"),
+        "403 走了传输重试那条路，错误文案不对: {message}"
+    );
+}

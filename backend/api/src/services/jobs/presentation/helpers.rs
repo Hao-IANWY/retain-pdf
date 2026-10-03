@@ -2,9 +2,11 @@ use std::path::Path;
 
 use super::super::summary_loaders::SummaryCache;
 use crate::models::api::{
-    to_absolute_url, BookSummaryView, JobFailureDiagnosticView, OcrJobSummaryView,
+    to_absolute_url, BookSummaryView, JobFailureBriefView, JobFailureDiagnosticView,
+    OcrJobSummaryView,
 };
 use crate::models::domain::{JobFailureInfo, JobSnapshot, UploadRecord};
+use crate::job_failure::classify_job_failure;
 use crate::storage_paths::resolve_source_pdf;
 
 pub(super) fn derive_display_name(upload: Option<&UploadRecord>, job: &JobSnapshot) -> String {
@@ -135,6 +137,15 @@ pub(super) fn build_ocr_job_summary(
         provider_trace_id: artifacts.ocr_provider_trace_id.clone(),
         detail_path: detail_path.clone(),
         detail_url: to_absolute_url(base_url, &detail_path),
+            // OCR 失败占全部失败的 6/17。这个 summary 正是书籍详情页 OCR 那一段
+        // 吃的东西 —— 不填的话那半边仍然只有「失败」两个字。
+        failure: job
+            .failure
+            .clone()
+            .map(JobFailureInfo::with_formal_fields)
+            .or_else(|| classify_job_failure(job).map(JobFailureInfo::with_formal_fields))
+            .as_ref()
+            .map(JobFailureBriefView::from_failure),
     })
 }
 
