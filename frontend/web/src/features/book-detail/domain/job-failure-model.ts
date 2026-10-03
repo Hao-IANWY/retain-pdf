@@ -31,6 +31,16 @@ export type FailureAdvice = {
   retryLikelyHelps: boolean;
 };
 
+/** 键必须覆盖 Python 侧 `_failure_category_for` 发得出的全部取值。
+ *
+ * 取值不是我们这边定的 —— 产生方是
+ * `backend/pipeline/retainpdf_pipeline/foundation/shared/structured_errors.py`。
+ * 第一版这里只写了 5 个，而产生方发 9 个，于是「API Key 错了」会被说成
+ * 「可以先重试一次」，用户照着点必然再失败一次。
+ *
+ * `job-failure-categories.test.mjs` 从产生方抽取值对账，不是循环这里的键 ——
+ * 循环自己实现了的那几个，等于只证明了「我写了的我写了」。
+ */
 const BY_CATEGORY: Record<string, FailureAdvice> = {
   provider: {
     title: "上游服务没能处理这份文件",
@@ -56,6 +66,33 @@ const BY_CATEGORY: Record<string, FailureAdvice> = {
     title: "本机内部错误",
     action: "通常是并发写同一个库导致的瞬时冲突，重试即可。反复出现请把诊断信息发出来。",
     retryLikelyHelps: true,
+  },
+
+  // 下面五类是补的。它们的共同点是：**重试不解决问题**，所以不能把用户往重试上引。
+  auth: {
+    title: "凭据被拒",
+    action: "上游不认这个 API Key —— 重试解决不了。去设置里换一个有效的 Key，确认额度没用完、Key 没过期。",
+    retryLikelyHelps: false,
+  },
+  input: {
+    title: "这份文件本身有问题",
+    action: "源文件读不出来或结构损坏 —— 重试解决不了。换一份文件，或先用别的工具修一下这个 PDF。",
+    retryLikelyHelps: false,
+  },
+  rate_limit: {
+    title: "被上游限流了",
+    action: "请求太密。等几分钟再重试；如果经常这样，去设置里把并发调小。",
+    retryLikelyHelps: true,
+  },
+  network: {
+    title: "连不上上游",
+    action: "先确认本机能上网、代理没挂。网络恢复后重试即可。",
+    retryLikelyHelps: true,
+  },
+  normalization: {
+    title: "整理 OCR 结果时失败",
+    action: "OCR 产物的结构不是预期的样子，重跑同一份大概率还是这样。建议换一种解析方式重做 OCR。",
+    retryLikelyHelps: false,
   },
 };
 

@@ -137,8 +137,12 @@ pub(super) fn build_ocr_job_summary(
         provider_trace_id: artifacts.ocr_provider_trace_id.clone(),
         detail_path: detail_path.clone(),
         detail_url: to_absolute_url(base_url, &detail_path),
-            // OCR 失败占全部失败的 6/17。这个 summary 正是书籍详情页 OCR 那一段
-        // 吃的东西 —— 不填的话那半边仍然只有「失败」两个字。
+        // 为了和 JobListItemView 一致 —— 两个视图现在都带失败简报。
+        //
+        // 注意：**书籍详情页的 OCR 段不吃这个**。它吃的是 document jobs 列表里的
+        // JobListItemView（经 selectDocumentOcrStatusJob），和翻译段同一个来源。
+        // 这个 ocr_job.failure 目前没有任何前端消费者 —— 全仓搜 `ocr_job` 只有
+        // domain/job/normalize.ts 原样转发一处。留着是为契约一致，不是为了谁在读。
         failure: job
             .failure
             .clone()
