@@ -24,10 +24,24 @@ impl Default for LayoutDocxOptions {
     }
 }
 
+/// 排版导出器的版本。**改了导出逻辑就要加一**。
+///
+/// # 为什么需要它
+///
+/// 缓存只比**输入文件**的 mtime（源 PDF、译文 PDF）—— 代码改动不是输入。于是导出器
+/// 改了多少次，`cached_output_is_fresh` 都认为旧产物还新鲜，直接把老文件发出去。
+///
+/// 真发生过：2026-10-05 连修三个排版缺陷（空底数上标的虚线框、markdown 星号、西文
+/// 断词），用户每次下载拿到的都是 01:12 生成的那一份，表现是「改了半天一点变化都
+/// 没有」。当时 data/jobs 下还躺着 5 份缓存，最早的是 9 月 18 日的。
+///
+/// 版本进了文件名，所以加一之后旧产物不会被命中（也不会被删，磁盘上多占一份）。
+const RENDERER_VERSION: u32 = 2;
+
 impl LayoutDocxOptions {
-    /// 缓存键的一部分：换了 DPI 就是另一份产物，不能命中上一份。
+    /// 缓存键的一部分：换了 DPI 或导出器版本就是另一份产物，不能命中上一份。
     pub(crate) fn cache_suffix(&self) -> String {
-        format!("dpi{}", self.dpi)
+        format!("dpi{}-v{}", self.dpi, RENDERER_VERSION)
     }
 }
 
