@@ -32,9 +32,23 @@ impl<'a> DerivedArtifactDeps<'a> {
 }
 
 pub(crate) fn job_artifacts_dir(data_root: &Path, job: &JobSnapshot) -> Result<PathBuf, AppError> {
-    let output_dir = data_root.join("jobs").join(&job.job_id).join("artifacts");
+    let output_dir = job_artifacts_dir_path(data_root, job)?;
     std::fs::create_dir_all(&output_dir)?;
     Ok(output_dir)
+}
+
+/// 任务派生产物（Word、双栏 PDF、缩略图…）的缓存目录。
+///
+/// 普通任务是 `data/jobs/<job_id>/artifacts`。合并结果的虚拟 id 不能这么拼 —— 会在
+/// `jobs/` 下凭空多出一个假任务目录 —— 它的缓存放进合并目录自己的 `artifacts/`：合并目录
+/// 按内容指纹命名、不可变，缓存天然跟着内容走。
+pub(crate) fn job_artifacts_dir_path(data_root: &Path, job: &JobSnapshot) -> Result<PathBuf, AppError> {
+    if crate::services::merge::reading::is_virtual_job_id(&job.job_id) {
+        let root = crate::storage_paths::resolve_job_root(job, data_root)
+            .ok_or_else(|| AppError::internal(format!("merged job has no root: {}", job.job_id)))?;
+        return Ok(root.join("artifacts"));
+    }
+    Ok(data_root.join("jobs").join(&job.job_id).join("artifacts"))
 }
 
 /// 文档级缓存目录（无 job 时封面/缩略图仍可落盘）。

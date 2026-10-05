@@ -146,6 +146,11 @@ pub(super) fn load_supported_job(
     data_root: &Path,
     job_id: &str,
 ) -> Result<JobSnapshot, AppError> {
+    // 合并结果的虚拟 id（`merged-<文档>-<指纹>`）只在读路径上认。写操作走
+    // `load_job_or_404`，数据库里查不到它，重试/取消/删除自然被拒绝。
+    if crate::services::merge::reading::is_virtual_job_id(job_id) {
+        return crate::services::merge::reading::load_virtual_job(db, data_root, job_id);
+    }
     let job = load_job_or_404(db, job_id)?;
     ensure_supported_job_layout(data_root, &job)?;
     Ok(job)

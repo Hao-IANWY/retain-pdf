@@ -14,6 +14,10 @@ pub(super) fn routes() -> Router<AppState> {
                 .delete(library_data::delete_document_route),
         )
         .route(
+            "/api/v1/documents/:document_id/reading",
+            get(library_data::get_document_reading_route),
+        )
+        .route(
             "/api/v1/documents/:document_id/source.pdf",
             get(library_data::download_document_source_pdf_route),
         )

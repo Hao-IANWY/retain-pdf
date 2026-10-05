@@ -5,8 +5,6 @@
 //!
 //! 拿计划和产物路径去生成合并目录的是 `derived_artifacts::merged`。
 
-// 合并功能分步落地中：第 5 步「下游切换到解析函数」接上生产调用方后删掉这一行。
-#![cfg_attr(not(test), allow(dead_code))]
-
 pub(crate) mod plan;
+pub(crate) mod reading;
 pub(crate) mod sources;

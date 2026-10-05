@@ -22,9 +22,6 @@
 //! 目录名不可变还有一个好处：用户正在下载旧的合并结果时，新的合并不会把它从脚下替换掉
 //! （断点续传不会拼出半新半旧的 PDF）。旧目录的清理另做。
 
-// 合并功能分步落地中：第 5 步「下游切换到解析函数」接上生产调用方后删掉这一行。
-#![cfg_attr(not(test), allow(dead_code))]
-
 use std::collections::BTreeMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -187,10 +184,6 @@ impl MergedTranslation {
 
     pub fn normalized_document(&self) -> PathBuf {
         self.root.join("ocr").join("normalized").join("document.v1.json")
-    }
-
-    pub fn markdown_images_dir(&self) -> PathBuf {
-        self.root.join("md").join("images")
     }
 }
 

@@ -61,6 +61,37 @@ pub async fn get_document_route(
     )?))
 }
 
+/// GET /api/v1/documents/:id/reading —— 阅读器该打开哪个任务。
+///
+/// 一个任务就覆盖了整本：返回它。多次范围翻译（或单个只覆盖一部分的任务）：按需生成
+/// 合并目录，返回它的虚拟任务 id。生成要跑子进程，放进阻塞线程。
+pub async fn get_document_reading_route(
+    State(state): State<AppState>,
+    ApiPath(document_id): ApiPath<String>,
+) -> Result<Json<ApiResponse<crate::services::merge::reading::DocumentReadingView>>, AppError> {
+    let deps = build_library_route_deps(&state);
+    let source_pdf = document_source_pdf_download(&deps.library, &document_id)?.path;
+    let db = state.db.clone();
+    let config = state.config.clone();
+    let view = tokio::task::spawn_blocking(move || {
+        let artifact_deps = crate::services::derived_artifacts::DerivedArtifactDeps::with_pipeline_command(
+            &config.python_bin,
+            &config.pipeline_command,
+        );
+        crate::services::merge::reading::resolve_reading_target(
+            &db,
+            &config.data_root,
+            artifact_deps,
+            &document_id,
+            &source_pdf,
+        )
+        .map(|target| target.view(&config.data_root))
+    })
+    .await
+    .map_err(|_| AppError::internal("document reading task failed"))??;
+    Ok(ok_json(view))
+}
+
 /// GET /api/v1/documents/:id/source.pdf — 无翻译 job 也能读源文件。
 pub async fn download_document_source_pdf_route(
     State(state): State<AppState>,

@@ -12,6 +12,7 @@ mod health;
 mod http_contract;
 mod job_view_contract;
 pub(crate) mod jobs_common;
+mod merged_reading;
 mod jobs_control_contract;
 mod jobs_create;
 mod jobs_detail;
