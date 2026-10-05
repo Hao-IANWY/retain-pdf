@@ -25,6 +25,7 @@ pub mod library;
 pub(crate) mod managed_credential_gc;
 pub mod model_executor;
 pub mod model_requests_api;
+pub(crate) mod document_pages;
 pub(crate) mod ocr_artifact_reuse;
 pub mod provider_api;
 pub(crate) mod provider_probe;

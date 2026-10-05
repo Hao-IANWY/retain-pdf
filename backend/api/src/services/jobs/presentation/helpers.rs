@@ -2,11 +2,10 @@ use std::path::Path;
 
 use super::super::summary_loaders::SummaryCache;
 use crate::models::api::{
-    to_absolute_url, BookSummaryView, JobFailureBriefView, JobFailureDiagnosticView,
+    to_absolute_url, BookSummaryView, JobFailureDiagnosticView,
     OcrJobSummaryView,
 };
 use crate::models::domain::{JobFailureInfo, JobSnapshot, UploadRecord};
-use crate::job_failure::classify_job_failure;
 use crate::storage_paths::resolve_source_pdf;
 
 pub(super) fn derive_display_name(upload: Option<&UploadRecord>, job: &JobSnapshot) -> String {
