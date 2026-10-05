@@ -28,6 +28,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { assertReaderCssIsFresh } from "../helpers/built-css.mjs";
 
 import { ReaderWorkspaceTabs }
   from "../../../packages/reader/src/components/react-pdf/ReaderWorkspaceTabs.tsx";
@@ -56,10 +57,7 @@ function buildPage() {
 }
 
 test("顶栏每个控件在 375–1440px 都点得到", { concurrency: 1 }, async (t) => {
-  if (!existsSync(CSS_PATH)) {
-    t.skip("dist/css/reader.css 还没构建 —— 跑 npm run build:css 之后这条才有意义");
-    return;
-  }
+  assertReaderCssIsFresh(CSS_PATH);
   let chromium;
   try { ({ chromium } = require_("playwright")); } catch {
     t.skip("没有 playwright");

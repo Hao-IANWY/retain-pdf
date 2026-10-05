@@ -12,6 +12,7 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { assertReaderCssIsFresh } from "../helpers/built-css.mjs";
 
 import { BOARD_HTML_SANDBOX, withBoardHtmlCsp }
   from "../../src/features/reader/domain/board-html.ts";
@@ -31,7 +32,7 @@ async function withBrowser(t, fn) {
 }
 
 test("agent 写的 HTML 真的画得出来，而且是标准模式", { concurrency: 1 }, async (t) => {
-  if (!existsSync(CSS_PATH)) { t.skip("dist/css/reader.css 还没构建"); return; }
+  assertReaderCssIsFresh(CSS_PATH);
   const out = await withBrowser(t, async (browser) => {
     const page = await (await browser.newContext()).newPage();
     await page.setContent(`<!doctype html><style>${readFileSync(CSS_PATH, "utf8")}</style>

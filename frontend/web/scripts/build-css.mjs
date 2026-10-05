@@ -8,10 +8,12 @@
 // 兼容：仍写一份 styles.css = home 的副本，避免外部脚本/文档旧路径立刻挂掉。
 
 import { spawnSync } from "node:child_process";
-import { copyFileSync, mkdirSync, existsSync, readdirSync } from "node:fs";
+import { copyFileSync, mkdirSync, existsSync, readdirSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { computeReaderCssFingerprint, FINGERPRINT_PATH } from "./css-source-fingerprint.mjs";
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const ENTRIES = [
@@ -110,5 +112,11 @@ if (existsSync(homeOut)) {
 }
 
 copyKatexFonts();
+
+// 源 CSS 的内容指纹。tests/layout/* 量的是 dist/css/reader.css，而 npm test 和 CI
+// 都不重建它 —— 门禁靠重算这个指纹来判断「产物是不是上次 build 的那一份」。
+// 详见 scripts/css-source-fingerprint.mjs 的文件头。
+writeFileSync(FINGERPRINT_PATH, `${computeReaderCssFingerprint()}\n`);
+console.log("[build-css] reader 源指纹已写入");
 
 console.log("[build-css] done");
