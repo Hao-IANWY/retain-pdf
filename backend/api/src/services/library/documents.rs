@@ -76,9 +76,13 @@ pub fn list_documents(
         .map(str::trim)
         .filter(|id| !id.is_empty())
     {
-        let documents: Vec<_> = deps
-            .db
-            .get_document_by_job_id(job_id)?
+        // 合并结果的虚拟 id 不在 jobs 表里，但 id 本身就写着它属于哪本书。阅读器拿书名和
+        // 原文 PDF、AI 服务核对「这个任务属于哪个文档」走的都是这条路。
+        let by_job = match crate::storage_paths::MergedJobId::parse(job_id) {
+            Some(merged) => deps.db.get_document(&merged.document_id).ok(),
+            None => deps.db.get_document_by_job_id(job_id)?,
+        };
+        let documents: Vec<_> = by_job
             .into_iter()
             .map(|doc| with_document_media_urls(doc, base_url))
             .collect::<Vec<_>>();

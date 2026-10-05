@@ -2,6 +2,7 @@
 mod constants;
 #[path = "storage_paths/job_paths.rs"]
 mod job_paths;
+mod merged_job;
 #[path = "storage_paths/path_ops.rs"]
 mod path_ops;
 #[path = "storage_paths/registry.rs"]
@@ -26,6 +27,7 @@ pub use constants::{
     TRANSLATION_MANIFEST_FILE_NAME, TRANSLATION_REQUEST_JOURNAL_FILE_NAME,
 };
 pub use job_paths::{attach_job_paths, build_job_paths, JobPaths};
+pub use merged_job::{is_merged_job_id, MergedJobId};
 pub use path_ops::{
     data_path_is_absolute, job_uses_legacy_output_layout, job_uses_legacy_path_storage,
     normalize_job_artifacts_for_storage, normalize_job_paths_for_storage,

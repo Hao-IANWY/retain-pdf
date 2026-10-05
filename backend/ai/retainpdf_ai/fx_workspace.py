@@ -29,11 +29,29 @@ import json
 import re
 from pathlib import Path
 
+from .merged_jobs import parse_merged_job_id
+
 # job id 的形状：20260921092508-fe8d63。放宽到字母数字加连字符，但**不允许**
 # 点、斜杠和任何能往上跳的东西。
 _SAFE_JOB_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
 
 AI_WORKSPACE_DIR_NAME = "ai"
+
+
+def resolve_merged_workspace(data_root: Path, session_key: str) -> tuple[Path, Path] | None:
+    """合并结果的 `(AI 工作区, 合并目录)`，不是合并 id 或合并目录不存在就返回 None。
+
+    AI 工作区按文档放（`data/documents/<文档>/ai`），不放进按指纹命名的合并目录：新翻了几页
+    就是一个新指纹，agent 的笔记和画板不能跟着丢。和 Rust 的 `resolve_ai_dir` 是同一个位置
+    —— 阅读器的画板、阅读路径从那边读。
+    """
+    merged = parse_merged_job_id(session_key.strip())
+    if merged is None:
+        return None
+    root = merged.root(data_root)
+    if not root.is_dir():
+        return None
+    return merged.ai_dir(data_root), root
 
 
 def resolve_job_workspace(data_root: Path, session_key: str) -> Path | None:
@@ -215,6 +233,24 @@ def build_collection_workspace_instructions(workspace: Path) -> str:
 `typst compile report.typ books/<书>/ai/board/report.pdf`,单条命令。
 不过 PDF 打不开只能下载，除非确实要能存档的东西，否则写 `.html` 更顺手。
 """
+
+
+def build_merged_workspace_instructions(workspace: Path, merged_root: Path) -> str:
+    """合并书的工作区说明：沿用单本书的那份，只把数据位置换成当前合并目录。
+
+    单本书的约定是「数据在 `../`」。合并书的 AI 工作区按文档放，`../` 是文档目录，数据在
+    `../merged/<指纹>/` —— 这份说明每次起终端都重新生成，所以总是指向当前那份合并。
+    """
+    data_rel = f"../{merged_root.relative_to(workspace.parent).as_posix()}/"
+    body = build_job_workspace_instructions(merged_root).replace("../", data_rel)
+    note = f"""> **这本书是多次翻译拼成的。** 每一页取最近一次翻译了它的那个任务，没翻过的页是原文。
+> 合并目录 `{data_rel}` 里只有 `translated/`、`ocr/`、`md/`、`rendered/`；
+> `source/`、`specs/`、`logs/`、`artifacts/` 属于各次翻译任务，这里没有。
+> 页号已经全部换成文档页号（`p005-…` 就是第 5 页）；以 `detached:` 开头的 id 指向别的任务提供的页，查不到是正常的。
+
+"""
+    head, _, rest = body.partition("\n\n")
+    return f"{head}\n\n{note}{rest}"
 
 
 def build_job_workspace_instructions(job_dir: Path) -> str:
@@ -468,4 +504,6 @@ __all__ = [
     "build_job_workspace_instructions",
     "resolve_collection_workspace",
     "resolve_job_workspace",
+    "resolve_merged_workspace",
+    "build_merged_workspace_instructions",
 ]

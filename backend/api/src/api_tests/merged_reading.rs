@@ -197,6 +197,10 @@ async fn two_range_translations_open_as_one_full_length_book() {
     // 第 1 页一次，第 3-4 页一次 —— 两个任务各自的「第 1 页」都叫 p001。
     seed_range_job(&state, &document_id, "job-a", "2026-10-01T00:00:00", &[1], &["ZH 1"]);
     seed_range_job(&state, &document_id, "job-mid", "2026-10-02T00:00:00", &[3, 4], &["ZH 3", "ZH 4"]);
+    // agent 在 job-a 上干过活：留下一份阅读路径。
+    let job_a_ai = data_root.join("jobs/job-a/ai");
+    fs::create_dir_all(&job_a_ai).unwrap();
+    fs::write(job_a_ai.join("reading-path.v1.json"), br#"{"steps":["from job-a"]}"#).unwrap();
     let app = build_app(state);
 
     let view = reading(&app, &document_id).await;
@@ -204,6 +208,13 @@ async fn two_range_translations_open_as_one_full_length_book() {
     assert_eq!(view["contributing_job_ids"], json!(["job-a", "job-mid"]));
     let job_id = view["job_id"].as_str().unwrap().to_string();
     assert!(job_id.starts_with("merged-"), "{job_id}");
+
+    // 阅读器 / AI 服务：按任务 id 反查文档
+    let by_job = request(&app, "GET", &format!("/api/v1/documents?job_id={job_id}")).await;
+    assert_eq!(by_job.status(), StatusCode::OK);
+    let by_job = read_json(by_job).await;
+    assert_eq!(by_job["data"]["documents"][0]["document_id"], document_id);
+    assert_eq!(by_job["data"]["total"], 1);
 
     // 阅读器：任务详情
     let detail = request(&app, "GET", &format!("/api/v1/jobs/{job_id}")).await;
@@ -237,6 +248,13 @@ async fn two_range_translations_open_as_one_full_length_book() {
     // 阅读器：元数据（页数、页面尺寸）
     let metadata = request(&app, "GET", &format!("/api/v1/jobs/{job_id}/reader/metadata")).await;
     assert_eq!(metadata.status(), StatusCode::OK);
+
+    // AI 工作区：合并书接到这本书上次 agent 的产出，落在文档级的 ai/（不跟着指纹走）
+    let reading_path = request(&app, "GET", &format!("/api/v1/jobs/{job_id}/reading-path")).await;
+    assert_eq!(reading_path.status(), StatusCode::OK);
+    let body = to_bytes(reading_path.into_body(), usize::MAX).await.unwrap();
+    assert!(String::from_utf8_lossy(&body).contains("from job-a"), "{}", String::from_utf8_lossy(&body));
+    assert!(data_root.join("documents").join(&document_id).join("ai/reading-path.v1.json").is_file());
 
     // 写操作一律拒绝：虚拟 id 不在数据库里
     for action in ["cancel", "rerun"] {

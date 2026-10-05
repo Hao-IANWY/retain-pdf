@@ -39,8 +39,10 @@ from .fx_workspace import (
     apply_terminal_permissions,
     build_collection_workspace_instructions,
     build_job_workspace_instructions,
+    build_merged_workspace_instructions,
     resolve_collection_workspace,
     resolve_job_workspace,
+    resolve_merged_workspace,
 )
 from .runtimes.fx_process import (
     _write_workspace_instructions,
@@ -250,6 +252,14 @@ def build_terminal_launch(
             build_collection_workspace_instructions(collection_workspace),
         )
         workspace = collection_workspace
+    elif (merged_workspace := resolve_merged_workspace(settings.data_root, session_key)) is not None:
+        ai_dir, merged_root = merged_workspace
+        ai_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+        _write_workspace_instructions(
+            ai_dir,
+            build_merged_workspace_instructions(ai_dir, merged_root),
+        )
+        workspace = ai_dir
     else:
         job_workspace = resolve_job_workspace(settings.data_root, session_key)
         if job_workspace is not None:

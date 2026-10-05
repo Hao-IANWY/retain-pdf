@@ -24,52 +24,19 @@ use crate::models::domain::{JobArtifacts, JobSnapshot, JobStatusKind};
 use crate::services::derived_artifacts::merged::{
     ensure_merged_translation, JobInputs, MergedTranslation,
 };
-use crate::services::derived_artifacts::{document_artifacts_dir, DerivedArtifactDeps};
-use crate::storage_paths::{resolve_data_path, to_relative_data_path};
+use crate::services::derived_artifacts::DerivedArtifactDeps;
+use crate::storage_paths::{is_merged_job_id, resolve_data_path, to_relative_data_path, MergedJobId};
 
 use super::plan::{merge_plan, PageSource};
 use super::sources::{job_merge_source, MergeSource};
 
-const VIRTUAL_PREFIX: &str = "merged-";
 const SIDECAR: &str = "reading.json";
 
-/// 虚拟任务 id：`merged-<64 位十六进制文档 id>-<16 位十六进制指纹>`。
-///
-/// 格式卡得很死：它会被拼进文件路径（`data/documents/<doc>/merged/<fp>`），任何不是
-/// 十六进制的字符都不放行。
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct VirtualJobId {
-    pub document_id: String,
-    pub fingerprint: String,
-}
-
-fn is_hex(value: &str, len: usize) -> bool {
-    value.len() == len && value.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
-}
-
-impl VirtualJobId {
-    pub fn parse(job_id: &str) -> Option<Self> {
-        let rest = job_id.strip_prefix(VIRTUAL_PREFIX)?;
-        let (document_id, fingerprint) = rest.split_once('-')?;
-        (is_hex(document_id, 64) && is_hex(fingerprint, 16)).then(|| Self {
-            document_id: document_id.to_string(),
-            fingerprint: fingerprint.to_string(),
-        })
-    }
-
-    pub fn format(&self) -> String {
-        format!("{VIRTUAL_PREFIX}{}-{}", self.document_id, self.fingerprint)
-    }
-
-    fn root(&self, data_root: &Path) -> Result<PathBuf, AppError> {
-        Ok(document_artifacts_dir(data_root, &self.document_id)?
-            .join("merged")
-            .join(&self.fingerprint))
-    }
-}
+/// 虚拟任务 id 的格式定义在 `storage_paths::MergedJobId`：Python 的 AI 服务也要认它。
+pub(crate) type VirtualJobId = MergedJobId;
 
 pub(crate) fn is_virtual_job_id(job_id: &str) -> bool {
-    VirtualJobId::parse(job_id).is_some()
+    is_merged_job_id(job_id)
 }
 
 /// 合并目录里的说明文件：拼任务快照要的、目录本身看不出来的东西。
@@ -229,7 +196,7 @@ fn write_sidecar_once(
 pub(crate) fn load_virtual_job(db: &Db, data_root: &Path, job_id: &str) -> Result<JobSnapshot, AppError> {
     let not_found = || AppError::not_found(format!("job not found: {job_id}"));
     let id = VirtualJobId::parse(job_id).ok_or_else(not_found)?;
-    let merged = MergedTranslation { root: id.root(data_root)? };
+    let merged = MergedTranslation { root: id.root(data_root) };
     let sidecar: ReadingSidecar = std::fs::read(merged.root.join(SIDECAR))
         .ok()
         .and_then(|bytes| serde_json::from_slice(&bytes).ok())
@@ -263,7 +230,7 @@ pub(crate) fn load_virtual_job(db: &Db, data_root: &Path, job_id: &str) -> Resul
 /// 参与这份合并的任务 id，按页序首次出现的顺序。给界面说「这本书由哪几次翻译拼成」。
 pub(crate) fn contributing_jobs(data_root: &Path, job_id: &str) -> Option<Vec<String>> {
     let id = VirtualJobId::parse(job_id)?;
-    let bytes = std::fs::read(id.root(data_root).ok()?.join(SIDECAR)).ok()?;
+    let bytes = std::fs::read(id.root(data_root).join(SIDECAR)).ok()?;
     let sidecar: ReadingSidecar = serde_json::from_slice(&bytes).ok()?;
     Some(sidecar.contributing_job_ids)
 }

@@ -96,6 +96,10 @@ fn resolve_ai_artifact(
 /// 不接受文件名参数 —— 拼文件名的职责仍然留在上面那个私有函数和 api 侧的
 /// `ai_board.rs` 里。
 pub fn resolve_ai_dir(job: &JobSnapshot, data_root: &Path) -> Option<PathBuf> {
+    // 合并结果的 AI 工作区按文档放，不跟着指纹变（见 `MergedJobId::ai_dir`）。
+    if let Some(merged) = super::merged_job::MergedJobId::parse(&job.job_id) {
+        return Some(merged.ai_dir(data_root));
+    }
     let job_root = job.artifacts.as_ref()?.job_root.as_ref()?;
     Some(
         resolve_data_path(data_root, job_root)

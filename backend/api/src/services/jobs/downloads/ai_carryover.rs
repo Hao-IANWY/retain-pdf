@@ -120,7 +120,11 @@ fn find_source_workspace(
     data_root: &Path,
     job: &JobSnapshot,
 ) -> Option<SourceWorkspace> {
-    let document_id = db.document_id_for_job(&job.job_id).ok()??;
+    // 合并结果的虚拟 id 不在 jobs 表里，但 id 本身写着它属于哪本书。
+    let document_id = match crate::storage_paths::MergedJobId::parse(&job.job_id) {
+        Some(merged) => merged.document_id,
+        None => db.document_id_for_job(&job.job_id).ok()??,
+    };
     let candidates = db
         .list_jobs_for_document(&document_id, MAX_CANDIDATE_JOBS, 0)
         .ok()?;

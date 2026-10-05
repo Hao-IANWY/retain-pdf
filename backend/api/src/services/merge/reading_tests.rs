@@ -1,34 +1,6 @@
 use super::*;
 use crate::models::request::CreateJobInput;
 
-const DOC: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-
-#[test]
-fn virtual_ids_round_trip() {
-    let id = VirtualJobId { document_id: DOC.to_string(), fingerprint: "0123456789abcdef".to_string() };
-    let text = id.format();
-    assert_eq!(text, format!("merged-{DOC}-0123456789abcdef"));
-    assert_eq!(VirtualJobId::parse(&text), Some(id));
-    assert!(is_virtual_job_id(&text));
-}
-
-#[test]
-fn virtual_ids_reject_anything_that_could_escape_the_merged_directory() {
-    // id 会被拼进文件路径：只放行定长十六进制。
-    for bad in [
-        "20260921091127-99568a",
-        &format!("merged-{DOC}-../../etc/x"),
-        &format!("merged-{DOC}-0123456789abcdeF"),
-        &format!("merged-{DOC}-0123456789abcde"),
-        &format!("merged-{}-0123456789abcdef", &DOC[..63]),
-        &format!("merged-../{}-0123456789abcdef", &DOC[3..]),
-        &format!("merged-{DOC}-0123456789abcdef/x"),
-        "merged--",
-    ] {
-        assert_eq!(VirtualJobId::parse(bad), None, "{bad} 被当成了虚拟 id");
-    }
-}
-
 fn job_page(id: &str, local: usize) -> PageSource {
     PageSource::Job { job_id: id.to_string(), local_index: local }
 }

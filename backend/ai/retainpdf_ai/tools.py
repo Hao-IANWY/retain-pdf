@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import quote, unquote
 
+from .merged_jobs import parse_merged_job_id
 from .blocks import Block, load_job_blocks, read_page_blocks
 from .config import Settings
 from .markdown import (
@@ -35,7 +36,14 @@ _SAFE_JOB_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 
 
 def _safe_job_root(settings: Settings, job_id: str) -> Path | None:
-    """job_id 合法则返回 jobs 根下的目录，否则 None（调用方按任务不存在处理）。"""
+    """job_id 合法则返回它的产物目录，否则 None（调用方按任务不存在处理）。
+
+    合并结果的虚拟 id（多次范围翻译拼成的整本）不在 `jobs/` 下，在
+    `documents/<文档>/merged/<指纹>/`；目录结构和普通任务一样。
+    """
+    merged = parse_merged_job_id(job_id)
+    if merged is not None:
+        return merged.root(settings.data_root)
     if not _SAFE_JOB_ID_RE.fullmatch(job_id) or ".." in job_id:
         return None
     return settings.data_root / "jobs" / job_id
