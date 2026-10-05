@@ -377,3 +377,79 @@ def test_signal_handlers_are_installed_and_restored(tmp_path: Path) -> None:
     installed_signals = [call.args[0] for call in install.call_args_list]
     assert installed_signals.count(signal.SIGINT) == 2
     assert installed_signals.count(signal.SIGTERM) == 2
+
+
+# ── .env.local ────────────────────────────────────────────────────────────
+
+
+def test_env_file_parsing_skips_comments_and_strips_quotes() -> None:
+    text = """
+# 注释
+RETAIN_TEST_TRANSLATION_MODEL=glm-5.3-flash
+export RETAIN_TEST_TRANSLATION_WORKERS = 20
+QUOTED="https://open.bigmodel.cn/api/paas/v4"
+SINGLE='a b'
+not a line
+BAD-NAME=x
+EMPTY=
+"""
+    assert dev_stack.parse_env_file(text) == {
+        "RETAIN_TEST_TRANSLATION_MODEL": "glm-5.3-flash",
+        "RETAIN_TEST_TRANSLATION_WORKERS": "20",
+        "QUOTED": "https://open.bigmodel.cn/api/paas/v4",
+        "SINGLE": "a b",
+        "EMPTY": "",
+    }
+
+
+def test_a_worktree_falls_back_to_the_main_checkout_env_file(tmp_path: Path) -> None:
+    worktree = tmp_path / "worktree"
+    main = tmp_path / "main"
+    worktree.mkdir()
+    main.mkdir()
+    (main / ".env.local").write_text("RETAIN_TEST_TRANSLATION_MODEL=from-main\n")
+    values, source = dev_stack.load_local_env(worktree, main)
+    assert values == {"RETAIN_TEST_TRANSLATION_MODEL": "from-main"}
+    assert source == main / ".env.local"
+    # 当前检出自己有一份时用自己的。
+    (worktree / ".env.local").write_text("RETAIN_TEST_TRANSLATION_MODEL=from-worktree\n")
+    values, source = dev_stack.load_local_env(worktree, main)
+    assert values == {"RETAIN_TEST_TRANSLATION_MODEL": "from-worktree"}
+    assert source == worktree / ".env.local"
+
+
+def test_no_env_file_anywhere_loads_nothing(tmp_path: Path) -> None:
+    assert dev_stack.load_local_env(tmp_path, None) == ({}, None)
+
+
+def test_env_file_values_reach_the_backend_but_never_override_explicit_or_managed_vars(tmp_path: Path) -> None:
+    paths = make_paths(tmp_path)
+    opts = options(paths)
+    env = dev_stack.build_runtime_env(
+        paths,
+        opts,
+        {"PATH": "/usr/bin", "RETAIN_TEST_TRANSLATION_WORKERS": "5"},
+        local_env={
+            "RETAIN_TEST_TRANSLATION_MODEL": "glm-5.3-flash",
+            "RETAIN_TEST_TRANSLATION_WORKERS": "20",
+            "RUST_API_DATA_ROOT": "/tmp/hijacked",
+        },
+    )
+    assert env["RETAIN_TEST_TRANSLATION_MODEL"] == "glm-5.3-flash", ".env.local 的值没传给后端"
+    assert env["RETAIN_TEST_TRANSLATION_WORKERS"] == "5", "shell 里显式设的值该优先"
+    assert env["RUST_API_DATA_ROOT"] == str(opts.data_root), ".env.local 改动了开发栈自己管的变量"
+
+
+def test_run_prints_only_variable_names_from_the_env_file(tmp_path: Path, capsys) -> None:
+    # 值里有 API key，日志里只能出现变量名。
+    paths = make_paths(tmp_path)
+    (paths.product / ".env.local").write_text("RETAIN_TEST_TRANSLATION_API_KEY=super-secret-value\n")
+    with mock.patch.object(dev_stack, "main_checkout_of", return_value=None), \
+         mock.patch.object(dev_stack, "prepare"), \
+         mock.patch.object(dev_stack, "validate_artifacts"), \
+         mock.patch.object(dev_stack, "launch", return_value=0) as launch:
+        assert dev_stack.run(["--no-sync", "--no-build"], paths=paths, environ={"PATH": "/usr/bin"}) == 0
+    out = capsys.readouterr().out
+    assert "RETAIN_TEST_TRANSLATION_API_KEY" in out
+    assert "super-secret-value" not in out
+    assert launch.call_args.args[2]["RETAIN_TEST_TRANSLATION_API_KEY"] == "super-secret-value"

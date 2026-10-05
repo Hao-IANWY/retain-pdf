@@ -325,14 +325,76 @@ def preflight_fx(environ: Mapping[str, str]) -> str:
     return str(Path(fx_command).resolve())
 
 
+LOCAL_ENV_FILE_NAME = ".env.local"
+
+
+def parse_env_file(text: str) -> dict[str, str]:
+    """`KEY=VALUE` 一行一个；`#` 开头和空行跳过；值两端的成对引号去掉。不做变量展开。"""
+    values: dict[str, str] = {}
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        if key.startswith("export "):
+            key = key[len("export "):].strip()
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
+            value = value[1:-1]
+        if key and key.replace("_", "").isalnum():
+            values[key] = value
+    return values
+
+
+def local_env_candidates(product: Path, main_checkout: Path | None) -> list[Path]:
+    """先找当前检出的 `.env.local`，找不到再找 main 检出的。
+
+    开发栈常跑在 worktree 上，而 `.env.local`（本机测试用的模型 key，gitignore 掉的）只放
+    在 main 检出里一份 —— 每个 worktree 各放一份就是多一处明文 key。
+    """
+    candidates = [product / LOCAL_ENV_FILE_NAME]
+    if main_checkout is not None and main_checkout.resolve() != product.resolve():
+        candidates.append(main_checkout / LOCAL_ENV_FILE_NAME)
+    return candidates
+
+
+def main_checkout_of(product: Path) -> Path | None:
+    """worktree 所属的 main 检出：`git rev-parse --git-common-dir` 的上一级。不是 git 仓库就 None。"""
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(product), "rev-parse", "--path-format=absolute", "--git-common-dir"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0 or not result.stdout.strip():
+        return None
+    return Path(result.stdout.strip()).parent
+
+
+def load_local_env(product: Path, main_checkout: Path | None) -> tuple[dict[str, str], Path | None]:
+    for candidate in local_env_candidates(product, main_checkout):
+        if candidate.is_file():
+            return parse_env_file(candidate.read_text(encoding="utf-8")), candidate
+    return {}, None
+
+
 def build_runtime_env(
     paths: RepoPaths,
     options: Options,
     environ: Mapping[str, str],
     *,
     fx_command: str | None = None,
+    local_env: Mapping[str, str] | None = None,
 ) -> dict[str, str]:
     env = dict(environ)
+    # `.env.local` 只补 shell 里没设的变量：显式 export 的优先。下面开发栈自己管的
+    # RUST_API_* 等再覆盖一遍，`.env.local` 改不动它们。
+    for key, value in (local_env or {}).items():
+        env.setdefault(key, value)
     api_keys = env.get("RUST_API_KEYS", "").strip() or DEFAULT_API_KEY
     keys = {key.strip() for key in api_keys.split(",") if key.strip()}
     try:
@@ -577,7 +639,11 @@ def run(
     repo = paths or RepoPaths.from_script(environ=os.environ)
     source_env = dict(os.environ if environ is None else environ)
     options = parse_args(argv, paths=repo, environ=source_env)
-    runtime_env = build_runtime_env(repo, options, source_env)
+    local_env, local_env_file = load_local_env(repo.product, main_checkout_of(repo.product))
+    if local_env_file is not None:
+        # 只打印变量名：值里有 API key。
+        print(f"[dev-stack] loaded {local_env_file}: {', '.join(sorted(local_env))}")
+    runtime_env = build_runtime_env(repo, options, source_env, local_env=local_env)
     prepare(repo, options, source_env)
     validate_artifacts(repo)
     fx_command = preflight_fx(source_env) if options.runtime == "fx" else None

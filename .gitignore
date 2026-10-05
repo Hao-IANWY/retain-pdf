@@ -99,3 +99,7 @@ research/
 # 那一个正是符号链接，只写带斜杠的那条它照样是 untracked 可见状态。
 .venv
 .venv/
+
+# 本地测试用的 API 配置（含明文 key），绝不进仓库
+.env.local
+.env.*.local

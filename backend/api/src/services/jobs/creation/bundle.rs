@@ -14,6 +14,7 @@ pub(crate) async fn create_translation_bundle_job(
     mut request: CreateJobInput,
     upload: UploadedPdfInput,
 ) -> Result<JobSnapshot, AppError> {
+    request = super::dev_defaults::with_dev_translation_defaults(&request);
     create_translation_bundle_job_with_resources(deps, &mut request, upload).await
 }
 

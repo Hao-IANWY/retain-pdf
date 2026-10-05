@@ -2355,3 +2355,78 @@ async fn document_jobs_list_omits_failure_for_healthy_jobs() {
         "成功的任务也带了 failure 字段 —— 前端会据此画出失败卡片"
     );
 }
+
+
+fn dev_defaults() -> crate::services::jobs::DevDefaultsGuard {
+    crate::services::jobs::DevDefaultsGuard::set(crate::services::jobs::DevTranslationDefaults {
+        model: "glm-5.3-flash".into(),
+        base_url: "https://open.bigmodel.cn/api/paas/v4".into(),
+        api_key: "dev-env-key".into(),
+        workers: Some(20),
+    })
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn document_translate_without_model_settings_uses_the_dev_stack_defaults() {
+    // 开发栈从 .env.local 读出模型配置；直接调接口测试时请求里不写模型也能跑。
+    let _defaults = dev_defaults();
+    let state = test_state("library-document-translate-dev-defaults");
+    let app = build_app(state.clone());
+    let document_id = seed_document(&state, b"translate-dev-defaults");
+    let source_job_id = seed_reusable_ocr_job(&state, &document_id, "ocr-dev-defaults");
+    let (status, payload) = post_translate(&app, &document_id, serde_json::json!({
+        "workflow": "translate",
+        "source": { "artifact_job_id": source_job_id },
+        "translation": { "page_ranges": [1, 2] }
+    })).await;
+    assert_eq!(status, StatusCode::OK, "{payload}");
+    let job = state.db.get_job(payload["data"]["job_id"].as_str().unwrap()).unwrap();
+    assert_eq!(job.request_payload.translation.model, "glm-5.3-flash");
+    assert_eq!(job.request_payload.translation.base_url, "https://open.bigmodel.cn/api/paas/v4");
+    assert_eq!(job.request_payload.translation.workers, 20);
+    // 明文 key 不落库：创建任务时会换成托管凭据的引用（原有行为）。
+    assert!(job.request_payload.translation.api_key.is_empty());
+    assert!(!job.request_payload.translation.credential_ref.is_empty(), "key 没被补上");
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn a_request_with_its_own_model_settings_ignores_the_dev_stack_defaults() {
+    let _defaults = dev_defaults();
+    let state = test_state("library-document-translate-dev-defaults-explicit");
+    let app = build_app(state.clone());
+    let document_id = seed_document(&state, b"translate-dev-defaults-explicit");
+    let source_job_id = seed_reusable_ocr_job(&state, &document_id, "ocr-dev-defaults-explicit");
+    let (status, payload) = post_translate(&app, &document_id, serde_json::json!({
+        "workflow": "translate",
+        "source": { "artifact_job_id": source_job_id },
+        "translation": { "page_ranges": [1], "api_key": "sk-caller", "model": "deepseek-flash", "base_url": "https://api.deepseek.com/v1", "workers": 3 }
+    })).await;
+    assert_eq!(status, StatusCode::OK, "{payload}");
+    let job = state.db.get_job(payload["data"]["job_id"].as_str().unwrap()).unwrap();
+    assert_eq!(job.request_payload.translation.model, "deepseek-flash");
+    assert_eq!(job.request_payload.translation.base_url, "https://api.deepseek.com/v1");
+    assert_eq!(job.request_payload.translation.workers, 3);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn split_translation_pre_check_sees_the_dev_stack_defaults() {
+    // 补 OCR 的段在建任务前预检翻译凭据 —— 默认值必须在那之前补上，否则请求里没写模型就被拒。
+    let _defaults = dev_defaults();
+    let state = test_state("library-document-translate-dev-defaults-split");
+    let app = build_app(state.clone());
+    let document_id = seed_document(&state, b"translate-dev-defaults-split");
+    let source_job_id = seed_reusable_ocr_job(&state, &document_id, "ocr-dev-defaults-split");
+    let mut source_job = state.db.get_job(&source_job_id).unwrap();
+    source_job.artifacts.as_mut().unwrap().ocr_page_numbers = vec![1, 2, 3];
+    state.db.save_job(&source_job).unwrap();
+    let (status, payload) = post_translate(&app, &document_id, serde_json::json!({
+        "workflow": "translate",
+        "source": { "artifact_job_id": source_job_id },
+        "ocr": { "provider": "mineru", "mineru_token": "test-mineru-token" },
+        "translation": { "page_ranges": [1, 2, 5] }
+    })).await;
+    assert_eq!(status, StatusCode::OK, "{payload}");
+    let jobs = submitted_jobs(&state, &payload);
+    assert_eq!(jobs.len(), 2);
+    assert!(jobs.iter().all(|job| job.request_payload.translation.model == "glm-5.3-flash"));
+}

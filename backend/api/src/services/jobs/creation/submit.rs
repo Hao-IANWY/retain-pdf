@@ -14,6 +14,7 @@ pub(crate) fn create_translation_job(
     deps: &JobSubmitDeps<'_>,
     input: &CreateJobInput,
 ) -> Result<JobSnapshot, AppError> {
+    let input = &super::dev_defaults::with_dev_translation_defaults(input);
     let job = build_translation_job_snapshot(&deps.snapshot, input)?;
     let job = secure_job_credentials(deps, job)?;
     let _credential_guard = acquire_job_credential_usage_lock(deps, &job)?;

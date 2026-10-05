@@ -22,6 +22,8 @@ pub fn translate_document(
     base_url: &str,
 ) -> Result<JobSubmissionView, AppError> {
     let (document, upload) = require_document_upload(deps, document_id)?;
+    // 开发栈的翻译默认值要在拆段预检（会校验翻译凭据）之前补上。
+    request = crate::services::jobs::with_dev_translation_defaults(&request);
 
     if !request.source.upload_id.trim().is_empty()
         && request.source.upload_id.trim() != upload.upload_id
