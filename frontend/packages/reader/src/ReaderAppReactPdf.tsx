@@ -314,7 +314,19 @@ export function ReaderAppReactPdf() {
   }, []);
 
   const hostPanelContext = useMemo(() => ({
-    sessionKey: session.jobId || session.documentId || "reader",
+    // **只认 jobId**，不拿 documentId 兜底（契约见 adapters.ts：「用 jobId，换文档
+    // 就换终端」）。原来是 `session.jobId || session.documentId || "reader"`，于是
+    // 没有任务的阅读页（书架卡片在没有 job_id 时跳 `reader.html?document_id=…`）会
+    // 拿一个 document id 当 job id 用，四处同时静默失败：
+    //
+    //   - fx 侧 resolve_job_workspace 找不到 data/jobs/<documentId> → 退回私有目录，
+    //     终端开起来了但 books/ 是空的，无报错
+    //   - 产物条每 4 秒打 /api/v1/jobs/<documentId>/board → 404 → 静默跳过
+    //   - 左边那块 renderReaderBoard 看 !jobId → 静默返回 null
+    //
+    // 空字符串在这里是有意义的信号：renderReaderTerminal 会改画一段说明，
+    // 而不是一个开得起来却什么都做不了的空壳。
+    sessionKey: session.jobId,
     pendingInput: terminalPrefill,
     onOpenBoard: setBoardFile,
     onClose: closeAssistant,

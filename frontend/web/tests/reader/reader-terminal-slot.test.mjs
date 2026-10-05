@@ -8,6 +8,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { code } from "../helpers/source-text.mjs";
 
 import { READER_ADAPTER_KEYS } from "../../../../frontend/packages/reader/src/adapters.ts";
 import { READER_HOST_PANELS } from "../../../../frontend/packages/reader/src/components/react-pdf/reader-host-panels.ts";
@@ -19,8 +20,10 @@ const read = (relative) =>
 const DOCK = read(
   "../../../../frontend/packages/reader/src/components/react-pdf/ReaderAssistantDock.tsx",
 );
-const APP = read(
-  "../../../../frontend/packages/reader/src/ReaderAppReactPdf.tsx",
+// 先剥注释：这个文件的注释里现在引用着旧写法（`sessionKey: session.jobId || …`），
+// 不剥的话下面那条 doesNotMatch 会被自己的说明命中。
+const APP = code(
+  read("../../../../frontend/packages/reader/src/ReaderAppReactPdf.tsx"),
 );
 const HOST = read("../../src/features/reader/ui/terminal.tsx");
 const ADAPTERS = read("../../../../frontend/packages/reader/src/adapters.ts");
@@ -102,10 +105,21 @@ test("宿主给的那块不自己定位", () => {
   assert.doesNotMatch(HOST, /\b(left|right|top|bottom)\s*:/);
 });
 
-test("终端会话 key 跟着文档走", () => {
-  // 换文档要换终端（fx 的 workspace 是按 session key 分的）；同一文档来回切
-  // tab 要接回同一个。
-  assert.match(APP, /sessionKey: session\.jobId \|\| session\.documentId/);
+test("终端会话 key 只认 jobId —— 原来那个 documentId 兜底是个静默失效的行为", () => {
+  // 换文档要换终端（fx 的 workspace 按 session key 分），这一条 `session.jobId`
+  // 自己就满足。
+  //
+  // **去掉的是 `|| session.documentId || "reader"` 那截。** 它本意是「没有任务时
+  // 也给个稳定的键」，但那个键指向一个不存在的工作区：fx 侧
+  // `resolve_job_workspace` 找不到 `data/jobs/<documentId>` 就退回私有目录，
+  // 终端开起来了而 `books/` 是空的，不报错；产物条同时在 404 上空转。
+  // 完整的链路和四处静默见 reader-terminal-needs-job.test.mjs 的文件头。
+  assert.match(APP, /sessionKey: session\.jobId,/);
+  assert.doesNotMatch(
+    APP,
+    /sessionKey: session\.jobId \|\|/,
+    "documentId 兜底又回来了 —— 那个值会被当成 job id 打到 /api/v1/jobs/<id>/board 上",
+  );
 });
 
 test("端点配不出来时槽位返回 null，而不是渲染一个连不上的终端", () => {

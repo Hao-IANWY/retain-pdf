@@ -32,12 +32,47 @@ import {
   TerminalTabBar,
 } from "./terminal-chrome.js";
 
+/** 这本书还没有任务时，这扇门里该说什么。
+ *
+ * **不是返回 null**：终端是阅读页**唯一**的 AI 入口，悄悄把它藏掉等于让人以为
+ * AI 坏了。也不是照常打开 —— agent 的工作区是 `data/jobs/<job>/ai`，没有任务
+ * 就没有工作区：fx 侧会退回私有目录，`books/` 是空的且不报错，写进 `board/`
+ * 的东西也没有任何呈现路径。开着的空壳比一句说明糟得多。
+ *
+ * 链接只到书架：`detail.html` 硬要 job_id（它自己的提示就是「缺少 job_id」），
+ * 主页也没有「按 document_id 直开某本书详情」的 URL 入口 —— 给一个会落空的
+ * 链接比不给链接更糟。
+ */
+function ReaderTerminalNeedsJob() {
+  return (
+    <div className="reader-terminal-panel" data-terminal-state="needs-job">
+      <div className="reader-terminal-needs-job">
+        <h3>这本书还没处理过</h3>
+        <p>
+          AI 要在这本书的产物上干活 —— OCR 结果、译文、版面数据。
+          现在还没有，所以它没有可读的东西。
+        </p>
+        <p>
+          回书架打开这本书，先做 <strong>OCR</strong> 或 <strong>翻译</strong>，
+          之后这里就能用了。
+        </p>
+        <a className="reader-terminal-needs-job-link" href="./index.html">
+          回到书架
+        </a>
+      </div>
+    </div>
+  );
+}
+
 export function renderReaderTerminal(props: ReaderTerminalSlotProps) {
   // 浏览器只认 Rust API 这一个地址和一把凭据 —— AI 服务(41100)只监听回环，
   // 前端从不直连它，/ai/ask 也是经 Rust 转发的。终端走同样的路。
   const base = apiBase();
   const apiKey = frontendApiKey();
   if (!base || !apiKey) return null;
+  // sessionKey 现在只认 jobId（见 ReaderAppReactPdf 里那段注释），空的就是
+  // 「这本书还没有任务」。
+  if (!props.sessionKey) return <ReaderTerminalNeedsJob />;
   return (
     <ReaderTerminalPanel
       key={props.sessionKey}

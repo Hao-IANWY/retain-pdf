@@ -44,6 +44,47 @@
     display: none;
   }
 
+  /* 这本书还没有任务时那扇门里的说明。
+   *
+   * 居中但不铺满：面板本身是深色（--bg 来自 data-theme="night"），这段文字要
+   * 读得清，所以不跟着终端的配色走。 */
+  .reader-terminal-needs-job {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    align-items: flex-start;
+    margin: auto;
+    max-width: 30rem;
+    padding: 1.25rem;
+    border: 1px solid var(--border);
+    border-radius: 0.6rem;
+    background: var(--card);
+    color: var(--foreground);
+  }
+
+  .reader-terminal-needs-job h3 {
+    margin: 0;
+    font-size: 0.9rem;
+    font-weight: 650;
+  }
+
+  .reader-terminal-needs-job p {
+    margin: 0;
+    font-size: 0.8rem;
+    line-height: 1.65;
+    color: var(--muted-foreground);
+  }
+
+  .reader-terminal-needs-job-link {
+    margin-top: 0.2rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: 0.4rem;
+    background: var(--primary);
+    color: var(--primary-foreground);
+    font-size: 0.8rem;
+    text-decoration: none;
+  }
+
   /* 终端上方的「你可以让它做什么」。
    *
    * 和终端同在 data-theme="night" 作用域里，所以这里的 --ink / --line 是深色
