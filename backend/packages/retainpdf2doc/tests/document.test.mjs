@@ -85,6 +85,30 @@ describe("文档结构", () => {
     assert.ok(!documentXml.includes("<v:textbox"), "还在用 VML 文本框");
     assert.ok(documentXml.includes("<wps:txbx>"), "没有 DrawingML 文本框");
     assert.ok(documentXml.includes('vertOverflow="clip"'), "文本框没设裁切，会糊到相邻块");
+    });
+
+    it("装不下时让 Word 自己缩，而不是直接裁掉", () => {
+      // 字号行距是导出时按 resources/fonts/SourceHanSerifSC-Regular.otf 的字形宽度
+      // 算的，而 docx 只声明这个字体名、**没嵌入**它（24.5MB，33 倍于已嵌入的公式
+      // 字体）。打开的机器上没装就会被替换，字形宽度一变就换行成更多行 → 总高超框
+      // → 被上面那个 vertOverflow="clip" 裁掉。这就是「有些块被截断」。
+      //
+      // noAutofit 是明确告诉 Word「别缩，裁」。normAutofit 让它宁可字小一点也别少字。
+      assert.ok(
+        documentXml.includes("<a:normAutofit"),
+        "文本框是 noAutofit —— 字体被替换后装不下的块会被直接截断",
+      );
+      assert.ok(!documentXml.includes("<a:noAutofit"), "还留着 noAutofit");
+    });
+
+    it("行距仍然是 exact —— 不要改成 auto", () => {
+      // exact 让「N 行占 N×行距」这个账算得准，是框内布局的前提。auto 会让行高跟着
+      // 替换字体的自然行距走，而 CJK 字体行间距很大，1.289 倍可能变成 1.8 倍字号。
+      assert.ok(
+        documentXml.includes('w:lineRule="exact"'),
+        "行距改成了 auto —— 行高会跟着替换字体漂，比固定值更糟",
+      );
+      assert.ok(!documentXml.includes('w:lineRule="auto"'), "出现了 auto 行距");
   });
 
   it("块按规格里的坐标绝对定位（相对页面）", () => {

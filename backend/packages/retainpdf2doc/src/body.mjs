@@ -9,6 +9,24 @@
  *   - VML 是 Office 2007 之前的遗留格式，新版 Word 对它的支持一直在退化；
  *   - 更要紧的是 VML 文本框**不裁切**。字稍微排多一点就糊到相邻块上，而 DrawingML
  *     的 `bodyPr` 有 `vertOverflow="clip"`，多出来的会被裁掉而不是盖住别人。
+ *
+ * # `normAutofit` 而不是 `noAutofit`
+ *
+ * 字号和行距是导出时按 `resources/fonts/SourceHanSerifSC-Regular.otf` 的字形宽度算的，
+ * 而 docx 只**声明**这个字体名、**没有嵌入**它（24.5MB，33 倍于已嵌入的公式字体，
+ * 不子集化没法带）。打开文档的机器上没装这个字体时 Word 会替换，字形宽度一变，
+ * 同一段文字就换行成更多行 —— 总高超过框，被上面那个 `vertOverflow="clip"` 裁掉。
+ * 这就是「有些块会溢出/被截断」。
+ *
+ * `noAutofit` 是明确告诉 Word「别缩，裁掉」。换成 `normAutofit` 让它在装不下时自己
+ * 缩字号 —— 宁可小一点也别少字。
+ *
+ * **已知局限**：Word 重算 autofit 的时机是编辑时，不保证打开就生效。所以这不是
+ * 替代嵌入字体的方案，是读不到正确字体时的兜底。
+ *
+ * **不要把 `w:lineRule` 从 `exact` 换成 `auto`**：`exact` 让「N 行占 N×行距」这个账
+ * 算得准，是框内布局的前提。`auto` 会让行高跟着替换字体的自然行距走，而 CJK 字体
+ * 行间距很大，1.289 倍可能变成 1.8 倍字号 —— 比现在更糟。
  */
 
 import { rawXml, xml } from "../vendor/visualtex/office/docx/ooxml/xml.ts";
@@ -169,7 +187,7 @@ function blockTextbox(block, pageIndex, blockIndex, fontFamily, errors) {
                 wrap: "square",
                 lIns: 0, tIns: 0, rIns: 0, bIns: 0,
                 anchor: "t",
-              }, [rawXml(xml("a:noAutofit"))])),
+              }, [rawXml(xml("a:normAutofit"))])),
             ])),
           ])),
         ])),
