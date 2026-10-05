@@ -29,7 +29,7 @@
     "verify:ai": "cd backend/ai && uv run pytest -q",
     "check:rust": "cargo check --workspace",
     "verify:rust": "cargo test --no-run --workspace",
-    "test:rust": "PATH=\"$PWD/backend/.venv/bin:$PATH\" cargo test --workspace -- --skip api_tests::document_operations::restricted_page_program_produces --skip api_tests::document_operations::restricted_program_retry_reuses --skip api_tests::document_operations::tampered_visual_validation",
+    "test:rust": "PATH=\"$PWD/backend/.venv/bin:$PATH\" cargo test --workspace",
     "verify": "npm run verify:rust && npm run test:rust && npm run verify:ai && npm run verify:web"
   },
   "engines": {
