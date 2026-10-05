@@ -66,6 +66,13 @@ def run_document_operation() -> int:
     return main()
 
 
+def run_merge_translated_artifacts() -> int:
+    from retainpdf_pipeline.render.tools.merge_translated_artifacts import main
+
+    main()
+    return 0
+
+
 def run_merge_translated_pdf() -> int:
     from retainpdf_pipeline.render.tools.merge_translated_pdf import main
 
@@ -107,6 +114,10 @@ COMMANDS: dict[str, tuple[Callable[[], int], str]] = {
     "document-operation": (
         run_document_operation,
         "execute a restricted backend-prepared page program",
+    ),
+    "merge-translated-artifacts": (
+        run_merge_translated_artifacts,
+        "merge per-range translation JSON, OCR pages and images into one job-shaped directory",
     ),
     "merge-translated-pdf": (
         run_merge_translated_pdf,
