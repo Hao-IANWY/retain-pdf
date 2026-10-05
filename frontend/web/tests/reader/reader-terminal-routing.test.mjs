@@ -18,6 +18,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { region } from "../helpers/source-text.mjs";
 
 const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), "utf8");
 const PANEL = read("../../src/features/reader/ui/terminal.tsx");
@@ -28,7 +29,8 @@ test("握手期的输入被 session 攒住，不是丢掉 —— 这是「不用
   // 那还不如原来的占位写法。
   assert.match(WS, /pendingInput \+= data/, "session 不缓冲握手期输入");
   assert.match(WS, /pendingInput\s*=\s*""/, "缓冲冲出去之后没清空");
-  const open = WS.slice(WS.indexOf("if (pendingInput)"), WS.indexOf("if (pendingInput)") + 240);
+  // 两个锚点，不是定长窗口 —— 窗口越过边界就会守到邻居的代码上。
+  const open = region(WS, "if (pendingInput)", "\n  };", "socket 打开时冲缓冲");
   assert.match(open, /socket\.send/, "socket 打开时没把攒住的输入发出去");
 });
 
@@ -37,8 +39,9 @@ test("sendToActive 按 activeId 现查现用，不是一个被替换的 ref", ()
   assert.doesNotMatch(PANEL, /sendToActive\s*=\s*useRef/, "还是可替换的 ref 占位");
   assert.doesNotMatch(PANEL, /sendToActive\.current\s*=/, "还有地方在替换它");
   assert.match(PANEL, /const sendToActive = useCallback/, "不是按调用时求值的");
-  const body = PANEL.slice(PANEL.indexOf("const sendToActive = useCallback"),
-    PANEL.indexOf("const themeId"));
+  // region 会断言「起点在、起点唯一、终点在」—— indexOf 找不到时返回 -1，
+  // slice(-1, …) 会悄悄给出空串，正向断言以看不懂的理由红、负向断言直接变绿。
+  const body = region(PANEL, "const sendToActive = useCallback", "const themeId", "sendToActive");
   assert.match(body, /tabs\.activeId/, "没有按 activeId 查");
   assert.match(body, /sessionFor\(tab\)\.send\(data\)/, "没有直接发给那条 session");
 });
@@ -46,8 +49,7 @@ test("sendToActive 按 activeId 现查现用，不是一个被替换的 ref", ()
 test("session 由面板持有并按 tab 缓存 —— 实例自己造就又变成两个对象", () => {
   assert.match(PANEL, /sessionsRef\s*=\s*useRef\(new Map/, "面板没有持有 session");
   // 作用域换了要换 session（连的是另一个 fx 会话），否则切了作用域还在老会话里打字。
-  const forFn = PANEL.slice(PANEL.indexOf("const sessionFor = useCallback"),
-    PANEL.indexOf("const sendToActive"));
+  const forFn = region(PANEL, "const sessionFor = useCallback", "const sendToActive", "sessionFor");
   assert.match(forFn, /cached\.key === key/, "作用域变了不换 session");
   // TerminalInstance 不许自己造。
   const instance = PANEL.slice(PANEL.indexOf("function TerminalInstance"));
@@ -56,8 +58,7 @@ test("session 由面板持有并按 tab 缓存 —— 实例自己造就又变�
 });
 
 test("关掉标签时把它的 session 从表里丢掉", () => {
-  const close = PANEL.slice(PANEL.indexOf("onClose={(id) => {"),
-    PANEL.indexOf("onClose={(id) => {") + 400);
+  const close = region(PANEL, "onClose={(id) => {", "\n        }}", "关标签");
   assert.match(close, /sessionsRef\.current\.delete\(id\)/, "关了标签 session 还留在表里");
   assert.match(close, /terminalRefs\.current\.delete\(id\)/, "handle 也该一起丢");
 });

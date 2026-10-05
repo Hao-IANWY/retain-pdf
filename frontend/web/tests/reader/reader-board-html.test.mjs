@@ -18,6 +18,7 @@ import { fileURLToPath } from "node:url";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { JSDOM } from "jsdom";
+import { region } from "../helpers/source-text.mjs";
 
 import {
   BOARD_HTML_CSP,
@@ -129,7 +130,9 @@ test("解析的是**真实响应信封**，不是裸对象", () => {
 test("信封的形状和后端保持一致 —— 漂了就是「我明明写进去了却不显示」", () => {
   // 对着 Rust 那边真正的返回语句核，不在这里凭记忆写。
   const rs = read("../../../../backend/api/src/routes/jobs/download.rs");
-  const fn = rs.slice(rs.indexOf("pub async fn list_ai_board"), rs.indexOf("pub async fn list_ai_board") + 400);
+  // 两个锚点，不是「往后数 400 个字符」—— 定长窗口会越过函数边界，把邻居的代码
+  // 当成被守对象（reader-anchor-and-locks 那条就是这么假的）。
+  const fn = region(rs, "pub async fn list_ai_board", /\n(?:\/\/\/|pub |#\[)/, "list_ai_board");
   assert.match(fn, /ApiResponse::ok\(/, "后端换了返回方式，前端的解包要跟着改");
 });
 
