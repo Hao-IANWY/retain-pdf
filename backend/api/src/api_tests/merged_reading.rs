@@ -203,6 +203,8 @@ async fn two_range_translations_open_as_one_full_length_book() {
     let job_a_ai = data_root.join("jobs/job-a/ai");
     fs::create_dir_all(&job_a_ai).unwrap();
     fs::write(job_a_ai.join("reading-path.v1.json"), br#"{"steps":["from job-a"]}"#).unwrap();
+    let collection = state.db.create_collection("col-merged", "合集", None).unwrap();
+    state.db.add_documents_to_collection(&collection.collection_id, &[document_id.clone()]).unwrap();
     let app = build_app(state);
 
     let view = reading(&app, &document_id).await;
@@ -264,6 +266,16 @@ async fn two_range_translations_open_as_one_full_length_book() {
     let body = to_bytes(reading_path.into_body(), usize::MAX).await.unwrap();
     assert!(String::from_utf8_lossy(&body).contains("from job-a"), "{}", String::from_utf8_lossy(&body));
     assert!(data_root.join("documents").join(&document_id).join("ai/reading-path.v1.json").is_file());
+
+    // 合集工作区：这本书链到合并目录，agent 看到的是整本
+    let workspace = request(&app, "GET", &format!("/api/v1/collections/{}/agent-workspace", collection.collection_id)).await;
+    assert_eq!(workspace.status(), StatusCode::OK);
+    let workspace = read_json(workspace).await;
+    let book = &workspace["data"]["books"][0];
+    assert_eq!(book["job_id"], job_id);
+    assert!(book["job_root"].as_str().unwrap().starts_with("../../../documents/"), "{book}");
+    let link = data_root.join("collections").join(&collection.collection_id).join("ai/books").join(book["dir"].as_str().unwrap());
+    assert!(link.join("translated/page-003.json").is_file(), "合集里看不到合并后的第 3 页");
 
     // 写操作一律拒绝：虚拟 id 不在数据库里
     for action in ["cancel", "rerun"] {

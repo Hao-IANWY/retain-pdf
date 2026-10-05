@@ -144,10 +144,18 @@ fn link_book(link: &Path, target: &Path) -> std::io::Result<()> {
 ///
 /// 每次调用都重建 `books/`：成员和 active_job 都会变，而这个目录是纯派生物，
 /// 重建比对账便宜，也不会有「链接指向一个已删除的 job」这种状态。
+/// 一本书在工作区里该指向哪里：阅读入口说的那个任务（一个任务覆盖整本就是它；多次范围
+/// 翻译就是合并目录，目录结构和普通任务一样）。
+pub struct ReadingBook {
+    pub job_id: String,
+    pub root: std::path::PathBuf,
+}
+
 pub fn ensure_collection_workspace(
     db: &Db,
     data_root: &Path,
     collection_id: &str,
+    reading_book: &dyn Fn(&crate::models::api::DocumentRecord) -> Option<ReadingBook>,
 ) -> Result<CollectionWorkspace, AppError> {
     let documents = db
         .list_documents(MAX_BOOKS, 0, None, Some(collection_id), None)
@@ -165,6 +173,23 @@ pub fn ensure_collection_workspace(
     let mut taken = HashSet::new();
 
     for document in documents {
+        // 多次范围翻译的书：链到合并目录，agent 看到的是整本，不是最后翻的那几页。
+        if let Some(book) = reading_book(&document) {
+            let name = link_name(&document.title, &document.document_id, &mut taken);
+            let dir = link_book(&books_dir.join(&name), &book.root).ok().map(|()| name);
+            let relative = crate::storage_paths::to_relative_data_path(data_root, &book.root)
+                .unwrap_or_else(|_| format!("jobs/{}", book.job_id));
+            books.push(CollectionWorkspaceBook {
+                document_id: document.document_id,
+                title: document.title,
+                dir,
+                // 三层 ..：ai → <collection_id> → collections → data_root。
+                job_root: format!("../../../{relative}"),
+                job_id: book.job_id,
+                page_count: document.page_count,
+            });
+            continue;
+        }
         let Some(job_id) = document.active_job_id.clone().filter(|id| !id.is_empty()) else {
             skipped.push(CollectionWorkspaceSkip {
                 document_id: document.document_id,

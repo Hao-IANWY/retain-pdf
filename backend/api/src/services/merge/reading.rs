@@ -14,7 +14,7 @@
 //!   换掉；重新打开才会拿到新的。
 
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
@@ -238,7 +238,7 @@ pub(crate) fn contributing_jobs(data_root: &Path, job_id: &str) -> Option<Vec<St
 
 /// `GET /api/v1/documents/:id/reading` 的回包。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub(crate) struct DocumentReadingView {
+pub struct DocumentReadingView {
     /// 阅读器该打开的任务 id；`None` 表示这本书还没有可读的译文。
     pub job_id: Option<String>,
     /// 是不是多次翻译拼成的。

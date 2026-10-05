@@ -118,7 +118,7 @@ fn every_member_book_shows_up_under_books() {
     fx.book("doc-b", "扩散模型的采样加速", "job-b");
     fx.collect("col-1", &["doc-a", "doc-b"]);
 
-    let manifest = ensure_collection_workspace(&fx.db, &fx.root, "col-1").unwrap();
+    let manifest = ensure_collection_workspace(&fx.db, &fx.root, "col-1", &|_| None).unwrap();
     assert_eq!(manifest.books.len(), 2);
     assert!(manifest.skipped.is_empty());
 
@@ -142,7 +142,7 @@ fn books_without_a_translation_are_reported_not_silently_dropped() {
     fx.book_without_translation("doc-b", "还没翻译的");
     fx.collect("col-1", &["doc-a", "doc-b"]);
 
-    let manifest = ensure_collection_workspace(&fx.db, &fx.root, "col-1").unwrap();
+    let manifest = ensure_collection_workspace(&fx.db, &fx.root, "col-1", &|_| None).unwrap();
     assert_eq!(manifest.books.len(), 1);
     assert_eq!(manifest.skipped.len(), 1, "被跳过的书没进清单");
     assert_eq!(manifest.skipped[0].title, "还没翻译的");
@@ -159,7 +159,7 @@ fn refreshing_keeps_agent_output_and_repoints_links() {
     let fx = Fixture::new();
     fx.book("doc-a", "会被重译的书", "job-old");
     fx.collect("col-1", &["doc-a"]);
-    ensure_collection_workspace(&fx.db, &fx.root, "col-1").unwrap();
+    ensure_collection_workspace(&fx.db, &fx.root, "col-1", &|_| None).unwrap();
 
     // agent 在工作区里干了活。
     let notes = fx.workspace("col-1").join("notes-across-books.md");
@@ -167,7 +167,7 @@ fn refreshing_keeps_agent_output_and_repoints_links() {
 
     // 重译：新 job 成为 active。
     fx.book("doc-a", "会被重译的书", "job-new");
-    let manifest = ensure_collection_workspace(&fx.db, &fx.root, "col-1").unwrap();
+    let manifest = ensure_collection_workspace(&fx.db, &fx.root, "col-1", &|_| None).unwrap();
 
     assert_eq!(manifest.books[0].job_id, "job-new", "还指着旧 job");
     let link = fx.workspace("col-1").join("books").join("会被重译的书");
@@ -185,7 +185,7 @@ fn same_titled_books_do_not_overwrite_each_other() {
     fx.book("doc-b", "同名论文", "job-b");
     fx.collect("col-1", &["doc-a", "doc-b"]);
 
-    let manifest = ensure_collection_workspace(&fx.db, &fx.root, "col-1").unwrap();
+    let manifest = ensure_collection_workspace(&fx.db, &fx.root, "col-1", &|_| None).unwrap();
     assert_eq!(manifest.books.len(), 2);
     let dirs: Vec<_> = manifest.books.iter().filter_map(|b| b.dir.clone()).collect();
     assert_eq!(dirs.len(), 2);
