@@ -174,6 +174,16 @@ function paragraph(line, block, fontFamily, errors) {
       ? rawXml(xml("w:ind", { "w:firstLine": twips(block.firstLineIndentPt) }))
       : undefined,
     rawXml(xml("w:jc", { "w:val": block.justify ? "both" : "left" })),
+    // **允许西文词中间断行**（中日韩文档的兼容开关，val=0 = 不保持整词）。
+    //
+    // Word 默认不在西文词中间断行，而 Typst 会。化学论文正文里全是长拉丁词
+    // （`2-(4-methoxyphenyl)`、`1-s2.0-S2468823121003047`），一个断不开的词就能把
+    // 半行浪费掉。按「西文不断词」估算这个 job 的前 6 页，20 个块里 12 个会超框，
+    // 而同样的内容在 PDF 里**一个都不超**（最挤的只占 0.90×）。
+    //
+    // 这是 Word 和 Typst 断行差异里能直接关掉的那一项。剩下的（两端对齐的伸缩、
+    // 行内 OMML 的宽度）没有对应开关，只能靠余量。
+    rawXml(xml("w:wordWrap", { "w:val": "0" })),
   ];
   return xml("w:p", {}, [
     rawXml(xml("w:pPr", {}, properties)),
