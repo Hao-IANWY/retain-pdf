@@ -3,6 +3,7 @@
 
 import { BookTranslationWorkflowPanel } from "../panels/translate/WorkflowPanel.jsx";
 import { ProcessingPipelineRail } from "../panels/processing/ProcessingPipelineRail.jsx";
+import { PageSpecInput } from "../panels/PageSpecInput.js";
 import { JobFailureCard } from "../panels/processing/JobFailureCard.js";
 import { loadJobFailureDetail } from "../../domain/job-failure-detail.js";
 import type { JobFailureBrief } from "@/platform/contracts/library-payloads.js";
@@ -207,24 +208,13 @@ export function BookDetailProcessingTab({ ocr, translation, loading = false, err
               </label>
               {ocr?.rangeOn ? (
                 <div className="book-detail-ocr-range-inputs">
-                  <input
-                    aria-label="OCR 起始页"
-                    type="number"
-                    min="1"
-                    value={ocr?.startPage ?? ""}
-                    onChange={(event) => ocr?.onStartPageChange?.(event.target.value)}
-                    className="h-8 w-16 rounded-md border border-input bg-background px-2 text-sm"
+                  <PageSpecInput
+                    id="book-detail-ocr-pages"
+                    label="要 OCR 的页码"
+                    value={ocr?.pageSpec ?? ""}
+                    pageCount={ocr?.pageCount}
+                    onChange={(value) => ocr?.onPageSpecChange?.(value)}
                   />
-                  <span className="text-xs text-muted-foreground">–</span>
-                  <input
-                    aria-label="OCR 结束页"
-                    type="number"
-                    min="1"
-                    value={ocr?.endPage ?? ""}
-                    onChange={(event) => ocr?.onEndPageChange?.(event.target.value)}
-                    className="h-8 w-16 rounded-md border border-input bg-background px-2 text-sm"
-                  />
-                  <span className="text-[11px] text-muted-foreground">/ {ocr?.pageCount || "?"} 页</span>
                 </div>
               ) : null}
             </div>

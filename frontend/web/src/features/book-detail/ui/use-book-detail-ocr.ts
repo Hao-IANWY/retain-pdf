@@ -22,7 +22,8 @@ export function useBookDetailOcr({
         setError(checked.error);
         return;
       }
-      payload.ocr = { page_ranges: `${checked.s}-${checked.e}` };
+      // 规范化后的混合范围（`1-5,8,12-14`），MinerU 原生支持。
+      payload.ocr = { page_ranges: checked.spec };
     }
     setError("");
     setPending(true);

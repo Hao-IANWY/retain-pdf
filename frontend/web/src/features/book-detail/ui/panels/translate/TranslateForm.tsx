@@ -1,6 +1,7 @@
 // 详情「翻译」Tab：发起 / 重新翻译表单。
 // 从原 TranslateWorkspacePanel 抽出；书已在馆，无需 WorkflowPanel 上传瓦片。
 
+import { PageSpecInput } from "../PageSpecInput.js";
 import type { ReactNode } from "react";
 import { Check, Languages } from "lucide-react";
 import { btn } from "../ui.jsx";
@@ -11,8 +12,7 @@ export type BookTranslateLaunchFormProps = {
   isActive?: boolean;
   statusTone?: string;
   rangeOn: boolean;
-  startPage: string | number;
-  endPage: string | number;
+  pageSpec: string;
   pageCount?: number;
   busy?: string;
   error?: string;
@@ -20,8 +20,7 @@ export type BookTranslateLaunchFormProps = {
   /** 与「翻译整本」同排的附加动作（例如「仅 OCR」按钮），统一成一行。 */
   extraActions?: ReactNode;
   onRangeOnChange: (value: boolean) => void;
-  onStartPageChange: (value: string) => void;
-  onEndPageChange: (value: string) => void;
+  onPageSpecChange: (value: string) => void;
   onTranslate: () => void;
 };
 
@@ -31,16 +30,14 @@ export function BookTranslateLaunchForm({
   isActive = false,
   statusTone = "",
   rangeOn,
-  startPage,
-  endPage,
+  pageSpec,
   pageCount,
   busy = "",
   error = "",
   ocrReuse = null,
   extraActions = null,
   onRangeOnChange,
-  onStartPageChange,
-  onEndPageChange,
+  onPageSpecChange,
   onTranslate,
 }: BookTranslateLaunchFormProps) {
   return (
@@ -78,28 +75,13 @@ export function BookTranslateLaunchForm({
               指定页码
             </label>
             {rangeOn ? (
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  min="1"
-                  value={startPage}
-                  aria-label="起始页"
-                  onChange={(e) => onStartPageChange(e.target.value)}
-                  className="h-8 w-16 rounded-md border border-input bg-background px-2 text-sm"
+              <PageSpecInput
+                  id="book-detail-translate-pages"
+                  label="要翻译的页码"
+                  value={pageSpec}
+                  pageCount={pageCount}
+                  onChange={onPageSpecChange}
                 />
-                <span className="text-xs text-muted-foreground">–</span>
-                <input
-                  type="number"
-                  min="1"
-                  value={endPage}
-                  aria-label="结束页"
-                  onChange={(e) => onEndPageChange(e.target.value)}
-                  className="h-8 w-16 rounded-md border border-input bg-background px-2 text-sm"
-                />
-                <span className="text-[11px] text-muted-foreground/70">
-                  / {pageCount || "?"} 页
-                </span>
-              </div>
             ) : null}
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">

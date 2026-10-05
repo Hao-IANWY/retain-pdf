@@ -3,7 +3,6 @@
 
 import { usePageRange } from "./use-page-range.js";
 import {
-  inclusivePageNumbers,
   reusableOcrJobId,
 } from "@/features/library/domain.js";
 
@@ -31,11 +30,9 @@ export function useBookDetailTranslate({
 }: any) {
   const {
     rangeOn,
-    startPage,
-    endPage,
+    pageSpec,
     setRangeOn,
-    setStartPage,
-    setEndPage,
+    setPageSpec,
     validateRange,
   } = usePageRange({ open, documentId, pageCount });
 
@@ -53,11 +50,12 @@ export function useBookDetailTranslate({
         setError(checked.error);
         return;
       }
-      const { s, e } = checked as { s: number; e: number };
       if (artifactJobId) {
         // 复用已有 OCR：不裁页，artifact 里是整本的 OCR JSON，
         // 所以这里给的是**原文 1 基页号**，由 ocr_artifact_reuse.rs 按页号挑页。
-        payload.translation = { page_ranges: inclusivePageNumbers(s, e) };
+        // 混合范围在复用 OCR 这条路上今天会被 non_contiguous_artifact_selection 拒绝 ——
+        // 要等「拆成连续子任务」那一步。连续范围照常可用。
+        payload.translation = { page_ranges: checked.pages };
       } else {
         // 无可复用 OCR：ocr.page_ranges 会让 runner 先把 PDF 裁成子集
         // （ocr_flow/transport.rs 的 prepare_uploaded_source_pdf），
@@ -71,7 +69,7 @@ export function useBookDetailTranslate({
         // "Invalid page range"；选 5-12 → 裁成 8 页 → 只翻到原文 10-12 页，
         // 前 5 页被静默吞掉。省略这两个字段即取默认 0 / -1（-1 表示到末页），
         // 语义正是"全部翻完"，与主上传弹窗的做法一致。
-        payload.ocr = { page_ranges: `${s}-${e}` };
+        payload.ocr = { page_ranges: checked.spec };
       }
     }
     // 先切到处理 Tab，保证 bd-job-status-inner 在视口内再接进度
@@ -97,11 +95,9 @@ export function useBookDetailTranslate({
 
   return {
     rangeOn,
-    startPage,
-    endPage,
+    pageSpec,
     setRangeOn,
-    setStartPage,
-    setEndPage,
+    setPageSpec,
     handleTranslate,
   };
 }

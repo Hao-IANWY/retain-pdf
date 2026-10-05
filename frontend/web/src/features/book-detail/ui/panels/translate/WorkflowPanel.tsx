@@ -23,8 +23,7 @@ export type BookTranslationWorkflowPanelProps = {
   tabActive?: boolean;
   dialogOpen?: boolean;
   rangeOn: boolean;
-  startPage: string | number;
-  endPage: string | number;
+  pageSpec: string;
   pageCount?: number;
   busy?: string;
   error?: string;
@@ -36,8 +35,7 @@ export type BookTranslationWorkflowPanelProps = {
   /** 与「翻译整本」同排的动作（例如「开始/重新 OCR」）。 */
   ocrActionSlot?: ReactNode;
   onRangeOnChange: (value: boolean) => void;
-  onStartPageChange: (value: string) => void;
-  onEndPageChange: (value: string) => void;
+  onPageSpecChange: (value: string) => void;
   onTranslate: () => void;
   onOpenLiveReader?: (jobId: string) => void;
   onRetryStage: (
@@ -59,8 +57,7 @@ export function BookTranslationWorkflowPanel({
   tabActive = true,
   dialogOpen = true,
   rangeOn,
-  startPage,
-  endPage,
+  pageSpec,
   pageCount,
   busy = "",
   error = "",
@@ -71,8 +68,7 @@ export function BookTranslationWorkflowPanel({
   ocrReuse = null,
   ocrActionSlot = null,
   onRangeOnChange,
-  onStartPageChange,
-  onEndPageChange,
+  onPageSpecChange,
   onTranslate,
   onOpenLiveReader,
   onRetryStage,
@@ -127,16 +123,14 @@ export function BookTranslationWorkflowPanel({
         isActive={isActive}
         statusTone={status.tone}
         rangeOn={rangeOn}
-        startPage={startPage}
-        endPage={endPage}
+        pageSpec={pageSpec}
         pageCount={pageCount}
         busy={busy}
         error={error}
         ocrReuse={ocrReuse}
         extraActions={ocrActionSlot}
         onRangeOnChange={onRangeOnChange}
-        onStartPageChange={onStartPageChange}
-        onEndPageChange={onEndPageChange}
+        onPageSpecChange={onPageSpecChange}
         onTranslate={onTranslate}
       />
       {isActive ? (

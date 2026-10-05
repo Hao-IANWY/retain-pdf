@@ -254,15 +254,13 @@ export function BookDetailDialog() {
               ocr={{
                 job: documentJobs.ocrStatusJob,
                 rangeOn: ocrState.rangeOn,
-                startPage: ocrState.startPage,
-                endPage: ocrState.endPage,
+                pageSpec: ocrState.pageSpec,
                 pageCount: docState.pageCount,
                 pending: ocrState.pending,
                 cancelling: ocrState.cancelling,
                 error: ocrState.error,
                 onRangeOnChange: ocrState.setRangeOn,
-                onStartPageChange: ocrState.setStartPage,
-                onEndPageChange: ocrState.setEndPage,
+                onPageSpecChange: ocrState.setPageSpec,
                 onOcr: ocrState.handleOcr,
                 onCancel: ocrState.handleCancel,
               }}
@@ -280,8 +278,7 @@ export function BookDetailDialog() {
                 dialogOpen: open,
                 tabActive: activeTab === "processing",
                 rangeOn: translateState.rangeOn,
-                startPage: translateState.startPage,
-                endPage: translateState.endPage,
+                pageSpec: translateState.pageSpec,
                 pageCount: docState.pageCount,
                 busy: docState.busy,
                 error: docState.error,
@@ -293,8 +290,7 @@ export function BookDetailDialog() {
                   ? { jobId: `${documentJobs.reusableOcr.job_id || documentJobs.reusableOcr.id || ""}` }
                   : null,
                 onRangeOnChange: translateState.setRangeOn,
-                onStartPageChange: translateState.setStartPage,
-                onEndPageChange: translateState.setEndPage,
+                onPageSpecChange: translateState.setPageSpec,
                 onTranslate: async () => {
                   await translateState.handleTranslate();
                 },
