@@ -20,7 +20,7 @@
 //! 变了就是一个新目录。
 //!
 //! 目录名不可变还有一个好处：用户正在下载旧的合并结果时，新的合并不会把它从脚下替换掉
-//! （断点续传不会拼出半新半旧的 PDF）。旧目录的清理另做。
+//! （断点续传不会拼出半新半旧的 PDF）。旧目录在新目录发布后按年龄清理（`prune_stale`）。
 
 use std::collections::BTreeMap;
 use std::io::Write;
@@ -292,7 +292,44 @@ pub(crate) fn ensure_merged_translation(
         Err(_) if root.is_dir() => {}
         Err(error) => return Err(error.into()),
     }
+    prune_stale(parent, &root, std::time::SystemTime::now());
     Ok(MergedTranslation { root })
+}
+
+/// 旧的合并目录保留多久。不在新目录一发布就删：可能有人正拿着旧的虚拟 id 开着阅读器、
+/// 或者正在下载旧的合并 PDF（虚拟 id 带指纹，读的就是那个目录）。
+const STALE_MERGED_AFTER: Duration = Duration::from_secs(24 * 60 * 60);
+/// `.building-*` 是生成中的临时目录；进程崩溃会把它留下。生成最多跑两步子进程，各自
+/// 有 `BUILD_TIMEOUT`，一小时还在的一定是残骸。
+const STALE_BUILDING_AFTER: Duration = Duration::from_secs(60 * 60);
+
+/// 删掉 `merged/` 下除 `keep` 之外、足够旧的合并目录和残留的临时目录。尽力而为：清理失败
+/// 不影响这次合并。
+fn prune_stale(merged_dir: &Path, keep: &Path, now: std::time::SystemTime) {
+    let Ok(entries) = std::fs::read_dir(merged_dir) else { return };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path == keep || !path.is_dir() {
+            continue;
+        }
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let max_age = if name.starts_with(".building-") {
+            STALE_BUILDING_AFTER
+        } else if name.len() == 16 && name.bytes().all(|b| b.is_ascii_hexdigit()) {
+            STALE_MERGED_AFTER
+        } else {
+            // 不认识的东西不碰。
+            continue;
+        };
+        let age = entry
+            .metadata()
+            .and_then(|meta| meta.modified())
+            .ok()
+            .and_then(|modified| now.duration_since(modified).ok());
+        if age.is_some_and(|age| age > max_age) {
+            let _ = std::fs::remove_dir_all(&path);
+        }
+    }
 }
 
 #[cfg(test)]

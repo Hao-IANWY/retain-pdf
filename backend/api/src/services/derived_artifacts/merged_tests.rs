@@ -140,6 +140,32 @@ fn plan_json_matches_the_python_contract() {
     );
 }
 
+#[test]
+fn old_merged_directories_and_crash_leftovers_are_pruned_by_age() {
+    let dir = Dir::new();
+    let merged = dir.0.join("merged");
+    let keep = merged.join("aaaaaaaaaaaaaaaa");
+    let old = merged.join("bbbbbbbbbbbbbbbb");
+    let recent = merged.join("cccccccccccccccc");
+    let stale_building = merged.join(".building-dddddddddddddddd-1");
+    let unknown = merged.join("notes");
+    for path in [&keep, &old, &recent, &stale_building, &unknown] {
+        std::fs::create_dir_all(path).unwrap();
+    }
+    // 不改文件时间，而是把「现在」往后拨：old 和 recent 同时创建，用两个不同的「现在」区分。
+    let created = std::fs::metadata(&old).unwrap().modified().unwrap();
+    let now = created + Duration::from_secs(2 * 60 * 60);
+    prune_stale(&merged, &keep, now);
+    assert!(keep.is_dir(), "当前的合并目录被删了");
+    assert!(old.is_dir() && recent.is_dir(), "2 小时的旧合并目录不该删（阅读器可能还开着）");
+    assert!(!stale_building.exists(), "超过 1 小时的临时目录该删");
+    let later = created + Duration::from_secs(25 * 60 * 60);
+    prune_stale(&merged, &keep, later);
+    assert!(!old.exists() && !recent.exists(), "超过 24 小时的旧合并目录该删");
+    assert!(keep.is_dir());
+    assert!(unknown.is_dir(), "不认识的目录不该碰");
+}
+
 /// 和 `model_executor` 那个 worker bridge 测试同一套找法：环境缺了就红，不静默跳过。
 fn project_venv_bin(name: &str) -> PathBuf {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
