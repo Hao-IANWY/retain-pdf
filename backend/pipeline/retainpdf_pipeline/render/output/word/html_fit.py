@@ -261,3 +261,40 @@ def fits_in_box(block, font_size_pt: float, line_step_pt: float) -> bool:
     lines = wrap_lines(text, font_size_pt, width)
     # 半磅的余量：lineStepPt 写进 docx 时会取整到 twip，别因为零点几磅判死。
     return len(lines) * line_step_pt <= height + 0.5
+
+
+def clamp_line_step_to_box(block, font_size_pt: float, line_step_pt: float) -> float:
+    """把行距压到「n 行真的放得进框」，下界是字号。
+
+    # 为什么必须压
+
+    docx 用 `w:lineRule="exact"`，Word 给**每一行**都留满 `w:line`
+    （ECMA-376 §17.3.1.33："exactly the value specified, regardless of the size of
+    the contents"），所以一个块在 Word 里占 `n × L`。而 Typst/PDF 的末行只占它自己的
+    墨迹高，总高是 `(n−1) × L + 墨迹高`。
+
+    我们的 L 是按 PDF 那套账得来的，直接写进 docx 就等于每个块多要了一个
+    `L − 墨迹高 ≈ 0.289 × 字号`。最极端的是单行块：`converged_typography` 对只看到
+    一行的块返回 `line_step_pt = 0`（一行量不出基线间距），exporter 就合成一个
+    `1.289 × 字号` —— 实测用户那个 job 里 **12 个块（22%）合成出来的 L 比框还高**，
+    最严重的框高 8.01pt 配 L=12.45pt，**一行就超框 4.44pt**，而它在 PDF 里墨迹只有
+    10pt、装得下。
+
+    # 下界为什么是字号
+
+    exact 行距过小时 Word 「从顶部往下裁」（同条规范）。行盒不能比字形矮，否则省下的
+    高度是用切掉字顶换来的 —— 那比溢出更糟。
+
+    `fit_to_box` 为假的块不碰：排版层明确允许它们溢出（Typst 用 `clip: false`），
+    替它收紧只会让 Word 比 PDF 更不像原文。
+    """
+    if not getattr(block, "fit_to_box", True) or line_step_pt <= 0:
+        return line_step_pt
+    x0, y0, x1, y1 = block.content_rect
+    width = max(MIN_BLOCK_SIZE_PT, x1 - x0)
+    height = max(MIN_BLOCK_SIZE_PT, y1 - y0)
+    text = renderable_text(block.plain_text, getattr(block, "math_map", None))
+    if not text.strip():
+        return line_step_pt
+    lines = max(1, len(wrap_lines(text, font_size_pt, width)))
+    return max(font_size_pt, min(line_step_pt, height / lines))

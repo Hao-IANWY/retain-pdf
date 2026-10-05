@@ -27,7 +27,11 @@ from retainpdf_pipeline.render.output.word.html_fit import fitted_typography
 from retainpdf_pipeline.render.output.word.html_fit import MEASURED_FONT_FAMILY
 from retainpdf_pipeline.render.output.word.job_io import single_pdf
 from retainpdf_pipeline.render.output.word.job_io import translated_pages
-from retainpdf_pipeline.render.output.word.html_fit import LINE_STEP_RATIO, fits_in_box
+from retainpdf_pipeline.render.output.word.html_fit import (
+    LINE_STEP_RATIO,
+    clamp_line_step_to_box,
+    fits_in_box,
+)
 from retainpdf_pipeline.render.output.word.typography_readback import converged_typography
 from retainpdf_pipeline.render.output.word.typography_readback import open_translated_document
 from retainpdf_pipeline.render.output.word.typography_readback import read_page_lines
@@ -169,9 +173,12 @@ def build_layout_spec(
                     # 装不下就退回 html_fit 的二分（它按字形宽度找装得下的字号），
                     # 宁可字小一点也别少字。
                     font_size_pt, line_step_pt = fitted_typography(block)
-                # **行盒绝不能比字矮。** docx 用 w:lineRule="exact"，Word 按行盒裁字 ——
-                # 再精确的字号也救不回被切掉的那一截。放在整条分支链之后，三条路都兜住。
-                line_step_pt = max(line_step_pt, font_size_pt)
+                # **行盒绝不能比字矮，也不能高到一行就塞不进框。**
+                #
+                # docx 用 w:lineRule="exact"：Word 给每行留满 w:line，块占 n×L；
+                # 而我们的 L 是按 PDF 的账（末行只占墨迹）得来的。两头都要夹住 ——
+                # 太矮会切字顶，太高会一行就超框（实测 22% 的块合成出来的 L > 框高）。
+                line_step_pt = clamp_line_step_to_box(block, font_size_pt, line_step_pt)
                 x0, y0, x1, y1 = block.content_rect
                 blocks.append({
                     "id": block.block_id,

@@ -112,3 +112,54 @@ def test_a_smaller_fitted_size_must_not_drag_the_line_step_below_the_readback_si
 
     right = max(readback_size * LINE_STEP_RATIO, readback_size)
     assert right >= readback_size, "行距仍然矮于字号"
+
+
+def test_a_single_line_block_never_gets_a_line_step_taller_than_its_box():
+    """合成出来的行距不能比框还高 —— 一行就超框。
+
+    `converged_typography` 对只观测到一行的块返回 `line_step_pt = 0`（一行量不出基线
+    间距），exporter 就合成 `1.289 × 字号`。实测用户那个 job：54 个块里 **12 个（22%）**
+    合成出来的行距比框还高，最严重的框高 8.01pt 配 12.45pt，**一行就超框 4.44pt**，
+    而它在 PDF 里墨迹只有 10pt、装得下。
+
+    docx 用 `w:lineRule="exact"`，Word 给每行留满 `w:line`，所以 `L > 框高` 就是
+    「这个块无论如何都放不下一行」。
+    """
+    from retainpdf_pipeline.render.output.word.html_fit import clamp_line_step_to_box
+
+    block = _Block("短标题", (0.0, 0.0, 120.0, 10.0))
+    # 合成值：1.289 × 9 = 11.6pt，比 10pt 的框还高。
+    stepped = clamp_line_step_to_box(block, 9.0, 9.0 * 1.289)
+    assert stepped <= 10.0 + 0.01, f"行距 {stepped:.2f} 仍然比框高 10.0 还大"
+
+    # **字号下界要能分辨出来**：框 8pt 配 10pt 字，压到框高就是 8pt < 字号。
+    # （第一版用的是框 10pt / 字 9pt，压完 10 本来就 ≥ 9，去掉下界也看不出差别 ——
+    #  反证时第 ② 条没红才发现。）
+    tight = _Block("短标题", (0.0, 0.0, 120.0, 8.0))
+    stepped_tight = clamp_line_step_to_box(tight, 10.0, 10.0 * 1.289)
+    assert stepped_tight >= 10.0 - 0.01, (
+        f"压到 {stepped_tight:.2f} < 字号 10.0 —— 行盒比字矮，exact 行高下会切字顶"
+    )
+
+
+def test_the_clamp_leaves_blocks_the_layout_layer_lets_overflow_alone():
+    """`fit_to_box` 为假的块不碰。
+
+    排版层明确允许它们溢出（Typst 用 `clip: false`）——图注、方案标题这类框高常常连
+    一行都装不下。替它收紧只会让 Word 比 PDF 更不像原文。用户那个 job 里剩下 7 个
+    「行距 > 框高」的块全部属于这一类（框 8pt 配 9.66pt 字）。
+    """
+    from retainpdf_pipeline.render.output.word.html_fit import clamp_line_step_to_box
+
+    block = _Block("方案 1. 氧杂环丁烷的扩环反应", (0.0, 0.0, 161.0, 8.0), fit_to_box=False)
+    original = 9.66 * 1.289
+    assert clamp_line_step_to_box(block, 9.66, original) == original
+
+
+def test_the_clamp_is_a_no_op_when_the_box_has_room():
+    """正对照：框够大时不该动行距，否则上面两条可能在守「永远压到框高」。"""
+    from retainpdf_pipeline.render.output.word.html_fit import clamp_line_step_to_box
+
+    block = _Block("短句。", (0.0, 0.0, 300.0, 200.0))
+    original = 10.0 * 1.289
+    assert clamp_line_step_to_box(block, 10.0, original) == original
