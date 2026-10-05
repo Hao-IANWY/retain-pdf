@@ -20,12 +20,26 @@
 //! - **OCR 覆盖的文档页**：`ocr_artifact_reuse::source_document_pages`。主路径是
 //!   `artifacts.ocr_page_numbers`（`artifacts` 表的 `artifacts_json`），实测 61 个 job 里
 //!   **59 个有**，缺的 2 个是取消或失败的任务。重新解析 OCR 请求里 `page_ranges` 字符串
-//!   只是罕见兜底。
+//!   只是罕见兜底，而且**在子集 OCR 上必然失效**：`ocr_flow/transport.rs` 先把源 PDF 裁成
+//!   子集、再把 `ocr.page_ranges` 清成空串（`page_subset.rs::provider_page_ranges`），兜底
+//!   拿到空串去比裁过的 PDF 页数，对不上就报 `ocr_page_coverage_unknown`。
+//!
+//!   `ocr_page_numbers` 是 OCR **开跑前**按请求写的，失败的任务里也有值 —— 它表示「打算
+//!   覆盖」，必须配合 `status == Succeeded` 用（见 `coverage_from_parts`）。
 //!
 //!   （这里原先写的是「一个都没持久化」—— 错的。当时只查了 `jobs` 表的几个 JSON 列，
 //!   列表名时又按 `'job' in name` 过滤，把 `artifacts` 表滤掉了。）
 //! - **翻译挑了 OCR 产物里的哪一段**：job spec 里的 `translation.start_page / end_page`，
 //!   已经被 `prepare.rs` 改写成本地位置。
+
+// 合并功能分步落地中：这些函数在测试里已经全部用到，但要到第 5 步「下游切换到解析
+// 函数」时才有生产调用方。接上之后删掉这一行。
+#![cfg_attr(not(test), allow(dead_code))]
+
+use std::path::{Path, PathBuf};
+
+use crate::models::domain::{JobSnapshot, JobStatusKind, WorkflowKind};
+use crate::storage_paths::resolve_output_pdf;
 
 /// 一个翻译任务的输出覆盖了哪些文档页（1 起），按本地顺序排列：
 /// 返回值的第 `i` 个元素就是该任务渲染产物第 `i` 页对应的文档页号。
@@ -53,9 +67,147 @@ pub(crate) fn translated_document_pages(
     Some(source_document_pages[start as usize..=end as usize].to_vec())
 }
 
+/// 一个任务的输出 PDF 能拿来参与合并的覆盖范围：输出 PDF 第 `i` 页 = 文档第 `pages[i]` 页。
+///
+/// 只有同时满足这些的任务才算「覆盖」，否则返回 `None`：
+///
+/// - **成功了**。部分成功的任务没有 PDF —— 翻译导出门禁是全过或全不过（有页进了 dead
+///   letter 整个任务就失败），所以不存在「这个任务翻好了其中几页」，粒度是整个任务。
+///   取消的任务即使磁盘上有 PDF 也不算：取消可能在 PDF 写完之后才到。
+/// - **不是纯 OCR 任务**。它没有译文。
+/// - **输出 PDF 真的在、而且读得出页数**。原地重新排版（`rerun.rs`）一开始就删掉
+///   `rendered/`，那段时间这个任务不覆盖任何页 —— 现算自然就看到了。
+/// - **PDF 页数 == 算出来的覆盖页数**。对不上就拒绝：拼错页比不拼更糟，用户会看到
+///   第 7 页的译文出现在第 3 页的位置上。
+///
+/// # 为什么现算、不在任务成功时持久化
+///
+/// `ocr_page_numbers` 和 `start/end` 本身已经持久化、对完成的任务不再变，覆盖范围完全
+/// 可以由它们推出来。持久化一份反而要在原地重新排版时记得重算，否则就和磁盘对不上。
+///
+/// # 用的是「实际执行」的范围，不是用户意图
+///
+/// `start/end` 是 `prepare.rs` 改写过的、流水线真正跑的本地位置。**不用**
+/// `translation.page_ranges`：那是用户想要的，而 `resolve_translation_selection` 在拿不到
+/// 文档页数时会把它整个忽略、按本地位置照跑 —— 用户只要第 5-8 页，实际可能翻了整份
+/// OCR。按实际执行算，合并至少不会拼错。
+pub(crate) fn coverage_from_parts(
+    status: &JobStatusKind,
+    workflow: &WorkflowKind,
+    ocr_page_numbers: &[u32],
+    start_page: i64,
+    end_page: i64,
+    output_pdf_page_count: Option<usize>,
+) -> Option<Vec<u32>> {
+    if *status != JobStatusKind::Succeeded || *workflow == WorkflowKind::Ocr {
+        return None;
+    }
+    let page_count = output_pdf_page_count?;
+    let pages = translated_document_pages(ocr_page_numbers, start_page, end_page)?;
+    (pages.len() == page_count).then_some(pages)
+}
+
+/// 一个任务对合并的贡献：覆盖哪些文档页、从哪份 PDF 取。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct JobCoverage {
+    pub job_id: String,
+    pub created_at: String,
+    /// **产出这份译文的那个任务**的提交时间，合并时按它排「最新」。
+    ///
+    /// 默认就是自己的 `created_at`。单独建的 render 任务（换字体重新排版）没有产出新
+    /// 译文 —— 它的 `translations_dir` 指向别的任务 —— 调用方要把这里改成那个产出者的
+    /// 提交时间。否则调一次字体，旧译文就会翻盘盖掉后来专门重翻的页。
+    pub producer_created_at: String,
+    /// 输出 PDF 第 `i` 页 = 文档第 `pages[i]` 页（1 起）。
+    pub pages: Vec<u32>,
+    pub output_pdf: PathBuf,
+}
+
+/// 读磁盘的那一层：解析输出 PDF、读它的页数，交给 `coverage_from_parts` 判定。
+pub(crate) fn job_output_coverage(job: &JobSnapshot, data_root: &Path) -> Option<JobCoverage> {
+    let artifacts = job.artifacts.as_ref()?;
+    let output_pdf = resolve_output_pdf(job, data_root).filter(|path| path.is_file());
+    let page_count = output_pdf
+        .as_deref()
+        .and_then(|path| lopdf::Document::load(path).ok())
+        .map(|document| document.get_pages().len());
+    let pages = coverage_from_parts(
+        &job.status,
+        &job.workflow,
+        &artifacts.ocr_page_numbers,
+        job.request_payload.translation.start_page,
+        job.request_payload.translation.end_page,
+        page_count,
+    )?;
+    Some(JobCoverage {
+        job_id: job.job_id.clone(),
+        created_at: job.created_at.clone(),
+        producer_created_at: job.created_at.clone(),
+        pages,
+        output_pdf: output_pdf?,
+    })
+}
+
+/// 合并后某一文档页取自哪里。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum PageSource {
+    /// 没有任何任务覆盖这一页：用源 PDF 的原文页。
+    Original,
+    /// 取 `job_id` 那个任务输出 PDF 的第 `local_index` 页（0 起）。
+    Job { job_id: String, local_index: usize },
+}
+
+/// 合并计划：返回长度为 `document_page_count` 的向量，第 `k` 个元素是文档第 `k+1` 页的来源。
+///
+/// **整本长度**是刻意的：阅读器对照模式、双栏对照 PDF、Word 的字号回读都是**按页序号**
+/// 配对原文和译文的。如果只把翻过的页紧凑地拼起来（第 1-5 页 + 第 20-25 页 → 11 页），
+/// 这几处全部错页。没翻的页用原文填上。
+///
+/// # 「最新」的规则
+///
+/// 每页取覆盖它的任务里排序键最大的那个：`(产出者提交时间, 自己的提交时间, job_id)`。
+///
+/// - **按产出者的提交时间，不按完成时间**：原地重新排版（`rerun.rs`）会保留 `created_at`
+///   但清空 `finished_at` 再重写。按完成时间排，调一次字体就会让旧译文盖掉新译文。用户的
+///   心智模型是「我最后一次发起翻译的那页胜出，重新排版不算重新翻译」。
+/// - **同一份译文的多个任务**（产出者 + 它的 render 任务）里，后提交的胜出 —— 那是更新的
+///   排版。
+/// - **job_id 兜底**：`now_iso()` 只精确到秒，混合范围拆成的子任务会在同一秒提交。它们彼此
+///   不重叠所以不冲突，但排序必须确定。**不用 SQLite rowid**：`jobs` 表没有 INTEGER
+///   PRIMARY KEY，VACUUM 可能重排 rowid。
+pub(crate) fn merge_plan(document_page_count: u32, coverages: &[JobCoverage]) -> Vec<PageSource> {
+    let mut ranked: Vec<&JobCoverage> = coverages.iter().collect();
+    ranked.sort_by(|a, b| {
+        (&a.producer_created_at, &a.created_at, &a.job_id)
+            .cmp(&(&b.producer_created_at, &b.created_at, &b.job_id))
+    });
+    let mut plan = vec![PageSource::Original; document_page_count as usize];
+    // 从旧到新依次覆盖：最后写进去的就是最新的。
+    for coverage in ranked {
+        for (local_index, page) in coverage.pages.iter().enumerate() {
+            let Some(slot) = (*page as usize)
+                .checked_sub(1)
+                .and_then(|index| plan.get_mut(index))
+            else {
+                // 越界的页号（比文档还长）直接跳过，不让一个坏任务拖垮整本合并。
+                continue;
+            };
+            *slot = PageSource::Job {
+                job_id: coverage.job_id.clone(),
+                local_index,
+            };
+        }
+    }
+    plan
+}
+
 #[cfg(test)]
 mod tests {
-    use super::translated_document_pages;
+    use super::{
+        coverage_from_parts, merge_plan, translated_document_pages, JobCoverage, PageSource,
+    };
+    use std::path::PathBuf;
+    use crate::models::domain::{JobStatusKind, WorkflowKind};
 
     #[test]
     fn a_full_document_job_maps_local_pages_straight_through() {
@@ -113,5 +265,201 @@ mod tests {
         // 流水线 `_int_field(params, "start_page", 0)` 的默认值是 0，负数没有意义。
         let ocr = [6, 7, 8];
         assert_eq!(translated_document_pages(&ocr, -3, 1), Some(vec![6, 7]));
+    }
+
+    // ── coverage_from_parts ──────────────────────────────────────────────
+
+    const OK: JobStatusKind = JobStatusKind::Succeeded;
+
+    #[test]
+    fn a_succeeded_translation_job_covers_its_mapped_pages() {
+        let ocr = [6, 7, 8, 9, 10];
+        assert_eq!(
+            coverage_from_parts(&OK, &WorkflowKind::Book, &ocr, 1, 3, Some(3)),
+            Some(vec![7, 8, 9])
+        );
+    }
+
+    #[test]
+    fn only_succeeded_jobs_cover_anything() {
+        // 部分成功不存在（导出门禁全过或全不过）；取消的即使有 PDF 也不算。
+        let ocr = [1, 2, 3];
+        for status in [
+            JobStatusKind::Queued,
+            JobStatusKind::Running,
+            JobStatusKind::Failed,
+            JobStatusKind::Canceled,
+        ] {
+            assert_eq!(
+                coverage_from_parts(&status, &WorkflowKind::Book, &ocr, 0, -1, Some(3)),
+                None,
+                "{status:?} 的任务被当成了覆盖"
+            );
+        }
+    }
+
+    #[test]
+    fn an_ocr_only_job_covers_nothing() {
+        // 它没有译文。不排除的话，重新 OCR 一次就会让原文盖掉译文。
+        let ocr = [1, 2, 3];
+        assert_eq!(
+            coverage_from_parts(&OK, &WorkflowKind::Ocr, &ocr, 0, -1, Some(3)),
+            None
+        );
+    }
+
+    #[test]
+    fn translate_and_render_workflows_both_count() {
+        let ocr = [1, 2];
+        for workflow in [WorkflowKind::Book, WorkflowKind::Translate, WorkflowKind::Render] {
+            assert_eq!(
+                coverage_from_parts(&OK, &workflow, &ocr, 0, -1, Some(2)),
+                Some(vec![1, 2]),
+                "{workflow:?} 没被算作覆盖"
+            );
+        }
+    }
+
+    #[test]
+    fn a_missing_output_pdf_covers_nothing() {
+        // 原地重新排版一开始就删掉 rendered/，那段时间不覆盖任何页。
+        let ocr = [1, 2, 3];
+        assert_eq!(
+            coverage_from_parts(&OK, &WorkflowKind::Book, &ocr, 0, -1, None),
+            None
+        );
+    }
+
+    #[test]
+    fn a_page_count_mismatch_is_rejected_rather_than_stitched_wrong() {
+        // 映射说 3 页，PDF 只有 2 页 —— 拼进去就是错页。宁可不拼。
+        let ocr = [6, 7, 8];
+        assert_eq!(
+            coverage_from_parts(&OK, &WorkflowKind::Book, &ocr, 0, -1, Some(2)),
+            None,
+            "页数对不上却被接受了"
+        );
+        assert_eq!(
+            coverage_from_parts(&OK, &WorkflowKind::Book, &ocr, 0, -1, Some(4)),
+            None,
+            "PDF 比映射多一页也该拒绝"
+        );
+    }
+
+    #[test]
+    fn an_unmappable_range_covers_nothing() {
+        let ocr = [1, 2, 3];
+        assert_eq!(
+            coverage_from_parts(&OK, &WorkflowKind::Book, &ocr, 0, 9, Some(10)),
+            None
+        );
+        assert_eq!(
+            coverage_from_parts(&OK, &WorkflowKind::Book, &[], 0, -1, Some(0)),
+            None,
+            "OCR 一页都没覆盖时不该返回空覆盖"
+        );
+    }
+
+    // ── merge_plan ───────────────────────────────────────────────────────
+
+    fn cov(job_id: &str, created_at: &str, pages: &[u32]) -> JobCoverage {
+        JobCoverage {
+            job_id: job_id.to_string(),
+            created_at: created_at.to_string(),
+            producer_created_at: created_at.to_string(),
+            pages: pages.to_vec(),
+            output_pdf: PathBuf::from(format!("/x/{job_id}.pdf")),
+        }
+    }
+
+    fn job(id: &str, local: usize) -> PageSource {
+        PageSource::Job { job_id: id.to_string(), local_index: local }
+    }
+
+    #[test]
+    fn the_plan_is_always_full_document_length_with_untranslated_pages_original() {
+        // 对照模式、双栏对照、Word 字号回读都按页序号配对 —— 必须整本长度。
+        let plan = merge_plan(6, &[cov("a", "2026-10-01T00:00:00", &[2, 3])]);
+        assert_eq!(plan.len(), 6, "合并结果不是整本长度");
+        assert_eq!(
+            plan,
+            vec![
+                PageSource::Original,
+                job("a", 0),
+                job("a", 1),
+                PageSource::Original,
+                PageSource::Original,
+                PageSource::Original,
+            ]
+        );
+    }
+
+    #[test]
+    fn the_latest_submission_wins_on_overlapping_pages() {
+        // 先翻整本 1-5，再专门重翻 3-4：3-4 页用后者，其余用前者。
+        let plan = merge_plan(
+            5,
+            &[
+                cov("whole", "2026-10-01T00:00:00", &[1, 2, 3, 4, 5]),
+                cov("redo", "2026-10-02T00:00:00", &[3, 4]),
+            ],
+        );
+        assert_eq!(
+            plan,
+            vec![job("whole", 0), job("whole", 1), job("redo", 0), job("redo", 1), job("whole", 4)]
+        );
+    }
+
+    #[test]
+    fn input_order_does_not_change_the_result() {
+        // 结果只能取决于「有哪些任务、谁先提交」，不能取决于数据库返回的顺序。
+        let a = cov("whole", "2026-10-01T00:00:00", &[1, 2, 3]);
+        let b = cov("redo", "2026-10-02T00:00:00", &[2]);
+        assert_eq!(merge_plan(3, &[a.clone(), b.clone()]), merge_plan(3, &[b, a]));
+    }
+
+    #[test]
+    fn local_index_follows_the_job_own_page_order() {
+        // 第 6-10 页的任务：文档第 8 页是它输出 PDF 的第 2 页（0 起）。
+        // 两层本地索引最容易在这里拼错。
+        let plan = merge_plan(10, &[cov("mid", "2026-10-01T00:00:00", &[6, 7, 8, 9, 10])]);
+        assert_eq!(plan[7], job("mid", 2), "文档第 8 页没有取 mid 的第 2 页");
+        assert_eq!(plan[4], PageSource::Original, "文档第 5 页不该被覆盖");
+    }
+
+    #[test]
+    fn a_relayout_keeps_its_producer_rank_so_it_cannot_overturn_a_newer_translation() {
+        // 先翻整本（甲），再专门重翻第 2 页（乙），最后给甲换字体重新排版（render 任务丙）。
+        // 丙没有产出新译文，按「产出者」甲的提交时间排 —— 第 2 页必须仍是乙。
+        let whole = cov("whole", "2026-10-01T00:00:00", &[1, 2, 3]);
+        let redo = cov("redo", "2026-10-02T00:00:00", &[2]);
+        let mut relayout = cov("relayout", "2026-10-03T00:00:00", &[1, 2, 3]);
+        relayout.producer_created_at = whole.created_at.clone();
+        let plan = merge_plan(3, &[whole, redo, relayout]);
+        assert_eq!(plan[1], job("redo", 0), "换个字体就让旧译文翻盘了");
+        // 而第 1、3 页是同一份译文里更新的排版。
+        assert_eq!(plan[0], job("relayout", 0));
+        assert_eq!(plan[2], job("relayout", 2));
+    }
+
+    #[test]
+    fn same_second_submissions_are_ordered_deterministically_by_job_id() {
+        // now_iso() 只精确到秒。同一秒的两个任务覆盖同一页时，结果必须确定。
+        let t = "2026-10-01T00:00:00";
+        let plan = merge_plan(1, &[cov("job-b", t, &[1]), cov("job-a", t, &[1])]);
+        assert_eq!(plan[0], job("job-b", 0), "同一秒提交时没有按 job_id 确定地兜底");
+        let flipped = merge_plan(1, &[cov("job-a", t, &[1]), cov("job-b", t, &[1])]);
+        assert_eq!(plan, flipped);
+    }
+
+    #[test]
+    fn a_page_beyond_the_document_is_skipped_not_fatal() {
+        let plan = merge_plan(2, &[cov("a", "2026-10-01T00:00:00", &[1, 2, 9])]);
+        assert_eq!(plan, vec![job("a", 0), job("a", 1)]);
+    }
+
+    #[test]
+    fn no_coverage_means_the_whole_document_is_original() {
+        assert_eq!(merge_plan(3, &[]), vec![PageSource::Original; 3]);
     }
 }
