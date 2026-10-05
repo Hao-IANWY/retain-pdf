@@ -22,18 +22,21 @@ impl Drop for Dir {
     }
 }
 
-fn cov(job_id: &str, pdf: &Path, pages: &[u32]) -> JobCoverage {
-    JobCoverage {
-        job_id: job_id.to_string(),
-        created_at: "2026-10-01T00:00:00".to_string(),
-        producer_created_at: "2026-10-01T00:00:00".to_string(),
-        pages: pages.to_vec(),
-        output_pdf: pdf.to_path_buf(),
-        ocr_page_numbers: pages.to_vec(),
-        translations_dir: None,
-        normalized_document: None,
-        markdown_images_dir: None,
-    }
+fn cov(job_id: &str, pdf: &Path, ocr_pages: &[u32]) -> (String, BuildInputs) {
+    (
+        job_id.to_string(),
+        BuildInputs {
+            output_pdf: pdf.to_path_buf(),
+            ocr_page_numbers: ocr_pages.to_vec(),
+            translations_dir: None,
+            normalized_document: None,
+            markdown_images_dir: None,
+        },
+    )
+}
+
+fn jobs<const N: usize>(entries: [(String, BuildInputs); N]) -> JobInputs {
+    entries.into_iter().collect()
 }
 
 fn job(id: &str, local: usize) -> PageSource {
@@ -45,7 +48,7 @@ fn the_fingerprint_changes_when_the_plan_changes() {
     let dir = Dir::new();
     let source = dir.file("source.pdf", b"src");
     let a = dir.file("a.pdf", b"a");
-    let coverages = [cov("a", &a, &[1, 2])];
+    let coverages = jobs([cov("a", &a, &[1, 2])]);
     let both = [job("a", 0), job("a", 1)];
     let first_only = [job("a", 0), PageSource::Original];
     assert_ne!(
@@ -60,7 +63,7 @@ fn the_fingerprint_changes_when_a_participating_pdf_is_rewritten() {
     let dir = Dir::new();
     let source = dir.file("source.pdf", b"src");
     let a = dir.file("a.pdf", b"a");
-    let coverages = [cov("a", &a, &[1])];
+    let coverages = jobs([cov("a", &a, &[1])]);
     let plan = [job("a", 0)];
     let before = merge_fingerprint(&source, &plan, &coverages).unwrap();
     std::fs::write(&a, b"rewritten, longer").unwrap();
@@ -77,10 +80,10 @@ fn deleting_a_newer_job_changes_the_fingerprint_even_though_every_input_is_older
     let with_new = merge_fingerprint(
         &source,
         &[job("new", 0)],
-        &[cov("old", &old, &[1]), cov("new", &new, &[1])],
+        &jobs([cov("old", &old, &[1]), cov("new", &new, &[1])]),
     )
     .unwrap();
-    let after_delete = merge_fingerprint(&source, &[job("old", 0)], &[cov("old", &old, &[1])]).unwrap();
+    let after_delete = merge_fingerprint(&source, &[job("old", 0)], &jobs([cov("old", &old, &[1])])).unwrap();
     assert_ne!(with_new, after_delete);
 }
 
@@ -94,8 +97,8 @@ fn the_fingerprint_changes_when_a_participating_translation_manifest_is_rewritte
     std::fs::create_dir(&translated).unwrap();
     std::fs::write(translated.join("translation-manifest.json"), b"{}").unwrap();
     let mut coverage = cov("a", &a, &[1]);
-    coverage.translations_dir = Some(translated.clone());
-    let coverages = [coverage];
+    coverage.1.translations_dir = Some(translated.clone());
+    let coverages = jobs([coverage]);
     let plan = [job("a", 0)];
     let before = merge_fingerprint(&source, &plan, &coverages).unwrap();
     std::fs::write(translated.join("translation-manifest.json"), b"{\"pages\": []}").unwrap();
@@ -110,7 +113,7 @@ fn unreferenced_jobs_do_not_affect_the_fingerprint() {
     let used = dir.file("used.pdf", b"u");
     let shadowed = dir.file("shadowed.pdf", b"s");
     let plan = [job("used", 0)];
-    let coverages = [cov("used", &used, &[1]), cov("shadowed", &shadowed, &[1])];
+    let coverages = jobs([cov("used", &used, &[1]), cov("shadowed", &shadowed, &[1])]);
     let before = merge_fingerprint(&source, &plan, &coverages).unwrap();
     std::fs::write(&shadowed, b"rewritten shadowed").unwrap();
     assert_eq!(before, merge_fingerprint(&source, &plan, &coverages).unwrap());
@@ -120,7 +123,7 @@ fn unreferenced_jobs_do_not_affect_the_fingerprint() {
 fn a_plan_referencing_an_unknown_job_is_an_error() {
     let dir = Dir::new();
     let source = dir.file("source.pdf", b"src");
-    assert!(merge_fingerprint(&source, &[job("ghost", 0)], &[]).is_err());
+    assert!(merge_fingerprint(&source, &[job("ghost", 0)], &JobInputs::new()).is_err());
 }
 
 #[test]
@@ -128,7 +131,7 @@ fn plan_json_matches_the_python_contract() {
     let dir = Dir::new();
     let a = dir.file("a.pdf", b"a");
     let json: serde_json::Value = serde_json::from_str(
-        &plan_json(&[PageSource::Original, job("a", 3)], &[cov("a", &a, &[2, 3, 4, 5])]).unwrap(),
+        &plan_json(&[PageSource::Original, job("a", 3)], &jobs([cov("a", &a, &[2, 3, 4, 5])])).unwrap(),
     )
     .unwrap();
     assert_eq!(
@@ -183,7 +186,7 @@ fn make_pdf(path: &Path, texts: &[&str]) {
 use std::process::Command;
 
 /// 一个子集 OCR 范围任务的产物（页号全是本地的，和流水线真实产出一致）。
-fn make_range_job(dir: &Path, name: &str, document_pages: &[u32], texts: &[&str]) -> JobCoverage {
+fn make_range_job(dir: &Path, name: &str, document_pages: &[u32], texts: &[&str]) -> (String, BuildInputs) {
     let root = dir.join(name);
     let translated = root.join("translated");
     let normalized = root.join("ocr/normalized");
@@ -222,9 +225,8 @@ fn make_range_job(dir: &Path, name: &str, document_pages: &[u32], texts: &[&str]
     let pdf = root.join("out.pdf");
     make_pdf(&pdf, texts);
     let mut coverage = cov(name, &pdf, document_pages);
-    coverage.ocr_page_numbers = document_pages.to_vec();
-    coverage.translations_dir = Some(translated);
-    coverage.normalized_document = Some(normalized.join("document.v1.json"));
+    coverage.1.translations_dir = Some(translated);
+    coverage.1.normalized_document = Some(normalized.join("document.v1.json"));
     coverage
 }
 
@@ -239,11 +241,12 @@ fn end_to_end_the_real_pipeline_builds_a_full_length_merged_directory_and_caches
     let source = dir.0.join("source.pdf");
     make_pdf(&source, &["SRC 1", "SRC 2", "SRC 3", "SRC 4"]);
     // 两个从不同位置开始的范围任务：各自的「第 1 页」都叫 p001。
-    let coverages = [
+    let coverages = jobs([
         make_range_job(&dir.0, "a", &[1], &["ZH 1"]),
         make_range_job(&dir.0, "mid", &[3, 4], &["ZH 3", "ZH 4"]),
-    ];
-    let plan = crate::services::document_pages::merge_plan(4, &coverages);
+    ]);
+    let ranked = [ranked("a", &[1]), ranked("mid", &[3, 4])];
+    let plan = crate::services::merge::plan::merge_plan(4, &ranked);
     let pipeline = project_venv_bin("retainpdf-pipeline");
 
     let merged =
@@ -293,16 +296,27 @@ fn end_to_end_a_failed_step_publishes_nothing_and_surfaces_the_python_error() {
     make_pdf(&source, &["SRC 1", "SRC 2"]);
     let mut job = make_range_job(&dir.0, "r", &[1], &["ZH 1"]);
     // OCR 页号表说这个任务只覆盖第 2 页，计划却从它取第 1 页 —— 数据层必须拒绝。
-    job.ocr_page_numbers = vec![2];
+    job.1.ocr_page_numbers = vec![2];
     let plan = [job_page("r", 0), PageSource::Original];
     let pipeline = project_venv_bin("retainpdf-pipeline");
-    let error = ensure_merged_translation(pipeline_deps(&pipeline), &data_root, "doc1", &source, &plan, &[job])
+    let error = ensure_merged_translation(pipeline_deps(&pipeline), &data_root, "doc1", &source, &plan, &jobs([job]))
         .unwrap_err()
         .to_string();
     assert!(error.contains("document page 1 is not in this job's OCR coverage"), "{error}");
     let merged_dir = data_root.join("documents/doc1/merged");
     let entries: Vec<_> = std::fs::read_dir(&merged_dir).unwrap().collect();
     assert!(entries.is_empty(), "失败后留下了东西: {entries:?}");
+}
+
+fn ranked(job_id: &str, pages: &[u32]) -> crate::services::merge::plan::RankedPages {
+    crate::services::merge::plan::RankedPages {
+        rank: crate::services::merge::plan::Rank {
+            producer_created_at: "2026-10-01T00:00:00".to_string(),
+            created_at: "2026-10-01T00:00:00".to_string(),
+            job_id: job_id.to_string(),
+        },
+        pages: pages.to_vec(),
+    }
 }
 
 fn job_page(id: &str, local: usize) -> PageSource {

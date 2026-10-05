@@ -37,7 +37,8 @@ pub use resolvers::{
     resolve_ai_reading_path,
     resolve_events_jsonl, resolve_job_root, resolve_markdown_bundle_zip,
     resolve_markdown_images_dir, resolve_markdown_path, resolve_normalization_report,
-    resolve_normalized_document, resolve_output_pdf, resolve_pipeline_summary,
+    resolve_normalized_document, resolve_ocr_markdown_images_dir, resolve_output_pdf,
+    resolve_pipeline_summary,
     resolve_registered_artifact_path, resolve_source_pdf, resolve_translation_debug_index,
     resolve_translation_diagnostics, resolve_translation_manifest,
     resolve_translation_request_journal, resolve_typst_pdf, resolve_typst_source,
@@ -303,5 +304,41 @@ mod tests {
             .any(|item| item.artifact_key == ARTIFACT_KEY_MARKDOWN_BUNDLE_ZIP && item.ready));
 
         let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn ocr_markdown_images_come_from_the_job_that_produced_the_ocr() {
+        // 复用 OCR 的任务自己的 md/ 是空的；图片在提供 OCR 的那个任务目录里。
+        let data_root =
+            std::env::temp_dir().join(format!("retainpdf-ocr-images-{}", fastrand::u64(..)));
+        let ocr_job = data_root.join("jobs/ocr-job");
+        let reuse_job = data_root.join("jobs/reuse-job");
+        fs::create_dir_all(ocr_job.join("ocr/normalized")).unwrap();
+        fs::create_dir_all(ocr_job.join("md/images")).unwrap();
+        fs::create_dir_all(&reuse_job).unwrap();
+        fs::write(ocr_job.join("ocr/normalized/document.v1.json"), b"{}").unwrap();
+        let mut job = JobSnapshot::new(
+            "reuse-job".to_string(),
+            CreateJobInput::default(),
+            vec!["python".to_string()],
+        );
+        job.artifacts = Some(JobArtifacts {
+            job_root: Some("jobs/reuse-job".to_string()),
+            normalized_document_json: Some("jobs/ocr-job/ocr/normalized/document.v1.json".to_string()),
+            ..JobArtifacts::default()
+        });
+        assert_eq!(resolve_markdown_images_dir(&job, &data_root), None, "前提：本任务自己没有图片");
+        assert_eq!(
+            resolve_ocr_markdown_images_dir(&job, &data_root),
+            Some(data_root.join("jobs/ocr-job/md/images"))
+        );
+        // OCR 任务的图片目录没了，就退回本任务自己的。
+        fs::remove_dir_all(ocr_job.join("md")).unwrap();
+        fs::create_dir_all(reuse_job.join("md/images")).unwrap();
+        assert_eq!(
+            resolve_ocr_markdown_images_dir(&job, &data_root),
+            Some(data_root.join("jobs/reuse-job/md/images"))
+        );
+        let _ = fs::remove_dir_all(&data_root);
     }
 }

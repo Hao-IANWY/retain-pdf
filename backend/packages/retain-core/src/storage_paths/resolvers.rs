@@ -26,6 +26,20 @@ pub fn resolve_markdown_images_dir(job: &JobSnapshot, data_root: &Path) -> Optio
     published.exists().then_some(published)
 }
 
+/// 这个任务的译文所依据的那份 OCR 的图片目录：`<OCR 任务根>/md/images`。
+///
+/// OCR 文档里的图片路径（`md/images/page-3/…`）是相对**产出 OCR 的那个任务**的根目录的。
+/// 复用 OCR 的任务自己的 `md/` 是空的（`resolve_markdown_images_dir` 会返回 `None`），
+/// 所以先从 `normalized_document_json` 的位置往上推三级；推不出来才退回本任务的目录。
+pub fn resolve_ocr_markdown_images_dir(job: &JobSnapshot, data_root: &Path) -> Option<PathBuf> {
+    resolve_normalized_document(job, data_root)
+        .as_deref()
+        .and_then(|document| document.parent()?.parent()?.parent())
+        .map(|ocr_root| ocr_root.join(OUTPUT_MARKDOWN_DIR_NAME).join("images"))
+        .filter(|images| images.is_dir())
+        .or_else(|| resolve_markdown_images_dir(job, data_root))
+}
+
 pub fn resolve_job_root(job: &JobSnapshot, data_root: &Path) -> Option<PathBuf> {
     let job_root = job.artifacts.as_ref()?.job_root.as_ref()?;
     resolve_data_path(data_root, job_root).ok()

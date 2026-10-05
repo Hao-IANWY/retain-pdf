@@ -1,6 +1,6 @@
 //! 合并译文：同一本书的多个范围任务合成一个整本长度、「长得和普通任务一样」的目录。
 //!
-//! 计划由 `document_pages::merge_plan` 算。产物分两半，各交给一个 Python 子命令：
+//! 计划由 `merge::plan::merge_plan` 算，各任务的产物路径由 `merge::sources` 读出。产物分两半，各交给一个 Python 子命令：
 //!
 //! - `merge-translated-artifacts`：译文 JSON + manifest、OCR 规范化文档、图片，页号改写成
 //!   文档页号。阅读器选区、Word 导出、AI 问答、全文搜索读的是这些。
@@ -33,7 +33,8 @@ use std::time::{Duration, UNIX_EPOCH};
 use sha2::{Digest, Sha256};
 
 use crate::error::AppError;
-use crate::services::document_pages::{JobCoverage, PageSource};
+use crate::services::merge::plan::PageSource;
+use crate::services::merge::sources::BuildInputs;
 
 use super::{document_artifacts_dir, DerivedArtifactDeps};
 
@@ -55,20 +56,21 @@ fn file_stamp(path: &Path) -> Result<String, AppError> {
     Ok(format!("{}|{}|{}", path.display(), meta.len(), modified))
 }
 
-/// 计划里引用到的任务 → 它的覆盖记录。计划引用了不存在的任务就是调用方的 bug。
+/// 每个任务去哪读产物，按 job_id 索引。
+pub(crate) type JobInputs = BTreeMap<String, BuildInputs>;
+
+/// 计划里引用到的任务 → 它的产物路径。计划引用了不存在的任务就是调用方的 bug。
 fn referenced_jobs<'a>(
     plan: &[PageSource],
-    coverages: &'a [JobCoverage],
-) -> Result<BTreeMap<&'a str, &'a JobCoverage>, AppError> {
-    let by_id: BTreeMap<&str, &JobCoverage> =
-        coverages.iter().map(|c| (c.job_id.as_str(), c)).collect();
+    jobs: &'a JobInputs,
+) -> Result<BTreeMap<&'a str, &'a BuildInputs>, AppError> {
     let mut referenced = BTreeMap::new();
     for source in plan {
         if let PageSource::Job { job_id, .. } = source {
-            let coverage = by_id.get(job_id.as_str()).ok_or_else(|| {
+            let (id, inputs) = jobs.get_key_value(job_id).ok_or_else(|| {
                 AppError::internal(format!("merge plan references unknown job {job_id}"))
             })?;
-            referenced.insert(coverage.job_id.as_str(), *coverage);
+            referenced.insert(id.as_str(), inputs);
         }
     }
     Ok(referenced)
@@ -77,7 +79,7 @@ fn referenced_jobs<'a>(
 pub(crate) fn merge_fingerprint(
     source_pdf: &Path,
     plan: &[PageSource],
-    coverages: &[JobCoverage],
+    jobs: &JobInputs,
 ) -> Result<String, AppError> {
     let mut hasher = Sha256::new();
     hasher.update(format!("v{MERGE_VERSION}\n"));
@@ -90,16 +92,16 @@ pub(crate) fn merge_fingerprint(
             }
         }
     }
-    for (job_id, coverage) in referenced_jobs(plan, coverages)? {
-        hasher.update(format!("job {job_id} {}\n", file_stamp(&coverage.output_pdf)?));
-        hasher.update(format!("  ocr {:?}\n", coverage.ocr_page_numbers));
-        let manifest = coverage
+    for (job_id, inputs) in referenced_jobs(plan, jobs)? {
+        hasher.update(format!("job {job_id} {}\n", file_stamp(&inputs.output_pdf)?));
+        hasher.update(format!("  ocr {:?}\n", inputs.ocr_page_numbers));
+        let manifest = inputs
             .translations_dir
             .as_ref()
             .map(|dir| dir.join("translation-manifest.json"));
         for (label, path) in [
             ("manifest", manifest.as_deref()),
-            ("document", coverage.normalized_document.as_deref()),
+            ("document", inputs.normalized_document.as_deref()),
         ] {
             match path.filter(|path| path.is_file()) {
                 Some(path) => hasher.update(format!("  {label} {}\n", file_stamp(path)?)),
@@ -115,14 +117,14 @@ pub(crate) fn merge_fingerprint(
 }
 
 /// 交给 Python 的计划：`{"pages": [null | {"pdf": 绝对路径, "index": n}, …]}`。
-fn plan_json(plan: &[PageSource], coverages: &[JobCoverage]) -> Result<String, AppError> {
-    let jobs = referenced_jobs(plan, coverages)?;
+fn plan_json(plan: &[PageSource], jobs: &JobInputs) -> Result<String, AppError> {
+    let referenced = referenced_jobs(plan, jobs)?;
     let pages: Vec<serde_json::Value> = plan
         .iter()
         .map(|source| match source {
             PageSource::Original => serde_json::Value::Null,
             PageSource::Job { job_id, local_index } => serde_json::json!({
-                "pdf": jobs[job_id.as_str()].output_pdf,
+                "pdf": referenced[job_id.as_str()].output_pdf,
                 "index": local_index,
             }),
         })
@@ -134,21 +136,21 @@ fn plan_json(plan: &[PageSource], coverages: &[JobCoverage]) -> Result<String, A
 fn artifacts_plan_json(
     source_pdf: &Path,
     plan: &[PageSource],
-    coverages: &[JobCoverage],
+    jobs: &JobInputs,
 ) -> Result<String, AppError> {
-    let jobs = referenced_jobs(plan, coverages)?;
+    let referenced = referenced_jobs(plan, jobs)?;
     let mut job_specs = serde_json::Map::new();
-    for (job_id, coverage) in &jobs {
-        let translations_dir = coverage.translations_dir.as_ref().ok_or_else(|| {
+    for (job_id, inputs) in &referenced {
+        let translations_dir = inputs.translations_dir.as_ref().ok_or_else(|| {
             AppError::internal(format!("job {job_id} has no translations dir to merge"))
         })?;
         job_specs.insert(
             job_id.to_string(),
             serde_json::json!({
                 "translations_dir": translations_dir,
-                "normalized_document": coverage.normalized_document,
-                "markdown_images_dir": coverage.markdown_images_dir,
-                "ocr_page_numbers": coverage.ocr_page_numbers,
+                "normalized_document": inputs.normalized_document,
+                "markdown_images_dir": inputs.markdown_images_dir,
+                "ocr_page_numbers": inputs.ocr_page_numbers,
             }),
         );
     }
@@ -235,9 +237,9 @@ pub(crate) fn ensure_merged_translation(
     document_id: &str,
     source_pdf: &Path,
     plan: &[PageSource],
-    coverages: &[JobCoverage],
+    jobs: &JobInputs,
 ) -> Result<MergedTranslation, AppError> {
-    let fingerprint = merge_fingerprint(source_pdf, plan, coverages)?;
+    let fingerprint = merge_fingerprint(source_pdf, plan, jobs)?;
     let root = merged_root(data_root, document_id, &fingerprint)?;
     if root.is_dir() {
         return Ok(MergedTranslation { root });
@@ -254,7 +256,7 @@ pub(crate) fn ensure_merged_translation(
     let artifacts_plan = building.0.with_extension("artifacts-plan.json");
     let result = (|| {
         std::fs::File::create(&artifacts_plan)?
-            .write_all(artifacts_plan_json(source_pdf, plan, coverages)?.as_bytes())?;
+            .write_all(artifacts_plan_json(source_pdf, plan, jobs)?.as_bytes())?;
         run_step(
             &building.0,
             "merged-artifacts",
@@ -267,7 +269,7 @@ pub(crate) fn ensure_merged_translation(
                 building.0.as_os_str(),
             ],
         )?;
-        std::fs::File::create(&pdf_plan)?.write_all(plan_json(plan, coverages)?.as_bytes())?;
+        std::fs::File::create(&pdf_plan)?.write_all(plan_json(plan, jobs)?.as_bytes())?;
         std::fs::create_dir_all(staged.output_pdf().parent().expect("rendered dir"))?;
         run_step(
             &building.0,
