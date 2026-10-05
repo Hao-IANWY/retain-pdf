@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use crate::error::AppError;
 use crate::models::domain::JobSnapshot;
 
+pub(crate) mod merged;
 pub(crate) mod pdf;
 pub(crate) mod preview;
 pub(crate) mod side_by_side;
