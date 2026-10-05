@@ -94,4 +94,8 @@ research/
 # 曾经有一个 `backend/.venv -> /Users/<某人>/Code/retain-pdf/backend/.venv` 被提交进来，
 # 别人 clone 下来是悬空链接，跑 uv sync 还会顺着它往仓库外写。
 # worktree 要共用主 checkout 的环境，用 UV_PROJECT_ENVIRONMENT（见 ops/development/dev_stack.py）。
+#
+# 两条都要：`.venv/` 只匹配目录，而**符号链接在 git 眼里不是目录** —— 被提交进来的
+# 那一个正是符号链接，只写带斜杠的那条它照样是 untracked 可见状态。
+.venv
 .venv/

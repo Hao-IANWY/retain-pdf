@@ -234,3 +234,30 @@ def fitted_typography(block) -> tuple[float, float]:
         exact=True,
     )
     return fitted, fitted * LINE_STEP_RATIO
+
+
+def fits_in_box(block, font_size_pt: float, line_step_pt: float) -> bool:
+    """按这个字号行距排，这个块装得进它自己的框吗。
+
+    用来验**读回值**：从译文 PDF 读回来的字号行距复现的是 Typst 的排版，而 Word 的
+    断行和它不一样。实测真实 job 的前 6 页，52 个读回成功的块里 12 个（23%）按这里
+    的度量就装不下 —— 原来它们被原样写进 docx，到 Word 里就是超框被裁。
+
+    `fit_to_box` 为假的块排版层压根不收敛（Typst 直接按上界排、`clip: false` 允许
+    溢出），对它们判定「装不下」没有意义，一律放行。
+    """
+    if not getattr(block, "fit_to_box", True):
+        return True
+    # 行距非正时「行数×行距」恒为 0，会把任何块判成装得下。返回 False 让调用方退回
+    # 二分 —— 验不了就别放行。（exporter 里那条分支先拦了一道，这里是第二道。）
+    if line_step_pt <= 0:
+        return False
+    x0, y0, x1, y1 = block.content_rect
+    width = max(MIN_BLOCK_SIZE_PT, x1 - x0)
+    height = max(MIN_BLOCK_SIZE_PT, y1 - y0)
+    text = renderable_text(block.plain_text, getattr(block, "math_map", None))
+    if not text.strip():
+        return True
+    lines = wrap_lines(text, font_size_pt, width)
+    # 半磅的余量：lineStepPt 写进 docx 时会取整到 twip，别因为零点几磅判死。
+    return len(lines) * line_step_pt <= height + 0.5

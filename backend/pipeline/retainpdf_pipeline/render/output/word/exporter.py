@@ -27,6 +27,7 @@ from retainpdf_pipeline.render.output.word.html_fit import fitted_typography
 from retainpdf_pipeline.render.output.word.html_fit import MEASURED_FONT_FAMILY
 from retainpdf_pipeline.render.output.word.job_io import single_pdf
 from retainpdf_pipeline.render.output.word.job_io import translated_pages
+from retainpdf_pipeline.render.output.word.html_fit import fits_in_box
 from retainpdf_pipeline.render.output.word.typography_readback import converged_typography
 from retainpdf_pipeline.render.output.word.typography_readback import open_translated_document
 from retainpdf_pipeline.render.output.word.typography_readback import read_page_lines
@@ -144,6 +145,18 @@ def build_layout_spec(
                     if not observed:
                         font_size_pt = fitted_size
                     line_step_pt = fitted_step
+                elif not fits_in_box(block, font_size_pt, line_step_pt):
+                    # **读回值也要验一遍**。
+                    #
+                    # 它复现的是 Typst 的排版，而 Word 的断行和 Typst 不一样（两端对齐
+                    # 的伸缩、行内 OMML 的宽度、CJK 换行规则）。原来这一支是无条件采信
+                    # 的：实测真实 job 的前 6 页，52 个读回成功的块里 **12 个（23%）**
+                    # 按我们自己的度量就装不下，而它们照样被原样写进了 docx —— 到 Word
+                    # 里就是超框被裁、被下一块的白底盖住。
+                    #
+                    # 装不下就退回 html_fit 的二分（它按字形宽度找装得下的字号），
+                    # 宁可字小一点也别少字。
+                    font_size_pt, line_step_pt = fitted_typography(block)
                 x0, y0, x1, y1 = block.content_rect
                 blocks.append({
                     "id": block.block_id,
