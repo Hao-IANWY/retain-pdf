@@ -8,7 +8,9 @@ pub(super) mod rows;
 mod search;
 
 pub use rows::sha256_hex;
-pub use search::build_fts_rows_from_job_dir;
+pub use search::{
+    build_document_fts, build_fts_rows, build_fts_rows_from_job_dir, fts_page_owners, FtsCandidate,
+};
 
 use anyhow::Result;
 

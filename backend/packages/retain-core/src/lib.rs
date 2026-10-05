@@ -1,4 +1,5 @@
 pub mod config;
+pub mod document_pages;
 pub mod job_failure;
 pub mod job_failure_catalogue;
 pub mod model_connection;

@@ -290,21 +290,9 @@ fn update_document_after_job(deps: &ProcessRuntimeDeps, job: &JobRuntimeState) {
     {
         error!("library: set active job for {document_id} failed: {error}");
     }
-    let job_root = deps.persist.output_root.join(&job.job_id);
-    match crate::db::documents::build_fts_rows_from_job_dir(&job_root) {
-        Ok(rows) => {
-            if let Err(error) = deps
-                .db
-                .replace_document_fts(&document_id, &job.job_id, &rows)
-            {
-                error!("library: fts rebuild for {document_id} failed: {error}");
-            }
-        }
-        Err(error) => {
-            error!(
-                "library: fts rows from {} failed: {error}",
-                job_root.display()
-            );
-        }
+    // 按这本书所有成功任务重建索引（每页取最新的那个）。只索引刚完成的这个任务的话，翻完
+    // 1-5 页再翻 6-10 页，前 5 页就搜不到了。
+    if let Err(error) = deps.db.rebuild_document_fts(&document_id) {
+        error!("library: fts rebuild for {document_id} failed: {error}");
     }
 }

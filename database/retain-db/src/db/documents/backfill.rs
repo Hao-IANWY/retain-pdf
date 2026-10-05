@@ -3,7 +3,7 @@ use rusqlite::params;
 
 use crate::storage_paths::resolve_data_path;
 
-use super::{build_fts_rows_from_job_dir, sha256_hex};
+use super::sha256_hex;
 use crate::db::Db;
 
 pub(super) fn run(db: &Db) -> Result<()> {
@@ -72,20 +72,11 @@ fn backfill_fts_indexes(db: &Db) -> Result<()> {
         rows.collect::<std::result::Result<Vec<_>, _>>()?
     };
     drop(conn);
-    for (document_id, job_id) in pending {
-        let job_root = db.data_root.join("jobs").join(&job_id);
-        match build_fts_rows_from_job_dir(&job_root) {
-            Ok(rows) => {
-                if let Err(error) = db.replace_document_fts(&document_id, &job_id, &rows) {
-                    eprintln!("[library] fts backfill failed for {document_id}: {error}");
-                }
-            }
-            Err(error) => {
-                eprintln!(
-                    "[library] fts backfill skip {document_id}: {}: {error}",
-                    job_root.display()
-                );
-            }
+    for (document_id, _active_job_id) in pending {
+        // 按这本书所有成功任务建索引，不只是 active_job：范围翻译之后前面翻过的页也要搜得到；
+        // 复用 OCR 的书原来按 job_root/ocr 找不到 OCR 文档、一行都建不出来，每次启动都重试。
+        if let Err(error) = db.rebuild_document_fts(&document_id) {
+            eprintln!("[library] fts backfill failed for {document_id}: {error}");
         }
     }
     Ok(())

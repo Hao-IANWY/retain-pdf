@@ -507,3 +507,142 @@ fn document_text_search_ignores_blank_query() {
     assert_eq!(none.len(), 2);
     assert_eq!(blank.len(), none.len(), "空白查询应等价于不过滤");
 }
+
+// ── 整本书的索引：多次范围翻译 ─────────────────────────────────────────────
+
+fn fts_candidate(job_id: &str, created_at: &str, ocr: &[u32], translated: &[u32]) -> FtsCandidate {
+    FtsCandidate {
+        job_id: job_id.to_string(),
+        created_at: created_at.to_string(),
+        ocr_pages: ocr.to_vec(),
+        translated_pages: translated.to_vec(),
+    }
+}
+
+#[test]
+fn fts_page_owner_prefers_the_newest_job_that_translated_the_page() {
+    let owners = fts_page_owners(&[
+        fts_candidate("whole", "2026-10-01T00:00:00", &[1, 2, 3], &[1, 2, 3]),
+        fts_candidate("redo", "2026-10-02T00:00:00", &[2], &[2]),
+    ]);
+    assert_eq!(owners.into_iter().collect::<Vec<_>>(), vec![(1, 0), (2, 1), (3, 0)]);
+}
+
+#[test]
+fn fts_page_owner_never_lets_a_newer_untranslated_ocr_hide_an_older_translation() {
+    // 后来又 OCR 了一次（没翻译）：这页的译文不能因此搜不到。
+    let owners = fts_page_owners(&[
+        fts_candidate("translated", "2026-10-01T00:00:00", &[1, 2], &[1, 2]),
+        fts_candidate("ocr-only", "2026-10-05T00:00:00", &[1, 2, 3], &[]),
+    ]);
+    assert_eq!(owners.into_iter().collect::<Vec<_>>(), vec![(1, 0), (2, 0), (3, 1)]);
+}
+
+#[test]
+fn fts_page_owner_breaks_same_second_ties_by_job_id() {
+    let owners = fts_page_owners(&[
+        fts_candidate("job-b", "2026-10-01T00:00:00", &[1], &[1]),
+        fts_candidate("job-a", "2026-10-01T00:00:00", &[1], &[1]),
+    ]);
+    assert_eq!(owners.get(&1), Some(&0));
+}
+
+/// 一个子集 OCR 的范围翻译任务：页号全是本地的；`ocr_dir_job` 不同于自己时就是复用 OCR
+/// （自己的 job_root 下没有 ocr/）。
+fn seed_fts_job(
+    db: &Db,
+    data_root: &std::path::Path,
+    document_id: &str,
+    job_id: &str,
+    created_at: &str,
+    ocr_dir_job: &str,
+    ocr_pages: &[u32],
+    texts: &[(&str, &str)],
+) {
+    let normalized = data_root.join("jobs").join(ocr_dir_job).join("ocr/normalized/document.v1.json");
+    fs::create_dir_all(normalized.parent().unwrap()).unwrap();
+    let pages: Vec<_> = texts
+        .iter()
+        .enumerate()
+        .map(|(local, (source, _))| serde_json::json!({
+            "page_index": local,
+            "blocks": [{ "block_id": format!("p{:03}-b0000", local + 1), "text": source }],
+        }))
+        .collect();
+    fs::write(&normalized, serde_json::json!({ "pages": pages }).to_string()).unwrap();
+    let translated = data_root.join("jobs").join(job_id).join("translated");
+    fs::create_dir_all(&translated).unwrap();
+    for (local, (_, target)) in texts.iter().enumerate() {
+        fs::write(
+            translated.join(format!("page-{:03}-deepseek.json", local + 1)),
+            serde_json::json!([{ "page_idx": local, "block_idx": 0, "translated_text": target }]).to_string(),
+        )
+        .unwrap();
+    }
+    let mut job = crate::models::domain::JobSnapshot::new(
+        job_id.to_string(),
+        crate::models::request::CreateJobInput::default(),
+        vec![],
+    );
+    job.status = JobStatusKind::Succeeded;
+    job.workflow = WorkflowKind::Book;
+    job.created_at = created_at.to_string();
+    job.request_payload.translation.start_page = 0;
+    job.request_payload.translation.end_page = -1;
+    job.artifacts = Some(crate::models::domain::JobArtifacts {
+        job_root: Some(format!("jobs/{job_id}")),
+        normalized_document_json: Some(format!("jobs/{ocr_dir_job}/ocr/normalized/document.v1.json")),
+        translations_dir: Some(format!("jobs/{job_id}/translated")),
+        ocr_page_numbers: ocr_pages.to_vec(),
+        ..Default::default()
+    });
+    db.save_job(&job).unwrap();
+    db.connect()
+        .unwrap()
+        .execute("UPDATE jobs SET document_id = ?1 WHERE job_id = ?2", params![document_id, job_id])
+        .unwrap();
+}
+
+#[test]
+fn every_translated_page_of_every_range_job_is_searchable() {
+    let fs = TestDbFs::new("fts-ranges");
+    let db = fs.db();
+    db.init().expect("init");
+    let document_id = seed_document(&db, "up-1", b"ranged book");
+    // 第 1-2 页一次（自己做的 OCR），第 4 页一次（复用另一个 OCR 任务的产物）。
+    seed_fts_job(&db, &fs.data_root, &document_id, "job-early", "2026-10-01T00:00:00", "job-early",
+        &[1, 2], &[("alpha source", "阿尔法译文"), ("beta source", "贝塔译文")]);
+    seed_fts_job(&db, &fs.data_root, &document_id, "job-late", "2026-10-02T00:00:00", "ocr-provider",
+        &[4], &[("delta source", "德尔塔译文")]);
+
+    let written = db.rebuild_document_fts(&document_id).expect("rebuild");
+    assert_eq!(written, 3);
+
+    let early = db.search_blocks("贝塔译文", 10, None).expect("search");
+    assert_eq!(early.len(), 1, "前一次范围翻译的页搜不到了");
+    assert_eq!(early[0].job_id, "job-early");
+    assert_eq!(early[0].page_idx, 1, "page_idx 应是那个任务自己的本地页号");
+
+    let late = db.search_blocks("德尔塔译文", 10, None).expect("search");
+    assert_eq!(late.len(), 1, "复用 OCR 的任务搜不到");
+    assert_eq!(late[0].job_id, "job-late");
+    assert_eq!(late[0].page_idx, 0);
+    assert_eq!(db.search_blocks("delta source", 10, None).unwrap().len(), 1, "原文也要能搜到");
+}
+
+#[test]
+fn a_page_translated_twice_is_indexed_once_from_the_newer_job() {
+    let fs = TestDbFs::new("fts-redo");
+    let db = fs.db();
+    db.init().expect("init");
+    let document_id = seed_document(&db, "up-1", b"redo book");
+    seed_fts_job(&db, &fs.data_root, &document_id, "job-whole", "2026-10-01T00:00:00", "job-whole",
+        &[1, 2], &[("one", "旧的第一页"), ("two", "旧的第二页")]);
+    seed_fts_job(&db, &fs.data_root, &document_id, "job-redo", "2026-10-02T00:00:00", "job-redo",
+        &[2], &[("two", "新的第二页")]);
+    db.rebuild_document_fts(&document_id).expect("rebuild");
+    assert!(db.search_blocks("旧的第二页", 10, None).unwrap().is_empty(), "被重翻的旧译文还在索引里");
+    assert_eq!(db.search_blocks("新的第二页", 10, None).unwrap()[0].job_id, "job-redo");
+    assert_eq!(db.search_blocks("旧的第一页", 10, None).unwrap()[0].job_id, "job-whole");
+}
+

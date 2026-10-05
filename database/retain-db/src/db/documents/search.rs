@@ -45,6 +45,42 @@ impl Db {
         Ok(())
     }
 
+    /// 按这本书**所有**成功任务重建索引（每页取最新的那个，见 `build_document_fts`）。
+    /// 返回写入的行数。
+    pub fn rebuild_document_fts(&self, document_id: &str) -> Result<usize> {
+        let jobs = self.list_jobs_for_document(document_id, 500, 0)?;
+        let groups = build_document_fts(&jobs, &self.data_root);
+        self.replace_document_fts_by_job(document_id, &groups)?;
+        Ok(groups.iter().map(|(_, rows)| rows.len()).sum())
+    }
+
+    /// 整体重建某文档的 FTS 行，行可以来自多个任务（见 `build_document_fts`）。
+    pub fn replace_document_fts_by_job(
+        &self,
+        document_id: &str,
+        groups: &[(String, Vec<FtsBlockRow>)],
+    ) -> Result<()> {
+        let mut conn = self.connect()?;
+        let tx = conn.transaction()?;
+        tx.execute("DELETE FROM blocks_fts WHERE document_id = ?1", params![document_id])?;
+        for (job_id, rows) in groups {
+            for row in rows {
+                if row.source_text.trim().is_empty() && row.translated_text.trim().is_empty() {
+                    continue;
+                }
+                tx.execute(
+                    r#"
+                    INSERT INTO blocks_fts (document_id, job_id, page_idx, block_id, source_text, translated_text)
+                    VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+                    "#,
+                    params![document_id, job_id, row.page_idx, row.block_id, row.source_text, row.translated_text],
+                )?;
+            }
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
     /// 全文检索。trigram 分词要求查询 ≥3 字符,更短的查询回退 LIKE 扫描。
     /// `document_id` 非空时只搜该文档（阅读器 / AI 整本问答）。
     pub fn search_blocks(
@@ -141,10 +177,15 @@ impl Db {
 ///   字符串对齐)。
 /// 译文缺失时只索引原文。
 pub fn build_fts_rows_from_job_dir(job_root: &Path) -> Result<Vec<FtsBlockRow>> {
-    let normalized_path = job_root
-        .join("ocr")
-        .join("normalized")
-        .join("document.v1.json");
+    build_fts_rows(
+        &job_root.join("ocr").join("normalized").join("document.v1.json"),
+        &job_root.join("translated"),
+    )
+}
+
+/// 一份 OCR 文档 + 一个译文目录的索引行。`page_idx` 是 OCR 文档里的本地页号。
+pub fn build_fts_rows(normalized_path: &Path, translated_dir: &Path) -> Result<Vec<FtsBlockRow>> {
+    let normalized_path = normalized_path.to_path_buf();
     let raw = std::fs::read_to_string(&normalized_path)
         .with_context(|| format!("read {}", normalized_path.display()))?;
     let document: serde_json::Value = serde_json::from_str(&raw)?;
@@ -152,8 +193,7 @@ pub fn build_fts_rows_from_job_dir(job_root: &Path) -> Result<Vec<FtsBlockRow>> 
 
     let mut translated: std::collections::HashMap<(i64, i64), String> =
         std::collections::HashMap::new();
-    let translated_dir = job_root.join("translated");
-    if let Ok(entries) = std::fs::read_dir(&translated_dir) {
+    if let Ok(entries) = std::fs::read_dir(translated_dir) {
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().to_string();
             if !name.starts_with("page-") || !name.ends_with(".json") {
@@ -220,6 +260,126 @@ pub fn build_fts_rows_from_job_dir(job_root: &Path) -> Result<Vec<FtsBlockRow>> 
         }
     }
     Ok(rows)
+}
+
+// ── 整本书的索引 ───────────────────────────────────────────────────────────
+
+/// 参与整本索引的一个任务。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FtsCandidate {
+    pub job_id: String,
+    pub created_at: String,
+    /// OCR 本地页 `L` = 文档第 `ocr_pages[L]` 页。
+    pub ocr_pages: Vec<u32>,
+    /// 这个任务翻译了的文档页。纯 OCR 任务为空。
+    pub translated_pages: Vec<u32>,
+}
+
+/// 每个文档页由哪个候选提供索引（返回候选下标）。
+///
+/// 一本书可能翻译过好几次、每次只翻几页。索引原来只放最后成功的那个任务 —— 翻完 1-5 页
+/// 再翻 6-10 页，前 5 页就搜不到了。规则：
+///
+/// - 优先**翻译了这页**的任务里最新的（译文和原文都能搜到）；
+/// - 没有任何任务翻译过这页，就取 OCR 覆盖了它的任务里最新的（至少原文能搜到）。
+///
+/// 「最新」= `(提交时间, job_id)`，和阅读器的合并计划同一个方向。
+pub fn fts_page_owners(candidates: &[FtsCandidate]) -> std::collections::BTreeMap<u32, usize> {
+    let mut owners: std::collections::BTreeMap<u32, (bool, usize)> = std::collections::BTreeMap::new();
+    let rank = |index: usize| (&candidates[index].created_at, &candidates[index].job_id);
+    for (index, candidate) in candidates.iter().enumerate() {
+        for &page in &candidate.ocr_pages {
+            let translated = candidate.translated_pages.contains(&page);
+            let better = match owners.get(&page) {
+                None => true,
+                Some(&(current_translated, current)) => {
+                    (translated, rank(index)) > (current_translated, rank(current))
+                }
+            };
+            if better {
+                owners.insert(page, (translated, index));
+            }
+        }
+    }
+    owners.into_iter().map(|(page, (_, index))| (page, index)).collect()
+}
+
+/// 整本书的索引行，按提供它们的任务分组：`(job_id, 行)`。
+///
+/// 行里的 `page_idx` 仍是那个任务自己的本地页号 —— 搜索结果跳转时打开的就是那个任务的那
+/// 一页，锚点对得上。OCR 文档和译文目录从任务记录里取（`normalized_document_json`、
+/// `translations_dir`），不按 `job_root/ocr` 猜：复用 OCR 的任务自己的 `ocr/` 是空的，
+/// 原来这类书全文搜索什么都搜不到。
+pub fn build_document_fts(
+    jobs: &[crate::models::domain::JobSnapshot],
+    data_root: &Path,
+) -> Vec<(String, Vec<FtsBlockRow>)> {
+    use crate::models::domain::{JobStatusKind, WorkflowKind};
+    use crate::storage_paths::{resolve_data_path, resolve_normalized_document};
+
+    struct Loaded {
+        rows: Vec<FtsBlockRow>,
+    }
+    let mut candidates = Vec::new();
+    let mut loaded = Vec::new();
+    for job in jobs {
+        if job.status != JobStatusKind::Succeeded {
+            continue;
+        }
+        let Some(artifacts) = job.artifacts.as_ref() else { continue };
+        let Some(normalized) = resolve_normalized_document(job, data_root).filter(|p| p.is_file()) else {
+            continue;
+        };
+        let translated_dir = artifacts
+            .translations_dir
+            .as_deref()
+            .and_then(|raw| resolve_data_path(data_root, raw).ok())
+            .unwrap_or_else(|| data_root.join("jobs").join(&job.job_id).join("translated"));
+        let Ok(rows) = build_fts_rows(&normalized, &translated_dir) else { continue };
+        let max_local = rows.iter().map(|row| row.page_idx).max().unwrap_or(-1);
+        // 老任务没记 ocr_page_numbers：那时 OCR 都是整本，本地页 = 文档页 - 1。
+        let ocr_pages: Vec<u32> = if artifacts.ocr_page_numbers.is_empty() {
+            (1..=(max_local + 1).max(0) as u32).collect()
+        } else {
+            artifacts.ocr_page_numbers.clone()
+        };
+        let translated_pages = if job.workflow == WorkflowKind::Ocr {
+            Vec::new()
+        } else {
+            retain_core::document_pages::translated_document_pages(
+                &ocr_pages,
+                job.request_payload.translation.start_page,
+                job.request_payload.translation.end_page,
+            )
+            .unwrap_or_default()
+        };
+        candidates.push(FtsCandidate {
+            job_id: job.job_id.clone(),
+            created_at: job.created_at.clone(),
+            ocr_pages,
+            translated_pages,
+        });
+        loaded.push(Loaded { rows });
+    }
+    let owners = fts_page_owners(&candidates);
+    candidates
+        .iter()
+        .zip(loaded)
+        .enumerate()
+        .filter_map(|(index, (candidate, loaded))| {
+            let rows: Vec<FtsBlockRow> = loaded
+                .rows
+                .into_iter()
+                .filter(|row| {
+                    usize::try_from(row.page_idx)
+                        .ok()
+                        .and_then(|local| candidate.ocr_pages.get(local))
+                        .is_some_and(|page| owners.get(page) == Some(&index))
+                })
+                .collect();
+            (!rows.is_empty()).then(|| (candidate.job_id.clone(), rows))
+        })
+        .collect()
 }
 
 fn searchable_block_text(
