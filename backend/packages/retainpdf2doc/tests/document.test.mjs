@@ -101,6 +101,21 @@ describe("文档结构", () => {
       assert.ok(!documentXml.includes("<a:noAutofit"), "还留着 noAutofit");
     });
 
+    it("字号半磅取整只会变小，不会变大", async () => {
+      // Python 侧按**未取整**的字号判「装得下」，而 Math.round 会把 9.8pt 写成 10pt ——
+      // 判定按 9.8 做、Word 按 10 排，多出来的 0.2pt 就可能多断一行。
+      // 实测用户那个 job：54 个块里 35 个（65%）被取整取大。
+      const one = spec();
+      one.pages[0].blocks = [{ ...one.pages[0].blocks[0], id: "sz", fontSizePt: 9.8 }];
+      const dir = await mkdtemp(path.join(tmpdir(), "retainpdf2doc-sz-"));
+      await writeFile(path.join(dir, "page-001.png"), PNG);
+      const built = await buildLayoutDocx(one, { baseDir: dir });
+      const xml = strFromU8(unzipSync(built.bytes)["word/document.xml"]);
+      // 9.8pt → 19 半磅（9.5pt），不是 20（10pt）。
+      assert.ok(xml.includes('<w:sz w:val="19"/>'), "9.8pt 没有向下取整到 19 半磅");
+      assert.ok(!xml.includes('<w:sz w:val="20"/>'), "9.8pt 被取整成了 10pt —— 比判定时用的还大");
+    });
+
     it("允许西文词中间断行 —— 否则长化学名会把半行浪费掉", () => {
       // Word 默认不在西文词中间断行，Typst 会。化学正文里全是
       // `2-(4-methoxyphenyl)`、`1-s2.0-S2468823121003047` 这种长词，一个断不开的词

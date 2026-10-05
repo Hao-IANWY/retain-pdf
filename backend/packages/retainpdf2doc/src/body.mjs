@@ -60,7 +60,14 @@ const BARE_SCRIPT_RE = /^\s*([_^])\s*(?:\{([^{}]*)\}|([^{}\s]))\s*$/;
 
 const emu = (pt) => Math.round(pt * EMU_PER_POINT);
 const twips = (pt) => Math.round(pt * TWIPS_PER_POINT);
-const halfPoints = (pt) => Math.max(1, Math.round(pt * 2));
+/** pt → 半磅（w:sz 的单位）。
+ *
+ * **向下取整，不是四舍五入。** Python 侧是按**未取整**的字号判「这个块装得下吗」的，
+ * 而 `Math.round` 会把 9.8pt 写成 10pt —— 判定按 9.8 做，Word 按 10 排，凭空多出来的
+ * 那 0.2pt 就可能多断一行。实测用户那个 job：54 个块里 **35 个（65%）**被取整取大。
+ *
+ * 向下取整只会让字更小，方向和「宁可小一点也别溢出」一致。 */
+const halfPoints = (pt) => Math.max(1, Math.floor(pt * 2));
 
 function runProperties(block, fontFamily, vertAlign = null) {
   return xml("w:rPr", {}, [
