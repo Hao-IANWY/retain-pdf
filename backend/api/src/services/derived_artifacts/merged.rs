@@ -37,7 +37,7 @@ use super::{document_artifacts_dir, DerivedArtifactDeps};
 
 /// 拼接器的行为一变就加一。它进了指纹，旧缓存自动作废 —— Word 导出就吃过「改了代码、
 /// 缓存不认」的亏（`word.rs` 的 `RENDERER_VERSION`）。
-const MERGE_VERSION: u32 = 2;
+const MERGE_VERSION: u32 = 3;
 
 /// 50 页 4 个来源交错实测 0.5 秒；留足余量给大书和慢盘。
 const BUILD_TIMEOUT: Duration = Duration::from_secs(120);

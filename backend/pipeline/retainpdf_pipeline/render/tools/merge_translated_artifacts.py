@@ -8,6 +8,7 @@ Word 导出、AI 问答、agent 工作区、全文搜索读的都是**每页译�
     <out>/translated/page-NNN.json            每个文档页最多一个文件
     <out>/ocr/normalized/document.v1.json     整本长度，没覆盖的页 blocks 为空
     <out>/md/images/page-N/…                  图片按文档页重新归档
+    <out>/md/full.md                          OCR 原文 Markdown（见 `_merged_markdown`）
 
 # 页号改写
 
@@ -294,6 +295,8 @@ def merge_translated_artifacts(plan: ArtifactPlan, output_dir: Path) -> None:
     if not contributing:
         raise MergeArtifactsError("plan does not take any page from a job; nothing to merge")
 
+    _write_merged_markdown(plan, contributing, output_dir)
+
     _write_json(output_dir / "translated" / "translation-manifest.json",
                 _merged_manifest(contributing, manifests, rewriters, taken_item_prefixes, manifest_pages, status_counts))
     base_document = next((documents[j] for j in contributing if documents.get(j) is not None), None)
@@ -313,6 +316,45 @@ def merge_translated_artifacts(plan: ArtifactPlan, output_dir: Path) -> None:
 
 def _is_item_list(value) -> bool:
     return isinstance(value, list) and all(isinstance(item, dict) and "item_id" in item for item in value)
+
+
+_MARKDOWN_IMAGE = re.compile(r"\]\((?:\./)?images/([^)\s/]+)\)")
+
+
+def _write_merged_markdown(plan: ArtifactPlan, contributing: list[str], output_dir: Path) -> None:
+    """合并书的 `md/full.md`：阅读器 Markdown 视图和 AI 问答读的 **OCR 原文**。
+
+    MinerU 的 `full.md` 没有分页标记，没法按页拆开再拼。好在它是原文，和用了哪次翻译无关，
+    所以按 OCR 来源取：
+
+    - 有一次 OCR 覆盖了整本：只用它。
+    - 否则按各 OCR 来源的起始页把它们的 `full.md` 依次拼起来，同一份 OCR 只用一次。来源之间
+      有重叠时，重叠部分会出现两遍 —— 宁可重复，不能缺页。
+
+    引用到的图片（`images/<内容哈希>.jpg`，平铺）一起复制过来。
+    """
+    sources: dict[Path, tuple[int, ...]] = {}
+    for job_id in contributing:
+        job = plan.jobs[job_id]
+        if job.markdown_images_dir is None:
+            continue
+        markdown = job.markdown_images_dir.parent / "full.md"
+        if markdown.is_file():
+            sources.setdefault(markdown, job.ocr_page_numbers)
+    if not sources:
+        return
+    whole = set(range(1, plan.document_page_count + 1))
+    covering = [path for path, pages in sources.items() if whole <= set(pages)]
+    chosen = covering[:1] or sorted(sources, key=lambda path: (min(sources[path] or (0,)), str(path)))
+    parts = [path.read_text(encoding="utf-8").strip() for path in chosen]
+    target = output_dir / "md"
+    (target / "images").mkdir(parents=True, exist_ok=True)
+    (target / "full.md").write_text("\n\n".join(part for part in parts if part) + "\n", encoding="utf-8")
+    for path, text in zip(chosen, parts):
+        for name in set(_MARKDOWN_IMAGE.findall(text)):
+            image = path.parent / "images" / name
+            if image.is_file() and not (target / "images" / name).exists():
+                shutil.copy2(image, target / "images" / name)
 
 
 def _merged_manifest(contributing, manifests, rewriters, taken, pages, status_counts) -> dict:

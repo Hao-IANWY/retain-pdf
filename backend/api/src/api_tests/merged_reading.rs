@@ -142,6 +142,8 @@ fn seed_range_job(
     )
     .unwrap();
     make_pdf(&job_root.join("rendered/out.pdf"), texts);
+    fs::create_dir_all(job_root.join("md/images")).unwrap();
+    fs::write(job_root.join("md/full.md"), format!("# source markdown of {job_id}\n")).unwrap();
 
     let mut job = JobSnapshot::new(job_id.to_string(), CreateJobInput::default(), vec![]);
     job.status = JobStatusKind::Succeeded;
@@ -244,6 +246,13 @@ async fn two_range_translations_open_as_one_full_length_book() {
         pages,
         vec![(1, "ZH 1".to_string()), (3, "ZH 3".to_string()), (4, "ZH 4".to_string())]
     );
+
+    // 阅读器：Markdown 原文 —— 两个子集 OCR 按起始页拼起来
+    let markdown = request(&app, "GET", &format!("/api/v1/jobs/{job_id}/markdown?raw=true")).await;
+    assert_eq!(markdown.status(), StatusCode::OK);
+    let markdown = String::from_utf8(to_bytes(markdown.into_body(), usize::MAX).await.unwrap().to_vec()).unwrap();
+    let (a, mid) = (markdown.find("of job-a"), markdown.find("of job-mid"));
+    assert!(a.is_some() && mid.is_some() && a < mid, "{markdown}");
 
     // 阅读器：元数据（页数、页面尺寸）
     let metadata = request(&app, "GET", &format!("/api/v1/jobs/{job_id}/reader/metadata")).await;

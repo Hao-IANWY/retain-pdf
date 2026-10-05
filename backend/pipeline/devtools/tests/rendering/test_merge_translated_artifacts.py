@@ -236,3 +236,42 @@ def test_load_plan_reads_uncovered_page_sizes_from_the_source_pdf(tmp_path):
         "pages": [None, {"job": "b"}],
     }))
     assert load_plan(plan).page_sizes == [(300.0, 400.0), (500.0, 600.0)]
+
+
+def with_markdown(job: JobInputs, text: str, images: tuple[str, ...] = ()) -> JobInputs:
+    md = job.translations_dir.parent / "md"
+    (md / "images").mkdir(parents=True, exist_ok=True)
+    (md / "full.md").write_text(text)
+    for name in images:
+        (md / "images" / name).write_text(f"img:{name}")
+    return JobInputs(job.translations_dir, job.normalized_document, md / "images", job.ocr_page_numbers)
+
+
+def test_markdown_comes_from_an_ocr_that_covers_the_whole_book(tmp_path):
+    # Markdown 视图是 OCR 原文，和用了哪次翻译无关：有整本的 OCR 就只用它，不重复。
+    whole = with_markdown(make_job(tmp_path, "whole", [1, 2, 3], {1: [item(1, 1)]}), "# WHOLE BOOK")
+    part = with_markdown(make_job(tmp_path, "part", [3], {1: [item(1, 1)]}), "# PART 3")
+    out = tmp_path / "out"
+    merge_translated_artifacts(ArtifactPlan(3, None, {"whole": whole, "part": part}, ["whole", "whole", "part"]), out)
+    assert (out / "md/full.md").read_text().strip() == "# WHOLE BOOK"
+
+
+def test_markdown_of_separate_ocr_ranges_is_joined_in_page_order(tmp_path):
+    late = with_markdown(make_job(tmp_path, "late", [5, 6], {1: [item(1, 1)]}), "# PAGES 5-6\n\n![](images/late.jpg)", ("late.jpg",))
+    early = with_markdown(make_job(tmp_path, "early", [1, 2], {1: [item(1, 1)]}), "# PAGES 1-2\n\n![](images/early.jpg)", ("early.jpg", "unused.jpg"))
+    out = tmp_path / "out"
+    plan = ArtifactPlan(6, None, {"late": late, "early": early}, ["early", None, None, None, "late", None])
+    merge_translated_artifacts(plan, out)
+    text = (out / "md/full.md").read_text()
+    assert text.index("# PAGES 1-2") < text.index("# PAGES 5-6"), "没按起始页排"
+    assert text.count("# PAGES 1-2") == 1
+    assert (out / "md/images/early.jpg").read_text() == "img:early.jpg"
+    assert (out / "md/images/late.jpg").is_file()
+    assert not (out / "md/images/unused.jpg").exists(), "没被引用的图片不该带过来"
+
+
+def test_no_markdown_anywhere_writes_no_markdown(tmp_path):
+    b = make_job(tmp_path, "b", [1], {1: [item(1, 1)]})
+    out = tmp_path / "out"
+    merge_translated_artifacts(ArtifactPlan(1, None, {"b": b}, ["b"]), out)
+    assert not (out / "md/full.md").exists()
