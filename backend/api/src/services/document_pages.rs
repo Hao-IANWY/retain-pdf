@@ -39,7 +39,9 @@
 use std::path::{Path, PathBuf};
 
 use crate::models::domain::{JobSnapshot, JobStatusKind, WorkflowKind};
-use crate::storage_paths::resolve_output_pdf;
+use crate::storage_paths::{
+    resolve_data_path, resolve_markdown_images_dir, resolve_normalized_document, resolve_output_pdf,
+};
 
 /// 一个翻译任务的输出覆盖了哪些文档页（1 起），按本地顺序排列：
 /// 返回值的第 `i` 个元素就是该任务渲染产物第 `i` 页对应的文档页号。
@@ -121,6 +123,11 @@ pub(crate) struct JobCoverage {
     /// 输出 PDF 第 `i` 页 = 文档第 `pages[i]` 页（1 起）。
     pub pages: Vec<u32>,
     pub output_pdf: PathBuf,
+    /// 数据层合并用：OCR 本地页 `L` = 文档第 `ocr_page_numbers[L]` 页。
+    pub ocr_page_numbers: Vec<u32>,
+    pub translations_dir: Option<PathBuf>,
+    pub normalized_document: Option<PathBuf>,
+    pub markdown_images_dir: Option<PathBuf>,
 }
 
 /// 读磁盘的那一层：解析输出 PDF、读它的页数，交给 `coverage_from_parts` 判定。
@@ -131,6 +138,8 @@ pub(crate) fn job_output_coverage(job: &JobSnapshot, data_root: &Path) -> Option
         .as_deref()
         .and_then(|path| lopdf::Document::load(path).ok())
         .map(|document| document.get_pages().len());
+    let normalized_document =
+        resolve_normalized_document(job, data_root).filter(|path| path.is_file());
     let pages = coverage_from_parts(
         &job.status,
         &job.workflow,
@@ -145,7 +154,27 @@ pub(crate) fn job_output_coverage(job: &JobSnapshot, data_root: &Path) -> Option
         producer_created_at: job.created_at.clone(),
         pages,
         output_pdf: output_pdf?,
+        ocr_page_numbers: artifacts.ocr_page_numbers.clone(),
+        translations_dir: artifacts
+            .translations_dir
+            .as_deref()
+            .and_then(|path| resolve_data_path(data_root, path).ok()),
+        normalized_document: normalized_document.clone(),
+        markdown_images_dir: markdown_images_dir(normalized_document.as_deref())
+            .or_else(|| resolve_markdown_images_dir(job, data_root)),
     })
+}
+
+/// 图片目录从 OCR 文档的位置推：`<OCR 任务根>/ocr/normalized/document.v1.json` →
+/// `<OCR 任务根>/md/images`。OCR 文档里的图片路径（`md/images/page-3/…`）本来就是相对
+/// OCR 任务根目录的。
+///
+/// 不能用 `resolve_markdown_images_dir(job)`：它取的是**这个**任务的 `job_root`，而复用
+/// OCR 的任务自己的 `md/` 是空的 —— 图片在提供 OCR 的那个任务目录里。
+fn markdown_images_dir(normalized_document: Option<&Path>) -> Option<PathBuf> {
+    let ocr_root = normalized_document?.parent()?.parent()?.parent()?;
+    let images = ocr_root.join("md").join("images");
+    images.is_dir().then_some(images)
 }
 
 /// 合并后某一文档页取自哪里。
@@ -204,7 +233,7 @@ pub(crate) fn merge_plan(document_page_count: u32, coverages: &[JobCoverage]) ->
 #[cfg(test)]
 mod tests {
     use super::{
-        coverage_from_parts, merge_plan, translated_document_pages, JobCoverage, PageSource,
+        coverage_from_parts, markdown_images_dir, merge_plan, translated_document_pages, JobCoverage, PageSource,
     };
     use std::path::PathBuf;
     use crate::models::domain::{JobStatusKind, WorkflowKind};
@@ -369,6 +398,10 @@ mod tests {
             producer_created_at: created_at.to_string(),
             pages: pages.to_vec(),
             output_pdf: PathBuf::from(format!("/x/{job_id}.pdf")),
+            ocr_page_numbers: pages.to_vec(),
+            translations_dir: None,
+            normalized_document: None,
+            markdown_images_dir: None,
         }
     }
 
@@ -461,5 +494,20 @@ mod tests {
     #[test]
     fn no_coverage_means_the_whole_document_is_original() {
         assert_eq!(merge_plan(3, &[]), vec![PageSource::Original; 3]);
+    }
+
+    #[test]
+    fn markdown_images_come_from_the_job_that_produced_the_ocr() {
+        // 复用 OCR 的任务自己的 md/ 是空的；图片在提供 OCR 的那个任务目录里。
+        let root = std::env::temp_dir().join(format!("retain-images-{:016x}", fastrand::u64(..)));
+        let ocr_job = root.join("jobs/ocr-job");
+        std::fs::create_dir_all(ocr_job.join("ocr/normalized")).unwrap();
+        std::fs::create_dir_all(ocr_job.join("md/images")).unwrap();
+        let document = ocr_job.join("ocr/normalized/document.v1.json");
+        assert_eq!(markdown_images_dir(Some(&document)), Some(ocr_job.join("md/images")));
+        std::fs::remove_dir_all(ocr_job.join("md")).unwrap();
+        assert_eq!(markdown_images_dir(Some(&document)), None, "目录不存在时不该返回");
+        assert_eq!(markdown_images_dir(None), None);
+        let _ = std::fs::remove_dir_all(&root);
     }
 }

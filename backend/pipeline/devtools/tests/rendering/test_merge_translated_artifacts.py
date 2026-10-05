@@ -219,3 +219,20 @@ def test_load_plan_validates_shape(tmp_path):
     plan.write_text(json.dumps({"document_page_count": 3, "jobs": {}, "pages": [None]}))
     with pytest.raises(MergeArtifactsError, match="plan has 1 pages but document_page_count is 3"):
         load_plan(plan)
+
+
+def test_load_plan_reads_uncovered_page_sizes_from_the_source_pdf(tmp_path):
+    import fitz
+
+    source = tmp_path / "source.pdf"
+    doc = fitz.open()
+    doc.new_page(width=300, height=400)
+    doc.new_page(width=500, height=600)
+    doc.save(source)
+    plan = tmp_path / "plan.json"
+    plan.write_text(json.dumps({
+        "document_page_count": 2, "source_pdf": str(source),
+        "jobs": {"b": {"translations_dir": "/t", "ocr_page_numbers": [2]}},
+        "pages": [None, {"job": "b"}],
+    }))
+    assert load_plan(plan).page_sizes == [(300.0, 400.0), (500.0, 600.0)]

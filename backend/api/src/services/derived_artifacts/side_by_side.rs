@@ -97,6 +97,32 @@ pub(super) fn build_with_command(
     command_for_output: impl FnOnce(&Path) -> Command,
 ) -> Result<(), AppError> {
     let temporary = TemporaryOutput::create(output_path, label)?;
+    let command = command_for_output(&temporary.0);
+    let (status, diagnostics) = run_supervised(output_path, label, timeout, command)?;
+    if !status.success() || !temporary.0.is_file() || std::fs::metadata(&temporary.0)?.len() == 0 {
+        return Err(diagnostics.error(format!("failed to build {label}")));
+    }
+    let file = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(&temporary.0)?;
+    file.sync_all()?;
+    drop(file);
+    std::fs::rename(&temporary.0, output_path)?;
+    Ok(())
+}
+
+/// 起子进程、轮询到退出或超时，stderr 落到 `anchor` 旁边的临时文件。
+///
+/// 从 `build_with_command` 里拆出来，是因为合并译文要产出**一个目录**而不是一个文件，
+/// 临时产物和原子替换的方式不同，但进程监管（超时杀进程、不留没人读的管道、失败时带回
+/// stderr 尾部）完全一样。返回诊断文件的句柄，调用方失败时用它拼错误信息。
+pub(super) fn run_supervised(
+    anchor: &Path,
+    label: &str,
+    timeout: Duration,
+    mut command: Command,
+) -> Result<(std::process::ExitStatus, Diagnostics), AppError> {
     // 子进程的 stderr 落到一个临时文件，失败时把尾部带进错误。
     //
     // 不能用 `Stdio::piped()`:没人读的管道写满就会把子进程卡死，而我们这里是轮询
@@ -107,11 +133,10 @@ pub(super) fn build_with_command(
     // 排查 translate-only 任务导不出 Word 时，真正的原因（源 PDF 不在 job_root 下，
     // Python 侧报的是 "expected exactly one PDF in .../source, found 0"）整条被吞掉，
     // 只能手动重跑 CLI 才看得见。
-    let diagnostics = TemporaryOutput::create_with_extension(output_path, label, "log")?;
+    let diagnostics = TemporaryOutput::create_with_extension(anchor, label, "log")?;
     let diagnostics_sink = std::fs::OpenOptions::new()
         .write(true)
         .open(&diagnostics.0)?;
-    let mut command = command_for_output(&temporary.0);
     // Do not inherit provider output or hold unread pipes that can deadlock.
     let mut child = command
         .stdin(Stdio::null())
@@ -143,20 +168,16 @@ pub(super) fn build_with_command(
             }
         }
     };
-    if !status.success() || !temporary.0.is_file() || std::fs::metadata(&temporary.0)?.len() == 0 {
-        return Err(AppError::internal(with_diagnostics(
-            format!("failed to build {label}"),
-            &diagnostics.0,
-        )));
+    Ok((status, Diagnostics(diagnostics)))
+}
+
+/// 子进程 stderr 的临时文件；drop 时删除。
+pub(super) struct Diagnostics(TemporaryOutput);
+
+impl Diagnostics {
+    pub(super) fn error(&self, reason: String) -> AppError {
+        AppError::internal(with_diagnostics(reason, &self.0 .0))
     }
-    let file = std::fs::OpenOptions::new()
-        .read(true)
-        .write(true)
-        .open(&temporary.0)?;
-    file.sync_all()?;
-    drop(file);
-    std::fs::rename(&temporary.0, output_path)?;
-    Ok(())
 }
 
 /// 最多带回来的 stderr 字节数。够看清一条 Python traceback 的最后几帧，又不至于把

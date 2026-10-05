@@ -29,6 +29,10 @@ fn cov(job_id: &str, pdf: &Path, pages: &[u32]) -> JobCoverage {
         producer_created_at: "2026-10-01T00:00:00".to_string(),
         pages: pages.to_vec(),
         output_pdf: pdf.to_path_buf(),
+        ocr_page_numbers: pages.to_vec(),
+        translations_dir: None,
+        normalized_document: None,
+        markdown_images_dir: None,
     }
 }
 
@@ -81,6 +85,24 @@ fn deleting_a_newer_job_changes_the_fingerprint_even_though_every_input_is_older
 }
 
 #[test]
+fn the_fingerprint_changes_when_a_participating_translation_manifest_is_rewritten() {
+    // 「从翻译阶段重试」会重写译文而 PDF 可能还没重渲 —— 数据层合并也必须跟着失效。
+    let dir = Dir::new();
+    let source = dir.file("source.pdf", b"src");
+    let a = dir.file("a.pdf", b"a");
+    let translated = dir.0.join("translated");
+    std::fs::create_dir(&translated).unwrap();
+    std::fs::write(translated.join("translation-manifest.json"), b"{}").unwrap();
+    let mut coverage = cov("a", &a, &[1]);
+    coverage.translations_dir = Some(translated.clone());
+    let coverages = [coverage];
+    let plan = [job("a", 0)];
+    let before = merge_fingerprint(&source, &plan, &coverages).unwrap();
+    std::fs::write(translated.join("translation-manifest.json"), b"{\"pages\": []}").unwrap();
+    assert_ne!(before, merge_fingerprint(&source, &plan, &coverages).unwrap());
+}
+
+#[test]
 fn unreferenced_jobs_do_not_affect_the_fingerprint() {
     // 一个被完全盖掉的旧任务被重写，不该让合并结果重新生成。
     let dir = Dir::new();
@@ -112,17 +134,6 @@ fn plan_json_matches_the_python_contract() {
     assert_eq!(
         json,
         serde_json::json!({ "pages": [null, { "pdf": a, "index": 3 }] })
-    );
-}
-
-#[test]
-fn uses_the_merge_subcommand_of_the_installed_pipeline() {
-    let deps = DerivedArtifactDeps::with_pipeline_command("python3", "/opt/bin/retainpdf-pipeline");
-    let command = merge_command(deps);
-    assert_eq!(command.get_program(), "/opt/bin/retainpdf-pipeline");
-    assert_eq!(
-        command.get_args().collect::<Vec<_>>(),
-        vec![std::ffi::OsStr::new("merge-translated-pdf")]
     );
 }
 
@@ -171,55 +182,129 @@ fn make_pdf(path: &Path, texts: &[&str]) {
 
 use std::process::Command;
 
-#[test]
-fn end_to_end_the_real_pipeline_stitches_a_full_length_pdf_and_caches_it() {
-    let dir = Dir::new();
-    let data_root = dir.0.join("data");
-    let source = dir.0.join("source.pdf");
-    let mid = dir.0.join("mid.pdf");
-    make_pdf(&source, &["SRC 1", "SRC 2", "SRC 3", "SRC 4"]);
-    // 一个从文档中间开始的范围任务：它输出 PDF 的第 0 页是文档第 2 页。
-    make_pdf(&mid, &["ZH 2", "ZH 3"]);
-    let coverages = [cov("mid", &mid, &[2, 3])];
-    let plan = crate::services::document_pages::merge_plan(4, &coverages);
-    let pipeline = project_venv_bin("retainpdf-pipeline");
-    let deps = DerivedArtifactDeps::with_pipeline_command("python3", pipeline.to_str().unwrap());
-
-    let merged =
-        ensure_merged_translated_pdf(deps, &data_root, "doc1", &source, &plan, &coverages).unwrap();
-    assert_eq!(python(PAGE_TEXTS, &[&merged]).trim(), "SRC 1|ZH 2|ZH 3|SRC 4");
-    assert!(merged.starts_with(data_root.join("documents/doc1/merged")));
-
-    // 第二次直接命中缓存：同一个文件，没有重写。
-    let stamp = std::fs::metadata(&merged).unwrap().modified().unwrap();
-    let again =
-        ensure_merged_translated_pdf(deps, &data_root, "doc1", &source, &plan, &coverages).unwrap();
-    assert_eq!(again, merged);
-    assert_eq!(std::fs::metadata(&again).unwrap().modified().unwrap(), stamp);
-
-    // 计划文件不留在磁盘上。
-    let leftovers: Vec<_> = std::fs::read_dir(merged.parent().unwrap())
-        .unwrap()
-        .map(|entry| entry.unwrap().file_name())
-        .filter(|name| name.to_string_lossy().contains("plan"))
+/// 一个子集 OCR 范围任务的产物（页号全是本地的，和流水线真实产出一致）。
+fn make_range_job(dir: &Path, name: &str, document_pages: &[u32], texts: &[&str]) -> JobCoverage {
+    let root = dir.join(name);
+    let translated = root.join("translated");
+    let normalized = root.join("ocr/normalized");
+    std::fs::create_dir_all(&translated).unwrap();
+    std::fs::create_dir_all(&normalized).unwrap();
+    let mut manifest_pages = Vec::new();
+    for (local, text) in texts.iter().enumerate() {
+        let file = format!("page-{:03}-deepseek.json", local + 1);
+        let item = serde_json::json!([{
+            "item_id": format!("p{:03}-b001", local + 1),
+            "page_idx": local,
+            "translated_text": text,
+            "final_status": "translated",
+        }]);
+        std::fs::write(translated.join(&file), item.to_string()).unwrap();
+        manifest_pages.push(serde_json::json!({
+            "page_index": local, "page_number": local + 1, "path": file,
+        }));
+    }
+    std::fs::write(
+        translated.join("translation-manifest.json"),
+        serde_json::json!({ "schema": "translation_manifest_v1", "pages": manifest_pages }).to_string(),
+    )
+    .unwrap();
+    let ocr_pages: Vec<_> = (0..texts.len())
+        .map(|local| serde_json::json!({
+            "page_index": local, "page": local + 1, "width": 595, "height": 842,
+            "blocks": [{ "block_id": format!("p{:03}-b0000", local + 1), "page_index": local }],
+        }))
         .collect();
-    assert!(leftovers.is_empty(), "残留计划文件: {leftovers:?}");
+    std::fs::write(
+        normalized.join("document.v1.json"),
+        serde_json::json!({ "schema": "normalized_document_v1", "pages": ocr_pages }).to_string(),
+    )
+    .unwrap();
+    let pdf = root.join("out.pdf");
+    make_pdf(&pdf, texts);
+    let mut coverage = cov(name, &pdf, document_pages);
+    coverage.ocr_page_numbers = document_pages.to_vec();
+    coverage.translations_dir = Some(translated);
+    coverage.normalized_document = Some(normalized.join("document.v1.json"));
+    coverage
+}
+
+fn pipeline_deps(pipeline: &Path) -> DerivedArtifactDeps<'_> {
+    DerivedArtifactDeps::with_pipeline_command("python3", pipeline.to_str().unwrap())
 }
 
 #[test]
-fn end_to_end_a_page_count_mismatch_surfaces_the_python_error() {
+fn end_to_end_the_real_pipeline_builds_a_full_length_merged_directory_and_caches_it() {
     let dir = Dir::new();
+    let data_root = dir.0.join("data");
     let source = dir.0.join("source.pdf");
-    let rendered = dir.0.join("r.pdf");
-    make_pdf(&source, &["SRC 1", "SRC 2"]);
-    make_pdf(&rendered, &["ZH 1"]);
-    let coverages = [cov("r", &rendered, &[1])];
-    // 计划比源 PDF 少一页 —— 拼接器必须拒绝，错误里要带出原因。
-    let plan = [job("r", 0)];
+    make_pdf(&source, &["SRC 1", "SRC 2", "SRC 3", "SRC 4"]);
+    // 两个从不同位置开始的范围任务：各自的「第 1 页」都叫 p001。
+    let coverages = [
+        make_range_job(&dir.0, "a", &[1], &["ZH 1"]),
+        make_range_job(&dir.0, "mid", &[3, 4], &["ZH 3", "ZH 4"]),
+    ];
+    let plan = crate::services::document_pages::merge_plan(4, &coverages);
     let pipeline = project_venv_bin("retainpdf-pipeline");
-    let deps = DerivedArtifactDeps::with_pipeline_command("python3", pipeline.to_str().unwrap());
-    let error = ensure_merged_translated_pdf(deps, &dir.0.join("data"), "doc1", &source, &plan, &coverages)
+
+    let merged =
+        ensure_merged_translation(pipeline_deps(&pipeline), &data_root, "doc1", &source, &plan, &coverages)
+            .unwrap();
+    assert!(merged.root.starts_with(data_root.join("documents/doc1/merged")));
+    assert_eq!(python(PAGE_TEXTS, &[&merged.output_pdf()]).trim(), "ZH 1|SRC 2|ZH 3|ZH 4");
+
+    let manifest: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(merged.translations_dir().join("translation-manifest.json")).unwrap(),
+    )
+    .unwrap();
+    let indices: Vec<_> = manifest["pages"].as_array().unwrap().iter().map(|p| p["page_index"].as_i64().unwrap()).collect();
+    assert_eq!(indices, [0, 2, 3]);
+    let page4: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(merged.translations_dir().join("page-004.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(page4[0]["item_id"], "p004-b001", "mid 的本地第 2 页没改成文档第 4 页");
+    assert_eq!(page4[0]["translated_text"], "ZH 4");
+    let document: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(merged.normalized_document()).unwrap()).unwrap();
+    assert_eq!(document["pages"].as_array().unwrap().len(), 4, "OCR 文档不是整本长度");
+
+    // 第二次直接命中缓存：同一个目录，PDF 没有重写。
+    let stamp = std::fs::metadata(merged.output_pdf()).unwrap().modified().unwrap();
+    let again =
+        ensure_merged_translation(pipeline_deps(&pipeline), &data_root, "doc1", &source, &plan, &coverages)
+            .unwrap();
+    assert_eq!(again, merged);
+    assert_eq!(std::fs::metadata(again.output_pdf()).unwrap().modified().unwrap(), stamp);
+
+    // 不留临时目录和计划文件。
+    let leftovers: Vec<_> = std::fs::read_dir(merged.root.parent().unwrap())
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .filter(|name| name.starts_with('.'))
+        .collect();
+    assert!(leftovers.is_empty(), "残留: {leftovers:?}");
+}
+
+#[test]
+fn end_to_end_a_failed_step_publishes_nothing_and_surfaces_the_python_error() {
+    let dir = Dir::new();
+    let data_root = dir.0.join("data");
+    let source = dir.0.join("source.pdf");
+    make_pdf(&source, &["SRC 1", "SRC 2"]);
+    let mut job = make_range_job(&dir.0, "r", &[1], &["ZH 1"]);
+    // OCR 页号表说这个任务只覆盖第 2 页，计划却从它取第 1 页 —— 数据层必须拒绝。
+    job.ocr_page_numbers = vec![2];
+    let plan = [job_page("r", 0), PageSource::Original];
+    let pipeline = project_venv_bin("retainpdf-pipeline");
+    let error = ensure_merged_translation(pipeline_deps(&pipeline), &data_root, "doc1", &source, &plan, &[job])
         .unwrap_err()
         .to_string();
-    assert!(error.contains("plan has 1 pages but source pdf has 2"), "{error}");
+    assert!(error.contains("document page 1 is not in this job's OCR coverage"), "{error}");
+    let merged_dir = data_root.join("documents/doc1/merged");
+    let entries: Vec<_> = std::fs::read_dir(&merged_dir).unwrap().collect();
+    assert!(entries.is_empty(), "失败后留下了东西: {entries:?}");
+}
+
+fn job_page(id: &str, local: usize) -> PageSource {
+    job(id, local)
 }

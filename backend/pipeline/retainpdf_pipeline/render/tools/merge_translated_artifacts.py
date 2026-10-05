@@ -75,6 +75,18 @@ def _optional_path(value) -> Path | None:
     return Path(value) if isinstance(value, str) and value else None
 
 
+def source_page_sizes(source_pdf: Path) -> list[tuple[float, float]]:
+    """没被任何任务覆盖的页，OCR 文档里也要有一页（整本长度），尺寸取源 PDF 的可见区域。"""
+    import pikepdf
+
+    with pikepdf.Pdf.open(source_pdf) as pdf:
+        sizes = []
+        for page in pdf.pages:
+            x0, y0, x1, y1 = (float(v) for v in page.cropbox)
+            sizes.append((abs(x1 - x0), abs(y1 - y0)))
+        return sizes
+
+
 def load_plan(plan_path: Path) -> ArtifactPlan:
     raw = json.loads(plan_path.read_text(encoding="utf-8"))
     try:
@@ -90,6 +102,8 @@ def load_plan(plan_path: Path) -> ArtifactPlan:
         }
         pages = [None if entry is None else str(entry["job"]) for entry in raw["pages"]]
         sizes = raw.get("page_sizes")
+        if sizes is None and raw.get("source_pdf"):
+            sizes = source_page_sizes(Path(raw["source_pdf"]))
         page_sizes = None if sizes is None else [(float(w), float(h)) for w, h in sizes]
     except (KeyError, TypeError, ValueError) as exc:
         raise MergeArtifactsError(f"invalid artifact merge plan: {exc}") from exc
