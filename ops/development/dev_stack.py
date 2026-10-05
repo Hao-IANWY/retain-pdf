@@ -67,7 +67,19 @@ class RepoPaths:
         #     export UV_PROJECT_ENVIRONMENT=/path/to/main-checkout/backend/.venv
         #
         # 不设就还是 `<repo>/backend/.venv`，和以前一样。
-        venv_root = Path(venv) if (venv := (environ or os.environ).get("UV_PROJECT_ENVIRONMENT")) else services / ".venv"
+        # **不读 os.environ**，只认显式传进来的那份。
+        #
+        # 读全局会咬人：`tests/test_dev_stack.py` 的 make_paths 造一个 tmp 下的假
+        # script，期望所有路径都落在 tmp_path 里，然后往 venv_python 和
+        # pipeline_command 写 "stub"。第一版这里写的是 `environ or os.environ`，
+        # 于是 shell 里 export 过 UV_PROJECT_ENVIRONMENT 的人跑这个测试，stub 会被
+        # 写进**真的 venv** —— 而 `bin/python` 是指向 uv 托管解释器的符号链接，
+        # 写穿之后那个解释器本体也成了 "stub"，所有项目一起坏。（真发生过。）
+        venv_root = (
+            Path(venv)
+            if (venv := (environ or {}).get("UV_PROJECT_ENVIRONMENT"))
+            else services / ".venv"
+        )
         venv_bin = venv_root / ("Scripts" if os.name == "nt" else "bin")
         return cls(
             product=product,
@@ -117,7 +129,7 @@ def parse_args(
     paths: RepoPaths | None = None,
     environ: Mapping[str, str] | None = None,
 ) -> Options:
-    repo = paths or RepoPaths.from_script()
+    repo = paths or RepoPaths.from_script(environ=os.environ)
     source_env = os.environ if environ is None else environ
     parser = argparse.ArgumentParser(
         description="Prepare and run the RetainPDF backend development stack."
@@ -562,7 +574,7 @@ def run(
     paths: RepoPaths | None = None,
     environ: Mapping[str, str] | None = None,
 ) -> int:
-    repo = paths or RepoPaths.from_script()
+    repo = paths or RepoPaths.from_script(environ=os.environ)
     source_env = dict(os.environ if environ is None else environ)
     options = parse_args(argv, paths=repo, environ=source_env)
     runtime_env = build_runtime_env(repo, options, source_env)

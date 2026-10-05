@@ -37,6 +37,41 @@ def make_paths(tmp_path: Path) -> object:
     return paths
 
 
+def test_make_paths_never_escapes_tmp_path(tmp_path: Path) -> None:
+    """夹具往 venv_python / pipeline_command 写 "stub"，所以它们**必须**在 tmp_path 里。
+
+    真发生过：`RepoPaths.from_script` 一度在不传 environ 时读 `os.environ`，于是
+    shell 里 export 过 UV_PROJECT_ENVIRONMENT 的人跑这个文件，stub 被写进真的 venv。
+    而 `bin/python` 是指向 uv 托管解释器的符号链接 —— 写穿之后那个解释器本体也成了
+    "stub"，所有项目一起坏，得 `uv python install --reinstall` 才能救回来。
+
+    所以这一条不是在测 dev_stack，是在挡住**这个测试文件自己**往仓库外写。
+    """
+    import os as _os
+
+    before = _os.environ.get("UV_PROJECT_ENVIRONMENT")
+    _os.environ["UV_PROJECT_ENVIRONMENT"] = "/definitely/not/under/tmp/venv"
+    try:
+        paths = make_paths(tmp_path)
+    finally:
+        if before is None:
+            _os.environ.pop("UV_PROJECT_ENVIRONMENT", None)
+        else:
+            _os.environ["UV_PROJECT_ENVIRONMENT"] = before
+
+    written = (
+        paths.venv_python,
+        paths.pipeline_command,
+        paths.rust_api,
+        paths.jobsd,
+        paths.agent,
+    )
+    escaped = [str(path) for path in written if tmp_path not in path.parents]
+    assert escaped == [], (
+        "夹具会往这些路径写 \"stub\"，而它们跑到 tmp_path 外面去了：" + ", ".join(escaped)
+    )
+
+
 def options(paths: object, *args: str, environ: dict[str, str] | None = None) -> object:
     return dev_stack.parse_args(args, paths=paths, environ=environ or {})
 
