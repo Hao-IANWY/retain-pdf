@@ -17,9 +17,13 @@
 //!
 //! # 数据从哪来
 //!
-//! - **OCR 覆盖的文档页**：`ocr_artifact_reuse::source_document_pages`。注意
-//!   `artifacts.ocr_page_numbers` 虽然在代码里，但 DB 里 61 个 job **一个都没持久化它**，
-//!   真正起作用的是重新解析 OCR 请求里的 `page_ranges` 字符串那条兜底路径。
+//! - **OCR 覆盖的文档页**：`ocr_artifact_reuse::source_document_pages`。主路径是
+//!   `artifacts.ocr_page_numbers`（`artifacts` 表的 `artifacts_json`），实测 61 个 job 里
+//!   **59 个有**，缺的 2 个是取消或失败的任务。重新解析 OCR 请求里 `page_ranges` 字符串
+//!   只是罕见兜底。
+//!
+//!   （这里原先写的是「一个都没持久化」—— 错的。当时只查了 `jobs` 表的几个 JSON 列，
+//!   列表名时又按 `'job' in name` 过滤，把 `artifacts` 表滤掉了。）
 //! - **翻译挑了 OCR 产物里的哪一段**：job spec 里的 `translation.start_page / end_page`，
 //!   已经被 `prepare.rs` 改写成本地位置。
 
