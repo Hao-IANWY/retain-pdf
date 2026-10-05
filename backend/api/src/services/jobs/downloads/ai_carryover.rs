@@ -114,21 +114,27 @@ struct SourceWorkspace {
     dir: std::path::PathBuf,
 }
 
-/// 同一本书里，最近一个真干过活的 job。
+/// 同一本书里，最近一个真干过活的工作区。
+///
+/// 候选是这本书的其它任务（按 `updated_at` 新到旧，取第一个有产出的），外加**合并书的
+/// 文档级工作区** `documents/<书>/ai/`：多次范围翻译的书以合并结果打开，agent 在那里干活。
+/// 两者都有产出时，取最近改动过的那个 —— 用户在合并书上整理了一下午的概念图，之后单独
+/// 打开某一次翻译时不该看到更早的旧版本。
 fn find_source_workspace(
     db: &Db,
     data_root: &Path,
     job: &JobSnapshot,
 ) -> Option<SourceWorkspace> {
     // 合并结果的虚拟 id 不在 jobs 表里，但 id 本身写着它属于哪本书。
-    let document_id = match crate::storage_paths::MergedJobId::parse(&job.job_id) {
-        Some(merged) => merged.document_id,
+    let merged = crate::storage_paths::MergedJobId::parse(&job.job_id);
+    let document_id = match &merged {
+        Some(merged) => merged.document_id.clone(),
         None => db.document_id_for_job(&job.job_id).ok()??,
     };
     let candidates = db
         .list_jobs_for_document(&document_id, MAX_CANDIDATE_JOBS, 0)
         .ok()?;
-    candidates
+    let from_jobs = candidates
         .into_iter()
         .filter(|candidate| candidate.job_id != job.job_id)
         .find_map(|candidate| {
@@ -137,7 +143,54 @@ fn find_source_workspace(
                 job_id: candidate.job_id.clone(),
                 dir,
             })
-        })
+        });
+    // 合并书自己的工作区就是文档级的那个，不从自己接。
+    if merged.is_some() {
+        return from_jobs;
+    }
+    let document_dir = data_root.join("documents").join(&document_id).join("ai");
+    if !has_agent_output(&document_dir) {
+        return from_jobs;
+    }
+    let from_document = SourceWorkspace {
+        job_id: format!("document:{document_id}"),
+        dir: document_dir,
+    };
+    match from_jobs {
+        Some(job_workspace) if latest_change(&job_workspace.dir) >= latest_change(&from_document.dir) => {
+            Some(job_workspace)
+        }
+        _ => Some(from_document),
+    }
+}
+
+/// 工作区最近一次改动：下面两层**文件**里最新的修改时间（`board/` 只有一层）。
+///
+/// 不算目录自己的修改时间：接力、生成 AGENTS.md 都会碰目录，那不是 agent 干的活。
+fn latest_change(dir: &Path) -> std::time::SystemTime {
+    fn walk(path: &Path, depth: usize, latest: &mut std::time::SystemTime) {
+        let Ok(meta) = fs::symlink_metadata(path) else { return };
+        if meta.is_file() {
+            if path.file_name().is_some_and(|name| name == GENERATED_INSTRUCTIONS_FILE_NAME || name == CARRY_MARKER_FILE_NAME) {
+                return;
+            }
+            if let Ok(modified) = meta.modified() {
+                *latest = (*latest).max(modified);
+            }
+            return;
+        }
+        if depth == 0 || !meta.is_dir() {
+            return;
+        }
+        if let Ok(entries) = fs::read_dir(path) {
+            for entry in entries.flatten() {
+                walk(&entry.path(), depth - 1, latest);
+            }
+        }
+    }
+    let mut latest = std::time::SystemTime::UNIX_EPOCH;
+    walk(dir, 2, &mut latest);
+    latest
 }
 
 /// 先抢标记再复制。

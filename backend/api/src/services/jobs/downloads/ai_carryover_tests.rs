@@ -255,3 +255,46 @@ async fn does_not_follow_symlinks() {
     // 正常文件照搬 —— 免得这条测试被「干脆不搬 board」蒙混过去。
     assert!(new.join("ai").join("board").join("chart.png").exists());
 }
+
+// ── 合并书的文档级工作区 ───────────────────────────────────────────────────
+
+fn seed_document_workspace(fx: &Fixture, canvas: &str) -> PathBuf {
+    let ai = fx.root.join("documents").join(DOCUMENT_ID).join("ai");
+    fs::create_dir_all(&ai).unwrap();
+    fs::write(ai.join("canvas.v1.json"), canvas).unwrap();
+    ai
+}
+
+fn age(path: &Path, seconds_ago: u64) {
+    let when = std::time::SystemTime::now() - std::time::Duration::from_secs(seconds_ago);
+    let file = fs::File::options().write(true).open(path).unwrap();
+    file.set_modified(when).unwrap();
+}
+
+#[tokio::test]
+async fn a_single_translation_picks_up_newer_work_done_on_the_merged_book() {
+    // 用户在合并书上整理了概念图，之后单独打开某一次翻译：接合并书上那份更新的。
+    let fx = Fixture::new();
+    let old = fx.seed_workspace(&fx.job("old-job", DOCUMENT_ID));
+    age(&old.join("canvas.v1.json"), 3600);
+    age(&old.join("reading-path.v1.json"), 3600);
+    age(&old.join("probe.sh"), 3600);
+    age(&old.join("board").join("chart.png"), 3600);
+    seed_document_workspace(&fx, r#"{"nodes":["合并书上的概念图"]}"#);
+    fx.job("new-job", DOCUMENT_ID);
+
+    let path = fx.fetch_canvas("new-job").await;
+    assert_eq!(fs::read_to_string(&path).unwrap(), r#"{"nodes":["合并书上的概念图"]}"#);
+}
+
+#[tokio::test]
+async fn an_older_merged_workspace_does_not_beat_newer_work_on_a_job() {
+    let fx = Fixture::new();
+    let document_ai = seed_document_workspace(&fx, r#"{"nodes":["合并书上的旧概念图"]}"#);
+    age(&document_ai.join("canvas.v1.json"), 3600);
+    fx.seed_workspace(&fx.job("old-job", DOCUMENT_ID));
+    fx.job("new-job", DOCUMENT_ID);
+
+    let path = fx.fetch_canvas("new-job").await;
+    assert_eq!(fs::read_to_string(&path).unwrap(), r#"{"nodes":["旧概念图"]}"#);
+}
