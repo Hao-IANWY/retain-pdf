@@ -119,6 +119,14 @@ export declare function fetchDocumentList(apiPrefix: string, { limit, offset, re
 export declare function fetchDocumentByJobId(apiPrefix: string, jobId: string): Promise<DocumentRecord | null>;
 export declare function fetchDocument(apiPrefix: string, documentId: string): Promise<DocumentRecord>;
 export declare function patchDocument(apiPrefix: string, documentId: string, payload?: Record<string, unknown>): Promise<DocumentRecord>;
+/** GET /documents/:id/reading —— 阅读器该打开哪个任务。 */
+export type DocumentReadingView = {
+    /** 该打开的任务 id；多次范围翻译拼成的是 `merged-<文档>-<指纹>`。null = 还没有可读的译文。 */
+    job_id: string | null;
+    merged: boolean;
+    contributing_job_ids: string[];
+};
+export declare function fetchDocumentReading(apiPrefix: string, documentId: string): Promise<DocumentReadingView>;
 export declare function createDocumentMetadataSuggestion(apiPrefix: string, documentId: string, payload?: CreateDocumentMetadataSuggestionInput): Promise<DocumentMetadataSuggestion>;
 export declare function fetchDocumentMetadataSuggestions(apiPrefix: string, documentId: string, { limit }?: {
     limit?: number;

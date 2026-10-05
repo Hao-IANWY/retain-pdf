@@ -215,6 +215,24 @@ export async function patchDocument(apiPrefix: string, documentId: string, paylo
   return unwrapEnvelope<DocumentRecord>(await resp.json());
 }
 
+/** GET /documents/:id/reading —— 阅读器该打开哪个任务。 */
+export type DocumentReadingView = {
+  /** 该打开的任务 id；多次范围翻译拼成的是 `merged-<文档>-<指纹>`。null = 还没有可读的译文。 */
+  job_id: string | null;
+  merged: boolean;
+  contributing_job_ids: string[];
+};
+
+export async function fetchDocumentReading(apiPrefix: string, documentId: string): Promise<DocumentReadingView> {
+  const normalized = `${documentId || ""}`.trim();
+  if (!normalized) throw new Error("缺少 document_id。");
+  const resp = await fetch(buildApiEndpoint(apiPrefix, `documents/${encodeURIComponent(normalized)}/reading`), {
+    headers: buildApiHeaders(),
+  });
+  if (!resp.ok) throw new Error(`读取阅读入口失败。(${resp.status})`);
+  return unwrapEnvelope<DocumentReadingView>(await resp.json());
+}
+
 export async function createDocumentMetadataSuggestion(
   apiPrefix: string,
   documentId: string,

@@ -78,6 +78,48 @@ afterEach(async () => {
   setReaderNavigateForTests(null);
 });
 
+test("openReaderRequested：一本书翻译过多次时，打开后端给的合并结果而不是 active_job_id", async () => {
+  const dom = makeDom("");
+  const hits = { assign: [], replace: [] };
+  const asked = [];
+  const merged = `merged-${"a".repeat(64)}-0123456789abcdef`;
+  const { setReaderNavigateForTests } = await import("../../src/features/reader/domain.ts");
+  setReaderNavigateForTests((url, { replace } = {}) => {
+    if (replace) hits.replace.push(url);
+    else hits.assign.push(url);
+  });
+  const { createRoot } = await import("react-dom/client");
+  const React = await import("react");
+  const { ReaderNavigation } = await import("../../src/features/reader/index.js");
+  const { APP_EVENTS } = await import("@/platform/contracts/app-contract.js");
+
+  const host = dom.window.document.createElement("div");
+  dom.window.document.body.appendChild(host);
+  const root = createRoot(host);
+  root.render(
+    React.createElement(ReaderNavigation, {
+      fetchReading: async (documentId) => {
+        asked.push(documentId);
+        return { job_id: merged };
+      },
+    }),
+  );
+  await wait(20);
+  dom.window.document.dispatchEvent(
+    new dom.window.CustomEvent(APP_EVENTS.openReaderRequested, {
+      detail: { jobId: "job-latest-range", documentId: "doc-1", pageIdx: null, blockId: "" },
+    }),
+  );
+
+  await waitFor(() => hits.assign.length > 0, "应导航到阅读页");
+  assert.deepEqual(asked, ["doc-1"]);
+  assert.match(hits.assign[0], new RegExp(`job_id=${merged}`));
+  assert.doesNotMatch(hits.assign[0], /job-latest-range/);
+
+  root.unmount();
+  host.remove();
+});
+
 test("openReaderRequested：跳转到 reader.html?job_id=（非 iframe）", async () => {
   const dom = makeDom("?mock=parallel");
   const hits = { assign: [], replace: [] };

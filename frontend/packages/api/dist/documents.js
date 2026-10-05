@@ -89,6 +89,17 @@ export async function patchDocument(apiPrefix, documentId, payload = {}) {
     }
     return unwrapEnvelope(await resp.json());
 }
+export async function fetchDocumentReading(apiPrefix, documentId) {
+    const normalized = `${documentId || ""}`.trim();
+    if (!normalized)
+        throw new Error("缺少 document_id。");
+    const resp = await fetch(buildApiEndpoint(apiPrefix, `documents/${encodeURIComponent(normalized)}/reading`), {
+        headers: buildApiHeaders(),
+    });
+    if (!resp.ok)
+        throw new Error(`读取阅读入口失败。(${resp.status})`);
+    return unwrapEnvelope(await resp.json());
+}
 export async function createDocumentMetadataSuggestion(apiPrefix, documentId, payload = {}) {
     const normalized = `${documentId || ""}`.trim();
     if (!normalized)
