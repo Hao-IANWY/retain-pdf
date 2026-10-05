@@ -53,8 +53,8 @@ export function useBookDetailTranslate({
       if (artifactJobId) {
         // 复用已有 OCR：不裁页，artifact 里是整本的 OCR JSON，
         // 所以这里给的是**原文 1 基页号**，由 ocr_artifact_reuse.rs 按页号挑页。
-        // 混合范围在复用 OCR 这条路上今天会被 non_contiguous_artifact_selection 拒绝 ——
-        // 要等「拆成连续子任务」那一步。连续范围照常可用。
+        // 混合范围、或超出这份 OCR 覆盖的页，后端按连续段拆成几个任务（library/translate_plan.rs）：
+        // 有 OCR 整段覆盖的复用它，没有的那段重新 OCR。回包里 sibling_job_ids 是拆出来的其余任务。
         payload.translation = { page_ranges: checked.pages };
       } else {
         // 无可复用 OCR：ocr.page_ranges 会让 runner 先把 PDF 裁成子集

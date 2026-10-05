@@ -23,7 +23,43 @@ pub(crate) fn validate_ocr_artifact_reuse(
     expected_document_id: Option<&str>,
     expected_document_page_count: Option<u32>,
 ) -> Result<TranslationArtifactSelection, AppError> {
-    let source_job_id = request.source.artifact_job_id.trim();
+    let (source_job, source_pdf) = validate_reusable_source(
+        db,
+        data_root,
+        request.source.artifact_job_id.trim(),
+        expected_document_id,
+    )?;
+    resolve_translation_selection(
+        request,
+        &source_job,
+        &source_pdf,
+        expected_document_page_count,
+    )
+}
+
+/// 这个任务的 OCR 产物能复用的话，它覆盖了哪些文档页（1 起、升序）；不能复用返回 `None`。
+///
+/// 混合页码拆段时用：每一段找一个能整段覆盖它的 OCR。
+pub(crate) fn reusable_ocr_coverage(
+    db: &Db,
+    data_root: &Path,
+    source_job_id: &str,
+    document_id: &str,
+    document_page_count: u32,
+) -> Option<Vec<u32>> {
+    let (source_job, source_pdf) =
+        validate_reusable_source(db, data_root, source_job_id, Some(document_id)).ok()?;
+    source_document_pages(&source_job, &source_pdf, document_page_count).ok()
+}
+
+/// 「这个任务的 OCR 产物能不能复用」：成功了、属于这本书、产物格式支持、文件都在。
+/// 返回任务和它的源 PDF。请求的页在里面是什么位置，是 `resolve_translation_selection` 的事。
+fn validate_reusable_source(
+    db: &Db,
+    data_root: &Path,
+    source_job_id: &str,
+    expected_document_id: Option<&str>,
+) -> Result<(JobSnapshot, PathBuf), AppError> {
     let source_job = db.get_job(source_job_id).map_err(|_| {
         reuse_error(
             StatusCode::NOT_FOUND,
@@ -94,13 +130,7 @@ pub(crate) fn validate_ocr_artifact_reuse(
         "missing_source_pdf",
     )?;
     require_layout_file(data_root, artifacts.layout_json.as_deref())?;
-
-    resolve_translation_selection(
-        request,
-        &source_job,
-        &source_pdf,
-        expected_document_page_count,
-    )
+    Ok((source_job, source_pdf))
 }
 
 fn ocr_stage_succeeded(db: &Db, source_job: &JobSnapshot) -> bool {

@@ -14,6 +14,7 @@ mod metadata_suggestions;
 mod ocr;
 mod search;
 mod translate;
+mod translate_plan;
 
 use std::path::Path;
 

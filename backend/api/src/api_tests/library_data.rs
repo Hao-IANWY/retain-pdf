@@ -1673,7 +1673,7 @@ async fn document_translate_rejects_missing_layout_without_exposing_path() {
 }
 
 #[tokio::test]
-async fn document_translate_rejects_uncovered_translation_pages() {
+async fn document_translate_needs_ocr_settings_for_pages_outside_existing_ocr() {
     let state = test_state("library-document-translate-reuse-page-coverage");
     let app = build_app(state.clone());
     let document_id = seed_document(&state, b"translate-reuse-page-coverage");
@@ -1713,10 +1713,108 @@ async fn document_translate_rejects_uncovered_translation_pages() {
         )
         .await
         .expect("translate response");
-    assert_eq!(response.status(), StatusCode::CONFLICT);
+    // 第 4 页不在已有 OCR（1-3）里：按「允许自动补 OCR」要重新识别它，但请求里没有 OCR
+    // 凭据。要说清楚是哪几页、为什么，而且一个任务都不能建（不留半截提交）。
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     let payload = json_response(response).await;
-    assert_eq!(payload["code"], "OCR_PAGE_COVERAGE_MISMATCH");
-    assert_eq!(payload["reason"], "page_coverage_mismatch");
+    let message = payload["message"].as_str().unwrap_or_default();
+    assert!(message.contains("第 4 页") && message.contains("重新识别"), "{message}");
+    let conn = rusqlite::Connection::open(&state.config.jobs_db_path).unwrap();
+    let job_ids: Vec<String> = conn
+        .prepare("SELECT job_id FROM jobs")
+        .unwrap()
+        .query_map([], |row| row.get(0))
+        .unwrap()
+        .map(|row| row.unwrap())
+        .collect();
+    assert_eq!(job_ids, vec!["ocr-partial-pages".to_string()], "失败的提交建出了任务");
+}
+
+async fn post_translate(app: &axum::Router, document_id: &str, body: serde_json::Value) -> (StatusCode, serde_json::Value) {
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/api/v1/documents/{document_id}/translate"))
+                .header("X-API-Key", "test-key")
+                .header("content-type", "application/json")
+                .body(Body::from(body.to_string()))
+                .expect("request"),
+        )
+        .await
+        .expect("translate response");
+    let status = response.status();
+    (status, json_response(response).await)
+}
+
+fn submitted_jobs(state: &crate::AppState, payload: &serde_json::Value) -> Vec<JobSnapshot> {
+    let mut ids = vec![payload["data"]["job_id"].as_str().expect("job id").to_string()];
+    ids.extend(
+        payload["data"]["sibling_job_ids"]
+            .as_array()
+            .map(|ids| ids.iter().map(|id| id.as_str().unwrap().to_string()).collect::<Vec<_>>())
+            .unwrap_or_default(),
+    );
+    ids.iter().map(|id| state.db.get_job(id).expect("submitted job")).collect()
+}
+
+#[tokio::test]
+async fn mixed_pages_on_one_ocr_split_into_one_translation_per_contiguous_run() {
+    let state = test_state("library-document-translate-mixed-runs");
+    let app = build_app(state.clone());
+    let document_id = seed_document(&state, b"translate-mixed-runs");
+    let source_job_id = seed_reusable_ocr_job(&state, &document_id, "ocr-whole-book");
+
+    let (status, payload) = post_translate(&app, &document_id, serde_json::json!({
+        "workflow": "translate",
+        "source": { "artifact_job_id": source_job_id },
+        "translation": { "page_ranges": [7, 1, 2], "api_key": "sk-test", "model": "m", "base_url": "https://api.example.com/v1" }
+    })).await;
+    assert_eq!(status, StatusCode::OK, "{payload}");
+    let jobs = submitted_jobs(&state, &payload);
+    let mut runs: Vec<(String, Vec<u32>)> = jobs
+        .iter()
+        .map(|job| (job.request_payload.source.artifact_job_id.clone(), job.request_payload.translation.page_ranges.clone()))
+        .collect();
+    runs.sort();
+    assert_eq!(
+        runs,
+        vec![("ocr-whole-book".to_string(), vec![1, 2]), ("ocr-whole-book".to_string(), vec![7])],
+        "1、2、7 页应拆成两段、都复用同一份 OCR"
+    );
+    for job in &jobs {
+        assert_eq!(state.db.document_id_for_job(&job.job_id).unwrap().as_deref(), Some(document_id.as_str()));
+    }
+}
+
+#[tokio::test]
+async fn pages_beyond_the_existing_ocr_get_a_fresh_ocr_job_for_just_that_run() {
+    let state = test_state("library-document-translate-fresh-ocr");
+    let app = build_app(state.clone());
+    let document_id = seed_document(&state, b"translate-fresh-ocr");
+    let source_job_id = seed_reusable_ocr_job(&state, &document_id, "ocr-first-three");
+    let mut source_job = state.db.get_job(&source_job_id).unwrap();
+    source_job.artifacts.as_mut().unwrap().ocr_page_numbers = vec![1, 2, 3];
+    state.db.save_job(&source_job).unwrap();
+
+    let (status, payload) = post_translate(&app, &document_id, serde_json::json!({
+        "workflow": "translate",
+        "source": { "artifact_job_id": source_job_id },
+        "ocr": { "provider": "mineru", "mineru_token": "test-mineru-token" },
+        "translation": { "page_ranges": [1, 2, 3, 5, 6], "api_key": "sk-test", "model": "m", "base_url": "https://api.example.com/v1" }
+    })).await;
+    assert_eq!(status, StatusCode::OK, "{payload}");
+    let jobs = submitted_jobs(&state, &payload);
+    assert_eq!(jobs.len(), 2);
+    let reuse = jobs.iter().find(|job| !job.request_payload.source.artifact_job_id.is_empty()).expect("reuse job");
+    assert_eq!(reuse.request_payload.source.artifact_job_id, "ocr-first-three");
+    assert_eq!(reuse.request_payload.translation.page_ranges, vec![1, 2, 3]);
+    let fresh = jobs.iter().find(|job| job.request_payload.source.artifact_job_id.is_empty()).expect("fresh job");
+    assert_eq!(fresh.workflow, WorkflowKind::Book);
+    assert_eq!(fresh.request_payload.ocr.page_ranges, "5-6", "只 OCR 超出的那一段");
+    assert!(fresh.request_payload.translation.page_ranges.is_empty());
+    assert_eq!(payload["data"]["job_id"], fresh.job_id, "补 OCR 的段排在前面");
 }
 
 #[tokio::test]

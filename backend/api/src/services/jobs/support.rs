@@ -26,6 +26,7 @@ pub(crate) fn build_submission_view(
         stages: build_job_stage_view(&view_job, None).stages,
         links: build_job_links_with_workflow(&job.job_id, &workflow, base_url),
         actions: build_job_actions(&view_job, base_url, false, false, false),
+        sibling_job_ids: Vec::new(),
     }
 }
 

@@ -14,6 +14,10 @@ pub struct JobSubmissionView {
     pub stages: JobStagesView,
     pub links: JobLinksView,
     pub actions: JobActionsView,
+    /// 同一次提交拆出来的其它任务（混合页码复用 OCR 时按连续段拆，见 api 的
+    /// `library::translate_plan`）。上面的字段描述第一个任务。
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sibling_job_ids: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Clone, PartialEq)]
