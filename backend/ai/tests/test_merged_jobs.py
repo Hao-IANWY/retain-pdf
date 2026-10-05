@@ -83,3 +83,30 @@ def test_the_merged_instructions_point_at_the_current_merged_directory(tmp_path:
     assert stray == [], stray
     assert "多次翻译拼成" in text
     assert "detached:" in text
+
+
+class _Rust:
+    def __init__(self, reading, active="job-latest-range"):
+        self._reading = reading
+        self._active = active
+
+    def get_document_reading(self, document_id):
+        if isinstance(self._reading, Exception):
+            raise self._reading
+        return self._reading
+
+    def get_document(self, document_id):
+        return {"document_id": document_id, "active_job_id": self._active}
+
+
+def test_a_document_scoped_question_reads_the_whole_merged_book_not_the_latest_range() -> None:
+    from retainpdf_ai.tools import _reading_job_id
+
+    assert _reading_job_id(_Rust({"job_id": MERGED}), "doc-1") == MERGED
+
+
+def test_without_a_reading_entry_it_falls_back_to_the_active_job() -> None:
+    from retainpdf_ai.tools import _reading_job_id
+
+    assert _reading_job_id(_Rust({"job_id": None}), "doc-1") == "job-latest-range"
+    assert _reading_job_id(_Rust(RuntimeError("404")), "doc-1") == "job-latest-range"

@@ -282,17 +282,46 @@ fn update_document_after_job(deps: &ProcessRuntimeDeps, job: &JobRuntimeState) {
     if job.status != JobStatusKind::Succeeded {
         return;
     }
-    // OCR-only 吸怪：允许 OCR 任务在无其他成功任务时成为 active_job，避免“OCR 后刷新消失”
-    // 非 OCR 仍优先，但 OCR 也不再直接 return
-    if let Err(error) = deps
-        .db
-        .set_document_active_job(&document_id, &job.job_id, None)
-    {
-        error!("library: set active job for {document_id} failed: {error}");
+    // 书卡该展示哪个任务：不再无条件覆盖（旧任务后完成会顶掉正在跑的新任务，纯 OCR 会顶掉
+    // 翻译好的任务）。规则见 `active_job::active_job_after_success`。
+    if let Some(next) = next_active_job(deps, &document_id, &job.job_id) {
+        if let Err(error) = deps.db.set_document_active_job(&document_id, &next, None) {
+            error!("library: set active job for {document_id} failed: {error}");
+        }
     }
     // 按这本书所有成功任务重建索引（每页取最新的那个）。只索引刚完成的这个任务的话，翻完
     // 1-5 页再翻 6-10 页，前 5 页就搜不到了。
     if let Err(error) = deps.db.rebuild_document_fts(&document_id) {
         error!("library: fts rebuild for {document_id} failed: {error}");
     }
+}
+
+fn next_active_job(deps: &ProcessRuntimeDeps, document_id: &str, finished_job_id: &str) -> Option<String> {
+    use super::active_job::{active_job_after_success, ActiveCandidate};
+    fn candidate(job: &JobSnapshot) -> ActiveCandidate<'_> {
+        ActiveCandidate {
+            job_id: &job.job_id,
+            created_at: &job.created_at,
+            workflow: &job.workflow,
+            status: &job.status,
+        }
+    }
+    let finished = deps.db.get_job(finished_job_id).ok()?;
+    let current = deps
+        .db
+        .get_document(document_id)
+        .ok()
+        .and_then(|document| document.active_job_id)
+        .filter(|id| !id.is_empty())
+        .and_then(|id| deps.db.get_job(&id).ok());
+    let jobs = deps.db.list_jobs_for_document(document_id, 500, 0).unwrap_or_default();
+    let newest_translation = jobs
+        .iter()
+        .filter(|job| job.status == JobStatusKind::Succeeded && job.workflow != WorkflowKind::Ocr)
+        .max_by(|a, b| (&a.created_at, &a.job_id).cmp(&(&b.created_at, &b.job_id)));
+    active_job_after_success(
+        current.as_ref().map(candidate),
+        candidate(&finished),
+        newest_translation.map(candidate),
+    )
 }

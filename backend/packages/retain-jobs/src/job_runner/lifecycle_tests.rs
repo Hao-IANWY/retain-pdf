@@ -313,3 +313,76 @@ async fn cancel_while_waiting_for_a_slot_still_lands_a_terminal_state() {
         after.status
     );
 }
+
+// ── 任务成功后 active_job_id 换不换 ────────────────────────────────────────
+
+fn seed_document(fx: &Fixture) -> String {
+    let upload = crate::models::domain::UploadRecord {
+        upload_id: "up-1".into(),
+        filename: "book.pdf".into(),
+        stored_path: "uploads/up-1/book.pdf".into(),
+        bytes: 1,
+        page_count: 10,
+        uploaded_at: crate::models::domain::now_iso(),
+        developer_mode: false,
+        content_hash: "d".repeat(64),
+    };
+    fx.deps.db.save_upload(&upload).unwrap();
+    fx.deps.db.upsert_document_from_upload(&upload).unwrap();
+    "d".repeat(64)
+}
+
+fn document_job(fx: &Fixture, id: &str, created_at: &str, workflow: WorkflowKind, status: JobStatusKind) -> JobSnapshot {
+    let mut job = JobSnapshot::new(id.into(), CreateJobInput::default(), vec!["fake-worker".into()]);
+    job.status = status;
+    job.workflow = workflow;
+    job.created_at = created_at.into();
+    job.upload_id = Some("up-1".into());
+    fx.deps.db.save_job(&job).unwrap();
+    fx.deps.db.link_job_to_document(id, "up-1").unwrap();
+    job
+}
+
+fn active(fx: &Fixture, document_id: &str) -> Option<String> {
+    fx.deps.db.get_document(document_id).unwrap().active_job_id
+}
+
+#[test]
+fn an_older_job_finishing_while_a_newer_one_runs_keeps_the_newer_on_the_card() {
+    // 先提交 1-5 页（old），再提交 6-10 页（new）。new 提交时指针给了它；old 先完成。
+    let fx = Fixture::new(1);
+    let document_id = seed_document(&fx);
+    let old = document_job(&fx, "old", "2026-10-01T00:00:00", WorkflowKind::Book, JobStatusKind::Succeeded);
+    document_job(&fx, "new", "2026-10-02T00:00:00", WorkflowKind::Book, JobStatusKind::Running);
+    fx.deps.db.set_document_active_job(&document_id, "new", None).unwrap();
+
+    update_document_after_job(&fx.deps, &old.into_runtime());
+
+    assert_eq!(active(&fx, &document_id).as_deref(), Some("new"), "旧任务后完成，把正在跑的新任务顶掉了");
+}
+
+#[test]
+fn an_ocr_job_finishing_does_not_hide_the_translation_from_the_card() {
+    let fx = Fixture::new(1);
+    let document_id = seed_document(&fx);
+    document_job(&fx, "translation", "2026-10-01T00:00:00", WorkflowKind::Book, JobStatusKind::Succeeded);
+    let ocr = document_job(&fx, "ocr", "2026-10-02T00:00:00", WorkflowKind::Ocr, JobStatusKind::Succeeded);
+    fx.deps.db.set_document_active_job(&document_id, "ocr", None).unwrap();
+
+    update_document_after_job(&fx.deps, &ocr.into_runtime());
+
+    assert_eq!(active(&fx, &document_id).as_deref(), Some("translation"));
+}
+
+#[test]
+fn a_newer_job_finishing_takes_the_card_as_before() {
+    let fx = Fixture::new(1);
+    let document_id = seed_document(&fx);
+    document_job(&fx, "old", "2026-10-01T00:00:00", WorkflowKind::Book, JobStatusKind::Succeeded);
+    let new = document_job(&fx, "new", "2026-10-02T00:00:00", WorkflowKind::Book, JobStatusKind::Succeeded);
+    fx.deps.db.set_document_active_job(&document_id, "old", None).unwrap();
+
+    update_document_after_job(&fx.deps, &new.into_runtime());
+
+    assert_eq!(active(&fx, &document_id).as_deref(), Some("new"));
+}

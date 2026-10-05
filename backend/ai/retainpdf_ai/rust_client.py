@@ -74,6 +74,10 @@ class RustApiClient:
     def get_document(self, document_id: str) -> dict[str, Any]:
         return self._get(f"/api/v1/documents/{_segment(document_id)}")
 
+    def get_document_reading(self, document_id: str) -> dict[str, Any]:
+        """这本书该读哪个任务：一个任务覆盖整本就是它，多次范围翻译就是合并结果的虚拟 id。"""
+        return self._get(f"/api/v1/documents/{_segment(document_id)}/reading")
+
     def get_document_by_job(self, job_id: str) -> dict[str, Any] | None:
         """任意 job_id(含历史 run)→ 所属文档;查不到返回 None。"""
         data = self._get("/api/v1/documents", {"job_id": job_id})

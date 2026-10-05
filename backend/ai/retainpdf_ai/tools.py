@@ -256,6 +256,23 @@ def _resolve_source_root(settings: Settings, job_id: str, job_root: Path) -> tup
     return job_id, job_root
 
 
+def _reading_job_id(rust: Any, document_id: str) -> str:
+    """只给了 document_id 时读哪个任务。
+
+    先问阅读入口（`/documents/:id/reading`）：一本书翻译过几次、每次只翻几页时，它给的是
+    合并结果，整本都在。`active_job_id` 只是「书卡展示哪个任务」—— 最近提交的那次，可能只
+    覆盖几页。入口失败（含老版本 Rust 没这个接口）才退回它。
+    """
+    try:
+        job_id = str((rust.get_document_reading(document_id) or {}).get("job_id") or "").strip()
+    except Exception:  # noqa: BLE001 —— 退回旧行为，问答不能因为这一步坏掉
+        job_id = ""
+    if job_id:
+        return job_id
+    document = rust.get_document(document_id)
+    return str(document.get("active_job_id") or "").strip()
+
+
 def build_default_registry(settings: Settings, rust: RustApiClient) -> ToolRegistry:
     # Imported lazily because the unified calculation adapter reuses Tool.
     from .unified_tools import calculation_tools
@@ -265,8 +282,7 @@ def build_default_registry(settings: Settings, rust: RustApiClient) -> ToolRegis
         document_id = str(arguments.get("document_id") or "").strip()
         job_id = str(arguments.get("job_id") or "").strip()
         if not job_id and document_id:
-            document = rust.get_document(document_id)
-            job_id = str(document.get("active_job_id") or "").strip()
+            job_id = _reading_job_id(rust, document_id)
         if job_id:
             document = rust.get_document_by_job(job_id)
             if not isinstance(document, dict) or not document:

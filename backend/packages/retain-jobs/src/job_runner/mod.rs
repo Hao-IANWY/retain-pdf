@@ -1,5 +1,6 @@
 use crate::models::domain::{JobRuntimeState, JobSnapshot};
 
+mod active_job;
 mod artifact_requirements;
 mod cancel_registry;
 mod driver_registry;
