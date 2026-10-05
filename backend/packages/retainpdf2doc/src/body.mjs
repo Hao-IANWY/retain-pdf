@@ -48,11 +48,21 @@ const TWIPS_PER_POINT = 20;
  */
 const MATH_RE = /\$\$([\s\S]+?)\$\$|(?<!\\)\$((?:\\.|[^$\n])+?)\$/g;
 
+/** 没有底数的上/下标，比如引文标记 `$^{[1]}$`。
+ *
+ * **为什么要单独认**：MathJax 会把它转成 `<m:sSup>` 且 `<m:e>` 是**空的**，而 Word
+ * 对空的数学元素画一个虚线占位框 —— 用户看到的是每个引文标记前面多一个空方框。
+ * 实测 19 个 job 的前 6 页共 1561 个公式，**369 个（23.6%）是这种**，分布在 13 本书上。
+ *
+ * 而且它本来也不是数学：引文上标就是「带上标格式的文本」，用 `w:vertAlign` 表达更
+ * 准确，也不用把 Latin Modern Math 那套字体套上去。 */
+const BARE_SCRIPT_RE = /^\s*([_^])\s*(?:\{([^{}]*)\}|([^{}\s]))\s*$/;
+
 const emu = (pt) => Math.round(pt * EMU_PER_POINT);
 const twips = (pt) => Math.round(pt * TWIPS_PER_POINT);
 const halfPoints = (pt) => Math.max(1, Math.round(pt * 2));
 
-function runProperties(block, fontFamily) {
+function runProperties(block, fontFamily, vertAlign = null) {
   return xml("w:rPr", {}, [
     rawXml(xml("w:rFonts", {
       "w:ascii": fontFamily,
@@ -64,12 +74,13 @@ function runProperties(block, fontFamily) {
     block.bold ? rawXml(xml("w:bCs")) : undefined,
     rawXml(xml("w:sz", { "w:val": halfPoints(block.fontSizePt) })),
     rawXml(xml("w:szCs", { "w:val": halfPoints(block.fontSizePt) })),
+    vertAlign ? rawXml(xml("w:vertAlign", { "w:val": vertAlign })) : undefined,
   ]);
 }
 
-function textRun(text, block, fontFamily, strong = false) {
+function textRun(text, block, fontFamily, strong = false, vertAlign = null) {
   return xml("w:r", {}, [
-    rawXml(runProperties(strong ? { ...block, bold: true } : block, fontFamily)),
+    rawXml(runProperties(strong ? { ...block, bold: true } : block, fontFamily, vertAlign)),
     // xml:space=preserve:行首行尾的空格是排版的一部分，丢了字就挤在一起。
     rawXml(xml("w:t", { "xml:space": "preserve" }, [text])),
   ]);
@@ -122,6 +133,18 @@ function inlineRuns(line, block, fontFamily, errors) {
     // `$$...$$` 和 `$...$` 产出一样的 OMML（见 formula.mjs）。正则要分开两支只是
     // 为了让 `$$a$$` 被当成**一个**公式吃掉，否则会解析成两个空的行内公式。
     const latex = match[1] !== undefined ? match[1] : match[2];
+    const bare = BARE_SCRIPT_RE.exec(latex);
+    if (bare) {
+      const content = bare[2] !== undefined ? bare[2] : bare[3];
+      if (content) {
+        runs.push(rawXml(textRun(
+          content, block, fontFamily, false,
+          bare[1] === "^" ? "superscript" : "subscript",
+        )));
+      }
+      cursor = match.index + match[0].length;
+      continue;
+    }
     try {
       const omml = latexToOmml(latex);
       runs.push(rawXml(omml));

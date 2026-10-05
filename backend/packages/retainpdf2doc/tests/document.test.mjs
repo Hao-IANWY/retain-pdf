@@ -101,6 +101,45 @@ describe("文档结构", () => {
       assert.ok(!documentXml.includes("<a:noAutofit"), "还留着 noAutofit");
     });
 
+    it("没有底数的上标（引文标记）不走 OMML —— 空数学元素会画成虚线方框", async () => {
+      // 译文里的引文标记是 `$^{[1]}$`：LaTeX 上标，**底数是空的**。MathJax 转出来是
+      // `<m:sSup>` 且 `<m:e></m:e>` 为空，而 Word 对空的数学元素画一个虚线占位框 ——
+      // 用户看到的是每个引文标记前面多一个空方框。
+      //
+      // 实测 19 个 job 的前 6 页共 1561 个公式，369 个（23.6%）是这种，分布在 13 本书。
+      // 而且那个占位框**占横向宽度**，是 Word 比 PDF 多断行的原因之一。
+      const one = spec();
+      one.pages[0].blocks = [{
+        ...one.pages[0].blocks[0],
+        id: "cite",
+        text: "重要方向之一 $^{[1]}$ 。生成五元环 $^{[2,3]}$ 或更大的杂环。",
+      }];
+      const dir = await mkdtemp(path.join(tmpdir(), "retainpdf2doc-cite-"));
+      await writeFile(path.join(dir, "page-001.png"), PNG);
+      const built = await buildLayoutDocx(one, { baseDir: dir });
+      const xml = strFromU8(unzipSync(built.bytes)["word/document.xml"]);
+
+      assert.ok(!xml.includes("<m:e></m:e>"), "还有空的数学元素 —— Word 会画虚线方框");
+      assert.ok(!xml.includes("<m:oMath"), "引文上标仍然走了 OMML");
+      assert.ok(
+        xml.includes('<w:vertAlign w:val="superscript"/>'),
+        "上标没有用 w:vertAlign 表达",
+      );
+      // 内容不能丢。
+      assert.ok(xml.includes(">[1]<"), "[1] 不见了");
+      assert.ok(xml.includes(">[2,3]<"), "[2,3] 不见了");
+    });
+
+    it("有底数的上标仍然走 OMML —— 正对照", async () => {
+      // 否则上面那条可能在守「所有公式都别走 OMML」。
+      const one = spec();
+      const dir = await mkdtemp(path.join(tmpdir(), "retainpdf2doc-math-"));
+      await writeFile(path.join(dir, "page-001.png"), PNG);
+      const built = await buildLayoutDocx(one, { baseDir: dir });
+      const xml = strFromU8(unzipSync(built.bytes)["word/document.xml"]);
+      assert.ok(xml.includes("<m:oMath"), "真正的公式也不走 OMML 了");
+    });
+
     it("markdown 的 **强调** 变成加粗，不是把星号印出来", async () => {
       // page_specs 给的是 `plain_text if render_kind == "plain" else markdown_text`
       // —— 非 plain 的块交的是**原始 markdown**。而 inlineRuns 原来只解析 `$...$`，
