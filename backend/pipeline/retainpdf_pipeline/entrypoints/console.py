@@ -66,6 +66,13 @@ def run_document_operation() -> int:
     return main()
 
 
+def run_merge_translated_pdf() -> int:
+    from retainpdf_pipeline.render.tools.merge_translated_pdf import main
+
+    main()
+    return 0
+
+
 def run_side_by_side_pdf() -> int:
     from retainpdf_pipeline.render.tools.side_by_side_pdf import main
 
@@ -100,6 +107,10 @@ COMMANDS: dict[str, tuple[Callable[[], int], str]] = {
     "document-operation": (
         run_document_operation,
         "execute a restricted backend-prepared page program",
+    ),
+    "merge-translated-pdf": (
+        run_merge_translated_pdf,
+        "stitch per-range translated PDFs into one full-length PDF",
     ),
     "side-by-side-pdf": (
         run_side_by_side_pdf,
