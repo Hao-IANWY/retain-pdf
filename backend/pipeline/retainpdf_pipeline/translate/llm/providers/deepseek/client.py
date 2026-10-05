@@ -171,6 +171,25 @@ def _fallback_response_format(response_format: dict[str, Any] | None) -> dict[st
     return {"type": "json_object"}
 
 
+def _thinking_policy(*, model: str, base_url: str) -> dict[str, Any]:
+    """翻译不需要思考这一轮额外生成。只对实测验证过的「模型 + 服务商」加字段，其余原样。
+
+    - DashScope 的 qwen3.8-flash 默认思考：`enable_thinking: false` 关掉。
+    - 智谱的 glm-5.3-flash 始终思考、**不能关**（传 `thinking: {type: disabled}` 返回 400
+      「该模型始终思考，不支持关闭思考；请使用 low、high 或 max」），只能调强度。默认是
+      max：4 段论文段落实测每段 6～9 秒、思考 270～513 token；`reasoning_effort: low`
+      下每段 1.6～3.5 秒、思考 token 全为 0，译文同样正确。思考还会吃掉 max_tokens ——
+      给小了直接返回空译文。
+    """
+    name = model.strip().lower()
+    host = _hostname_from_base_url(base_url)
+    if name == "qwen3.8-flash" and host == "dashscope.aliyuncs.com":
+        return {"enable_thinking": False}
+    if name == "glm-5.3-flash" and host == "open.bigmodel.cn":
+        return {"reasoning_effort": "low"}
+    return {}
+
+
 def should_use_stream_responses() -> bool:
     value = os.environ.get(STREAM_RESPONSES_ENV, "")
     return value.strip().lower() in {"1", "true", "yes", "on"}
@@ -293,10 +312,7 @@ def request_chat_content(
         "temperature": temperature,
         "messages": messages,
     }
-    # DashScope Qwen3.8 Flash defaults to thinking. Translation does not need
-    # this extra generation pass; leave other providers/models untouched.
-    if model.strip().lower() == "qwen3.8-flash" and _hostname_from_base_url(base_url) == "dashscope.aliyuncs.com":
-        body["enable_thinking"] = False
+    body.update(_thinking_policy(model=model, base_url=base_url))
     use_stream = should_use_stream_responses()
     if use_stream:
         body["stream"] = True
