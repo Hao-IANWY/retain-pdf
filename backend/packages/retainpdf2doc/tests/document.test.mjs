@@ -101,6 +101,32 @@ describe("文档结构", () => {
       assert.ok(!documentXml.includes("<a:noAutofit"), "还留着 noAutofit");
     });
 
+    it("markdown 的 **强调** 变成加粗，不是把星号印出来", async () => {
+      // page_specs 给的是 `plain_text if render_kind == "plain" else markdown_text`
+      // —— 非 plain 的块交的是**原始 markdown**。而 inlineRuns 原来只解析 `$...$`，
+      // 于是 `**1k**` 被原样印成带星号的文本：既没加粗，又多了四个字符。
+      // 实测 19 个 job 的前 8 页 820 个块里有 44 个（5.4%）带 `**`，分布在 6 本书上。
+      const one = spec();
+      one.pages[0].blocks = [{
+        ...one.pages[0].blocks[0],
+        id: "strong",
+        text: "底物 **1k** 与 **2j** 反应",
+        bold: false,
+      }];
+      const dir = await mkdtemp(path.join(tmpdir(), "retainpdf2doc-strong-"));
+      await writeFile(path.join(dir, "page-001.png"), PNG);
+      const built = await buildLayoutDocx(one, { baseDir: dir });
+      const xml = strFromU8(unzipSync(built.bytes)["word/document.xml"]);
+
+      assert.ok(!xml.includes("**"), "星号被原样印进了文档");
+      assert.ok(xml.includes("<w:t xml:space=\"preserve\">1k</w:t>"), "强调里的文字没了");
+      // 正对照：整块 bold:false，所以文档里出现的 <w:b/> 只能来自这两处强调。
+      const bolds = (xml.match(/<w:b\/>/g) || []).length;
+      assert.ok(bolds >= 2, `强调没变成加粗，文档里只有 ${bolds} 个 <w:b/>`);
+      // 强调之外的正文不该被加粗带上。
+      assert.ok(xml.includes("底物 "), "强调之外的正文丢了");
+    });
+
     it("行距仍然是 exact —— 不要改成 auto", () => {
       // exact 让「N 行占 N×行距」这个账算得准，是框内布局的前提。auto 会让行高跟着
       // 替换字体的自然行距走，而 CJK 字体行间距很大，1.289 倍可能变成 1.8 倍字号。

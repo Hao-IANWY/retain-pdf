@@ -67,9 +67,9 @@ function runProperties(block, fontFamily) {
   ]);
 }
 
-function textRun(text, block, fontFamily) {
+function textRun(text, block, fontFamily, strong = false) {
   return xml("w:r", {}, [
-    rawXml(runProperties(block, fontFamily)),
+    rawXml(runProperties(strong ? { ...block, bold: true } : block, fontFamily)),
     // xml:space=preserve:行首行尾的空格是排版的一部分，丢了字就挤在一起。
     rawXml(xml("w:t", { "xml:space": "preserve" }, [text])),
   ]);
@@ -82,13 +82,42 @@ function textRun(text, block, fontFamily) {
  * 毁掉整份文档，而且把源码显示出来，用户至少看得见那里本来是什么。失败会记进
  * `errors`，由调用方决定要不要报。
  */
+/** markdown 的强调标记。
+ *
+ * **为什么非处理不可**：`page_specs.py` 给的是
+ * `plain_text if render_kind == "plain" else markdown_text` —— 非 plain 的块交的是
+ * **原始 markdown**。而这里原来只解析 `$...$`，于是 `**1k**` 被原样印成带星号的
+ * 文本，既没加粗又多了四个字符。实测 19 个 job 的前 8 页共 820 个块，**44 个（5.4%）
+ * 带 `**`**，分布在 6 本书上。
+ *
+ * 只收 `**`（强调），不碰 `*`：单星号在化学名和脚注里是正常字符，而译文里的强调
+ * 一律是双星号。贪婪匹配会把两处强调之间的正文也吃掉，所以用 `+?`。 */
+const STRONG_RE = /\*\*([^*\n]+?)\*\*/g;
+
+/** 把一段纯文本切成若干 run，`**…**` 的部分加粗。 */
+function pushText(runs, text, block, fontFamily) {
+  if (!text) return;
+  let cursor = 0;
+  STRONG_RE.lastIndex = 0;
+  for (let match = STRONG_RE.exec(text); match; match = STRONG_RE.exec(text)) {
+    if (match.index > cursor) {
+      runs.push(rawXml(textRun(text.slice(cursor, match.index), block, fontFamily)));
+    }
+    runs.push(rawXml(textRun(match[1], block, fontFamily, true)));
+    cursor = match.index + match[0].length;
+  }
+  if (cursor < text.length) {
+    runs.push(rawXml(textRun(text.slice(cursor), block, fontFamily)));
+  }
+}
+
 function inlineRuns(line, block, fontFamily, errors) {
   const runs = [];
   let cursor = 0;
   MATH_RE.lastIndex = 0;
   for (let match = MATH_RE.exec(line); match; match = MATH_RE.exec(line)) {
     if (match.index > cursor) {
-      runs.push(rawXml(textRun(line.slice(cursor, match.index), block, fontFamily)));
+      pushText(runs, line.slice(cursor, match.index), block, fontFamily);
     }
     // `$$...$$` 和 `$...$` 产出一样的 OMML（见 formula.mjs）。正则要分开两支只是
     // 为了让 `$$a$$` 被当成**一个**公式吃掉，否则会解析成两个空的行内公式。
@@ -103,7 +132,7 @@ function inlineRuns(line, block, fontFamily, errors) {
     cursor = match.index + match[0].length;
   }
   if (cursor < line.length) {
-    runs.push(rawXml(textRun(line.slice(cursor), block, fontFamily)));
+    pushText(runs, line.slice(cursor), block, fontFamily);
   }
   return runs;
 }
