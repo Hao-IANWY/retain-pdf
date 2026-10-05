@@ -277,13 +277,22 @@ print('bridge-ok')
     } else {
         ".venv/bin/python"
     };
-    let python = [
-        root.join("backend").join(python_relative),
-        root.join(python_relative),
-    ]
-    .into_iter()
-    .find(|path| path.is_file())
-    .expect("a project Python environment is required for the worker bridge test");
+    // UV_PROJECT_ENVIRONMENT 优先 —— worktree 里环境不在 `<repo>/backend/.venv`
+    // （那个带绝对路径的符号链接已撤出仓库，见 ops/development/dev_stack.py 的注释）。
+    let relative_to_venv = if cfg!(windows) { "Scripts/python.exe" } else { "bin/python" };
+    let python = std::env::var_os("UV_PROJECT_ENVIRONMENT")
+        .map(PathBuf::from)
+        .map(|venv| venv.join(relative_to_venv))
+        .into_iter()
+        .chain([
+            root.join("backend").join(python_relative),
+            root.join(python_relative),
+        ])
+        .find(|path| path.is_file())
+        .expect(
+            "a project Python environment is required for the worker bridge test \
+             (set UV_PROJECT_ENVIRONMENT or create <repo>/backend/.venv)",
+        );
     let output = tokio::time::timeout(
         Duration::from_secs(20),
         tokio::process::Command::new(python)
