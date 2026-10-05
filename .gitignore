@@ -89,3 +89,9 @@ research/
 # launch.json 都是跟踪的。worktree 正常跑完会自己清掉，但进程被打断就会残留，
 # 而它是一整个仓库副本，误 `git add -A` 一次就炸。
 .claude/worktrees/
+
+# Python 虚拟环境。**不要提交它**，哪怕是个符号链接 ——
+# 曾经有一个 `backend/.venv -> /Users/<某人>/Code/retain-pdf/backend/.venv` 被提交进来，
+# 别人 clone 下来是悬空链接，跑 uv sync 还会顺着它往仓库外写。
+# worktree 要共用主 checkout 的环境，用 UV_PROJECT_ENVIRONMENT（见 ops/development/dev_stack.py）。
+.venv/

@@ -46,13 +46,29 @@ class RepoPaths:
     agent: Path
 
     @classmethod
-    def from_script(cls, script: Path | None = None) -> RepoPaths:
+    def from_script(
+        cls,
+        script: Path | None = None,
+        environ: Mapping[str, str] | None = None,
+    ) -> RepoPaths:
         source = (script or Path(__file__)).resolve()
         product = source.parents[2]
         services = product / "backend"
         target_debug = product / "target" / "debug"
         executable_suffix = ".exe" if os.name == "nt" else ""
-        venv_bin = services / ".venv" / ("Scripts" if os.name == "nt" else "bin")
+        # 环境位置可以被 UV_PROJECT_ENVIRONMENT 覆盖 —— uv 自己就认这个变量，
+        # 下面 prepare() 也是设它来告诉 uv 往哪装。
+        #
+        # 为什么需要覆盖：worktree 里本来是靠一个**提交进仓库的符号链接**
+        # （`backend/.venv -> /Users/.../retain-pdf/backend/.venv`）来共用主 checkout
+        # 的环境的。那个链接带着一台机器的绝对路径，别人 clone 下来是悬空的，
+        # 跑 uv sync 还会顺着它往外写。链接已经撤出仓库，改用这个变量：
+        #
+        #     export UV_PROJECT_ENVIRONMENT=/path/to/main-checkout/backend/.venv
+        #
+        # 不设就还是 `<repo>/backend/.venv`，和以前一样。
+        venv_root = Path(venv) if (venv := (environ or os.environ).get("UV_PROJECT_ENVIRONMENT")) else services / ".venv"
+        venv_bin = venv_root / ("Scripts" if os.name == "nt" else "bin")
         return cls(
             product=product,
             services=services,
@@ -179,7 +195,8 @@ def parse_args(
 
 def prepare(paths: RepoPaths, options: Options, environ: Mapping[str, str]) -> None:
     command_env = dict(environ)
-    command_env["UV_PROJECT_ENVIRONMENT"] = str(paths.services / ".venv")
+    # 已经设了就不覆盖 —— 那是调用方选的环境位置（见 from_script 的注释）。
+    command_env.setdefault("UV_PROJECT_ENVIRONMENT", str(paths.services / ".venv"))
     command_env["CARGO_TARGET_DIR"] = str(paths.product / "target")
     commands: list[list[str]] = []
     if options.sync:
