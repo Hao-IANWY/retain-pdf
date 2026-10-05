@@ -586,9 +586,6 @@ pub struct OcrJobSummaryView {
     pub provider_trace_id: Option<String>,
     pub detail_path: String,
     pub detail_url: String,
-    /// 失败时才有。成功/进行中的任务这个字段整个不出现。
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub failure: Option<JobFailureBriefView>,
 }
 
 #[derive(Debug, Serialize)]

@@ -152,6 +152,20 @@ async fn serve_upload_flaky(fail_times: usize) -> (String, tokio::task::JoinHand
     (url, server)
 }
 
+/// 显式给定重试预算的 client。
+///
+/// **不要用 `MineruClient::new`** —— 它走 `MineruRuntimeConfig::from_env()`，于是
+/// 「放弃前传了几次」这个结论跟着跑测试那台机器的环境变量漂：
+/// `RUST_API_MINERU_UPLOAD_RETRY_ATTEMPTS=1` 能让下面那条断言直接红，设成 10 它仍然
+/// 绿但不再守任何上限。
+fn upload_client(attempts: usize) -> MineruClient {
+    let mut runtime = crate::config::MineruRuntimeConfig::from_env();
+    runtime.upload_retry_attempts = attempts;
+    // 退避不是这几条在守的东西，设成 0 省掉几秒等待。
+    runtime.upload_retry_base_delay_secs = 0;
+    MineruClient::with_runtime("http://unused.invalid".to_string(), "fixture-token", runtime)
+}
+
 fn tmp_upload_file(name: &str) -> std::path::PathBuf {
     let path = std::env::temp_dir().join(format!("mineru-upload-{}-{}", name, fastrand::u64(..)));
     std::fs::write(&path, b"%PDF-1.7\n").unwrap();
@@ -166,7 +180,7 @@ fn tmp_upload_file(name: &str) -> std::path::PathBuf {
 async fn mineru_upload_retries_transport_failures() {
     let (url, server) = serve_upload_flaky(2).await;
     let file = tmp_upload_file("retry");
-    let client = MineruClient::new("http://unused.invalid".to_string(), "fixture-token");
+    let client = upload_client(3);
     let result = client.upload_file(&url, &file).await;
     let attempts = server.await.unwrap();
     let _ = std::fs::remove_file(&file);
@@ -181,7 +195,7 @@ async fn mineru_upload_gives_up_after_the_configured_attempts() {
     // 断的次数超过上限（默认 3 次）。
     let (url, server) = serve_upload_flaky(99).await;
     let file = tmp_upload_file("giveup");
-    let client = MineruClient::new("http://unused.invalid".to_string(), "fixture-token");
+    let client = upload_client(3);
     let result = client.upload_file(&url, &file).await;
     let _ = std::fs::remove_file(&file);
     server.abort();
@@ -228,4 +242,56 @@ async fn mineru_upload_does_not_retry_http_error_status() {
         message.contains("returned error status"),
         "403 走了传输重试那条路，错误文案不对: {message}"
     );
+}
+
+/// 放弃之前到底传了几次 —— 不只是「最终失败了」。
+///
+/// 既有那条 give-up 只断言 `is_err()` 和错误文案，它对次数一无所知（`server.abort()`
+/// 把计数也扔了）。而次数一漂，一次注定失败的上传会让任务在界面上停在「OCR 处理中」
+/// 很久才报失败：默认 `upload_timeout_secs=300`，3 次就是 15 分钟上限，改成 10 次
+/// 就是 50 分钟 —— 而用户完全看不出它早就没救了。
+#[tokio::test]
+async fn mineru_upload_stops_at_the_configured_attempt_count() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}", listener.local_addr().unwrap());
+    let seen = Arc::new(AtomicUsize::new(0));
+    let counter = seen.clone();
+    let server = tokio::spawn(async move {
+        loop {
+            // 连上就断：reqwest 侧表现为传输错误，而不是 HTTP 错误码。
+            let (socket, _) = listener.accept().await.unwrap();
+            counter.fetch_add(1, Ordering::SeqCst);
+            drop(socket);
+        }
+    });
+
+    let client = upload_client(3);
+    let file = tmp_upload_file("attempt-budget");
+    let result = client.upload_file(&url, &file).await;
+    let _ = std::fs::remove_file(&file);
+    server.abort();
+
+    assert!(result.is_err(), "一直断也该放弃，不能无限重传");
+    assert_eq!(
+        seen.load(Ordering::SeqCst),
+        3,
+        "上传尝试次数不等于配置的 3 次 —— 预算一漂，注定失败的任务会在「OCR 处理中」里多挂几十分钟"
+    );
+}
+
+/// 配成 0 次也得至少传一次 —— 否则上传功能被一个配置值静默关掉。
+#[tokio::test]
+async fn mineru_upload_always_tries_at_least_once() {
+    let (url, server) = serve_upload_flaky(0).await;
+    let client = upload_client(0);
+    let file = tmp_upload_file("zero-attempts");
+    let result = client.upload_file(&url, &file).await;
+    let attempts = server.await.unwrap();
+    let _ = std::fs::remove_file(&file);
+
+    assert!(result.is_ok(), "attempts=0 时一次都没传 —— 上传被配置值静默关掉了: {result:?}");
+    assert_eq!(attempts, 1, "attempts=0 应当恰好传一次");
 }

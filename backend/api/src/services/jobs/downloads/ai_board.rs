@@ -458,6 +458,20 @@ mod download_tests {
             };
             ai_board_file_download(&deps, Self::JOB_ID, name)
         }
+
+        fn listing(&self) -> AiBoardListing {
+            let data_root = self.data_root();
+            let downloads_dir = self.root.join("downloads");
+            let deps = DownloadJobsDeps {
+                db: &self.db,
+                data_root: &data_root,
+                downloads_dir: &downloads_dir,
+                download_generation: &self.generation,
+                python_bin: "python3",
+                pipeline_command: "",
+            };
+            ai_board_listing(&deps, Self::JOB_ID).expect("listing")
+        }
     }
 
     impl Drop for BoardFixture {
@@ -520,5 +534,100 @@ mod download_tests {
         let fixture = BoardFixture::new();
         fixture.write("evil.svg", b"<svg onload=alert(1)>");
         assert!(fixture.download("evil.svg").is_err(), "SVG 被放行了");
+    }
+
+    /// 列目录是产物条出现的**唯一**依据，而它此前一条测试都没有 —— 既有覆盖是
+    /// `safe_board_name`（敌意名字）、`board_kind`（后缀白名单）和下发那条路的附件头。
+    /// `board_kind` 的单测只证明那张表对了，证明不了它接到了列目录上。
+    #[test]
+    fn the_listing_shows_an_agent_written_html_with_the_kind_the_front_end_filters_on() {
+        let fixture = BoardFixture::new();
+        fixture.write("chart.html", b"<!doctype html><p>hi");
+        let listing = fixture.listing();
+        assert_eq!(
+            listing.schema, "retainpdf_ai_board_v1",
+            "schema 变了，前端的解包要跟着改"
+        );
+        let names: Vec<&str> = listing.items.iter().map(|item| item.name.as_str()).collect();
+        assert_eq!(
+            names, ["chart.html"],
+            "agent 写进 board/ 的 HTML 没被列出来 —— 产物条永远是空的"
+        );
+        assert_eq!(
+            listing.items[0].kind, "html",
+            "kind 不是 html，前端的 openableBoardItems 会把它整个过滤掉"
+        );
+        assert_eq!(listing.skipped, 0, "正常文件被当成跳过项了");
+    }
+
+    /// 认不出的后缀只跳过它自己。`skipped` 是「我明明写进去了却不显示」唯一的说法。
+    #[test]
+    fn unknown_kinds_are_skipped_without_losing_the_rest() {
+        let fixture = BoardFixture::new();
+        fixture.write("chart.html", b"<p>ok");
+        fixture.write("notes.rst", b"nope");
+        // SVG 是故意不收的（能带脚本，而这些文件是 agent 写的）。
+        fixture.write("evil.svg", b"<svg onload=alert(1)>");
+        let listing = fixture.listing();
+        assert_eq!(
+            listing.items.iter().map(|i| i.name.as_str()).collect::<Vec<_>>(),
+            ["chart.html"],
+            "一个认不出的文件把整块画板带没了"
+        );
+        assert_eq!(listing.skipped, 2, "跳过的数量没报出来");
+    }
+
+    /// agent 手里有 shell，能 `ln -s /etc/passwd board/leak.png`。列目录就不该让它
+    /// 出现 —— 下发那层会拒，但在它之前用户已经看到一个能点的条目了。
+    #[cfg(unix)]
+    #[test]
+    fn symlinks_never_appear_in_the_listing() {
+        let fixture = BoardFixture::new();
+        fixture.write("chart.html", b"<p>ok");
+        std::os::unix::fs::symlink("/etc/passwd", fixture.board_dir().join("leak.png"))
+            .expect("symlink");
+        let listing = fixture.listing();
+        assert_eq!(
+            listing.items.iter().map(|i| i.name.as_str()).collect::<Vec<_>>(),
+            ["chart.html"],
+            "符号链接被列了出来"
+        );
+        assert_eq!(listing.skipped, 1);
+    }
+
+    /// 超限的要跳过：列一个点开就被拒的东西，比不列更糟。
+    #[test]
+    fn oversized_files_are_skipped_in_the_listing() {
+        let fixture = BoardFixture::new();
+        fixture.write("chart.html", b"<p>ok");
+        std::fs::File::create(fixture.board_dir().join("huge.json"))
+            .expect("create")
+            .set_len(MAX_BOARD_FILE_BYTES + 1)
+            .expect("grow");
+        let listing = fixture.listing();
+        assert_eq!(
+            listing.items.iter().map(|i| i.name.as_str()).collect::<Vec<_>>(),
+            ["chart.html"],
+            "超限文件进了列表，点开会被下载那条路拒掉"
+        );
+        assert_eq!(listing.skipped, 1);
+    }
+
+    /// 时间流式布局的前提：列表自己就是有序的，同毫秒时按名字稳定。
+    #[test]
+    fn the_listing_is_sorted_so_the_front_end_can_lay_it_out_by_time() {
+        let fixture = BoardFixture::new();
+        for name in ["c.html", "a.html", "b.html"] {
+            fixture.write(name, b"<p>ok");
+        }
+        let listing = fixture.listing();
+        assert_eq!(listing.items.len(), 3, "三个文件没都列出来，下面的有序断言就没分量");
+        assert!(
+            listing.items.windows(2).all(|pair| {
+                (pair[0].modified_ms, pair[0].name.as_str())
+                    <= (pair[1].modified_ms, pair[1].name.as_str())
+            }),
+            "列表没有按 (时间, 名字) 排好 —— 产物条每轮询一次就换一次顺序"
+        );
     }
 }

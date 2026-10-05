@@ -123,6 +123,16 @@ pub(super) fn job_path_prefix(job: &JobSnapshot) -> &'static str {
     job.workflow.job_api_prefix()
 }
 
+/// OCR 摘要**不带失败简报**，这是个判断不是遗漏。
+///
+/// 这里能拿到的 `job` 是**外层那个任务**（通常是翻译任务），而 `artifacts` 里只有
+/// `ocr_job_id / ocr_status / ocr_trace_id / ocr_provider_trace_id` —— 没有 OCR 任务
+/// 自己的 failure。所以在这里填 `job.failure` 会把翻译任务的失败挂在 OCR 的 job_id
+/// 下面，是错数据。要拿 OCR 自己的失败得按 ocr_job_id 回查一次库。
+///
+/// 而且没人需要：书籍详情页的 OCR 段吃的是 document jobs 列表里的 JobListItemView
+/// （经 selectDocumentOcrStatusJob），和翻译段同一个来源；全仓搜 `ocr_job` 只有
+/// domain/job/normalize.ts 原样转发一处，没人读 `ocr_job.failure`。
 pub(super) fn build_ocr_job_summary(
     job: &JobSnapshot,
     base_url: &str,
@@ -137,19 +147,6 @@ pub(super) fn build_ocr_job_summary(
         provider_trace_id: artifacts.ocr_provider_trace_id.clone(),
         detail_path: detail_path.clone(),
         detail_url: to_absolute_url(base_url, &detail_path),
-        // 为了和 JobListItemView 一致 —— 两个视图现在都带失败简报。
-        //
-        // 注意：**书籍详情页的 OCR 段不吃这个**。它吃的是 document jobs 列表里的
-        // JobListItemView（经 selectDocumentOcrStatusJob），和翻译段同一个来源。
-        // 这个 ocr_job.failure 目前没有任何前端消费者 —— 全仓搜 `ocr_job` 只有
-        // domain/job/normalize.ts 原样转发一处。留着是为契约一致，不是为了谁在读。
-        failure: job
-            .failure
-            .clone()
-            .map(JobFailureInfo::with_formal_fields)
-            .or_else(|| classify_job_failure(job).map(JobFailureInfo::with_formal_fields))
-            .as_ref()
-            .map(JobFailureBriefView::from_failure),
     })
 }
 
