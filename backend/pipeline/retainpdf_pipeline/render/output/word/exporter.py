@@ -27,7 +27,7 @@ from retainpdf_pipeline.render.output.word.html_fit import fitted_typography
 from retainpdf_pipeline.render.output.word.html_fit import MEASURED_FONT_FAMILY
 from retainpdf_pipeline.render.output.word.job_io import single_pdf
 from retainpdf_pipeline.render.output.word.job_io import translated_pages
-from retainpdf_pipeline.render.output.word.html_fit import fits_in_box
+from retainpdf_pipeline.render.output.word.html_fit import LINE_STEP_RATIO, fits_in_box
 from retainpdf_pipeline.render.output.word.typography_readback import converged_typography
 from retainpdf_pipeline.render.output.word.typography_readback import open_translated_document
 from retainpdf_pipeline.render.output.word.typography_readback import read_page_lines
@@ -144,7 +144,19 @@ def build_layout_spec(
                     fitted_size, fitted_step = fitted_typography(block)
                     if not observed:
                         font_size_pt = fitted_size
-                    line_step_pt = fitted_step
+                        line_step_pt = fitted_step
+                    else:
+                        # **行距要从真正要用的那个字号导出**，不能直接拿 fitted_step。
+                        #
+                        # 这一支是「读回到字号、但读不到行距」（单行块很常见：一行量不出
+                        # 基线间距）。原来直接用 `fitted_step = 1.289 × fitted_size`，而
+                        # fitted_size 往往比读回字号小 —— 于是行距比字还矮。
+                        #
+                        # 实测用户那个 job：39 个 fit_to_box 块里 **11 个（28%）行距 < 字号**，
+                        # 全是章节标题（「1. 引言」9.32pt 字配 8.30pt 行距 = 0.89×）。
+                        # docx 用 w:lineRule="exact"，行盒比字矮就是**把字顶切掉** ——
+                        # 用户截图里那个被切一半的「1. 引言」就是这么来的。
+                        line_step_pt = font_size_pt * LINE_STEP_RATIO
                 elif not fits_in_box(block, font_size_pt, line_step_pt):
                     # **读回值也要验一遍**。
                     #
@@ -157,6 +169,9 @@ def build_layout_spec(
                     # 装不下就退回 html_fit 的二分（它按字形宽度找装得下的字号），
                     # 宁可字小一点也别少字。
                     font_size_pt, line_step_pt = fitted_typography(block)
+                # **行盒绝不能比字矮。** docx 用 w:lineRule="exact"，Word 按行盒裁字 ——
+                # 再精确的字号也救不回被切掉的那一截。放在整条分支链之后，三条路都兜住。
+                line_step_pt = max(line_step_pt, font_size_pt)
                 x0, y0, x1, y1 = block.content_rect
                 blocks.append({
                     "id": block.block_id,

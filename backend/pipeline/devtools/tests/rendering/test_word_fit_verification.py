@@ -74,3 +74,41 @@ def test_a_nonpositive_line_step_never_claims_to_fit(line_step):
     """
     block = _Block("中文正文" * 20, (0.0, 0.0, 120.0, 20.0))
     assert not fits_in_box(block, 10.0, line_step), "行距非正时判成了装得下"
+
+
+def test_the_line_box_is_never_shorter_than_the_glyphs():
+    """行盒绝不能比字矮 —— docx 用 `w:lineRule="exact"`，Word 按行盒裁字。
+
+    # 起因
+
+    exporter 有一支是「读回到字号、但读不到行距」（单行块很常见：一行量不出基线间距）。
+    它原来直接用 `fitted_step = 1.289 × fitted_size`，而 `fitted_size` 往往比读回字号
+    小 —— 于是**行距比字还矮**。
+
+    实测用户那个 job：39 个 fit_to_box 块里 11 个（28%）行距 < 字号，全是章节标题
+    （「1. 引言」9.32pt 字配 8.30pt 行距 = 0.89×）。用户截图里那个被切掉上半截的
+    「1. 引言」就是这么来的。
+
+    这条不依赖任何关于 Word 断行的假设：exact 行高下行盒矮于字形就是确定会裁。
+    """
+    from retainpdf_pipeline.render.output.word.html_fit import LINE_STEP_RATIO as R
+
+    # 这个比值本身就该 >= 1，否则 clamp 以外的每一条路都会产出矮行盒。
+    assert R >= 1.0, f"LINE_STEP_RATIO = {R} < 1，正常路径就会把字裁掉"
+
+
+def test_a_smaller_fitted_size_must_not_drag_the_line_step_below_the_readback_size():
+    """这是上面那个缺陷的精确形状：两个来源的值被混用。
+
+    读回字号 9.32pt + fitted 字号 6.44pt → 原来行距 = 1.289 × 6.44 = 8.30pt < 9.32pt。
+    修复后行距从**真正要用的那个字号**导出，再过一道 `max(step, size)`。
+    """
+    from retainpdf_pipeline.render.output.word.html_fit import LINE_STEP_RATIO
+
+    readback_size = 9.32
+    fitted_size = 6.44
+    wrong = fitted_size * LINE_STEP_RATIO
+    assert wrong < readback_size, "这组数造不出「行距矮于字号」，换一组"
+
+    right = max(readback_size * LINE_STEP_RATIO, readback_size)
+    assert right >= readback_size, "行距仍然矮于字号"
