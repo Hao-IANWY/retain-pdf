@@ -7,6 +7,7 @@ import { createRoot } from "react-dom/client";
 // CollectionsView 已迁至 src/features/collections 并改为 props 注入：
 // 不再需要 HomeServicesProvider 包裹，依赖直接传入。
 import { CollectionsView } from "../../src/features/collections/ui/CollectionsView.js";
+import { deferred, waitFor } from "../helpers/async.mjs";
 
 function installDom() {
   const dom = new JSDOM("<!doctype html><html><body><div id=\"root\"></div></body></html>", {
@@ -32,25 +33,6 @@ function versionSignal(version = 1) {
     subscribe: () => () => {},
     actions: { bump() {} },
   };
-}
-
-function deferred() {
-  let resolve;
-  let reject;
-  const promise = new Promise((resolvePromise, rejectPromise) => {
-    resolve = resolvePromise;
-    reject = rejectPromise;
-  });
-  return { promise, resolve, reject };
-}
-
-async function waitFor(predicate, message) {
-  const deadline = Date.now() + 15_000;
-  while (Date.now() < deadline) {
-    if (predicate()) return;
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
-  assert.fail(message);
 }
 
 function renderCollections(dom, listCollections) {

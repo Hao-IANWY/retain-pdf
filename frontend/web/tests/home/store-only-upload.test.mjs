@@ -1,78 +1,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { JSDOM } from "jsdom";
+import { wait, waitFor } from "../helpers/async.mjs";
+import { clickWithMouseDown, makeDom } from "../helpers/dom.mjs";
+import { bootHomeApp } from "../helpers/home-app.mjs";
 
 // 上传弹窗：先选择翻译 / 仅 OCR 模式，再上传并执行当前模式或仅收藏。
-
-function makeDom(search = "") {
-  const dom = new JSDOM("<!doctype html><html><body></body></html>", {
-    url: `http://localhost/index.html${search}`,
-  });
-  for (const key of ["window", "document", "DocumentFragment", "HTMLElement", "HTMLButtonElement", "HTMLFormElement", "HTMLInputElement", "CustomEvent", "Event", "KeyboardEvent", "MouseEvent", "Node", "MutationObserver", "NodeFilter"]) {
-    Object.defineProperty(globalThis, key, {
-      value: dom.window[key] ?? dom.window,
-      writable: true,
-      configurable: true,
-    });
-  }
-  globalThis.window = dom.window;
-  globalThis.requestAnimationFrame = (callback) => setTimeout(() => callback(0), 0);
-  globalThis.cancelAnimationFrame = (id) => clearTimeout(id);
-  globalThis.getComputedStyle = dom.window.getComputedStyle.bind(dom.window);
-  globalThis.IS_REACT_ACT_ENVIRONMENT = false;
-  return dom;
-}
-
-function wait(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function waitFor(predicate, description) {
-  const deadline = Date.now() + 15_000;
-  while (Date.now() < deadline) {
-    if (predicate()) {
-      return;
-    }
-    await wait(15);
-  }
-  assert.fail(`等待超时：${description}`);
-}
-
-function click(dom, element) {
-  element.dispatchEvent(new dom.window.MouseEvent("mousedown", { bubbles: true, button: 0 }));
-  element.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true }));
-}
-
-async function bootHomeApp(dom) {
-  const { createRoot } = await import("react-dom/client");
-  const React = await import("react");
-  const { createHomeComposition } = await import("../../src/app/home/create-home-composition.js");
-  const { HomeApp } = await import("../../src/app/home/HomeApp.jsx");
-
-  const host = dom.window.document.createElement("div");
-  host.id = "home-root";
-  dom.window.document.body.appendChild(host);
-
-  const services = createHomeComposition({
-    fetchGlossaries: async () => ({ items: [] }),
-    loadPersistedDeveloperConfig: () => ({}),
-    loadPersistedBrowserConfig: () => ({}),
-  });
-  services.initialize();
-
-  const root = createRoot(host);
-  root.render(React.createElement(HomeApp, { services }));
-  await waitFor(() => dom.window.document.getElementById("app-shell"), "HomeApp 首帧渲染");
-  await wait(0);
-  return { services, root, host };
-}
 
 test("上传弹窗：恢复顶部模式切换 + 就绪后执行当前模式或仅收藏", async () => {
   const dom = makeDom("?mock=parallel");
   const byId = (id) => dom.window.document.getElementById(id);
   const { services, root, host } = await bootHomeApp(dom);
 
-  click(dom, byId("library-add-pdf-btn"));
+  clickWithMouseDown(dom, byId("library-add-pdf-btn"));
   await waitFor(() => byId("translation-workflow-dialog") !== null, "添加对话框打开");
   assert.equal(byId("translation-workflow-title").textContent, "添加 PDF");
   assert.equal(byId("translation-workflow-title").classList.contains("sr-only"), true);
@@ -90,7 +29,7 @@ test("上传弹窗：恢复顶部模式切换 + 就绪后执行当前模式或�
 
   const ocrModeTab = dom.window.document.querySelector('[aria-label="仅 OCR 模式"]');
   assert.ok(ocrModeTab, "仅 OCR 模式入口存在");
-  click(dom, ocrModeTab);
+  clickWithMouseDown(dom, ocrModeTab);
   await waitFor(() => byId("submit-btn").textContent.trim() === "开始 OCR", "切换为 OCR 主动作");
 
   // 对话框仍打开（不自动关）
@@ -110,7 +49,7 @@ test("仅收藏：关闭对话框且不提交翻译 job", async () => {
   const opened = [];
   services.library.actions.openBookDetail = (item) => opened.push(item);
 
-  click(dom, byId("library-add-pdf-btn"));
+  clickWithMouseDown(dom, byId("library-add-pdf-btn"));
   await waitFor(() => byId("translation-workflow-dialog") !== null, "添加对话框打开");
 
   let jobSubmitted = false;
@@ -120,7 +59,7 @@ test("仅收藏：关闭对话框且不提交翻译 job", async () => {
   // 上传响应现在带 document_id（= 内容哈希），前端存入 upload session。
   services.ports.uploadStatePort.setUpload({ documentId: "doc-uploaded" });
   await waitFor(() => !byId("store-only-btn").disabled, "仅收藏可选择");
-  click(dom, byId("store-only-btn"));
+  clickWithMouseDown(dom, byId("store-only-btn"));
 
   await waitFor(() => byId("translation-workflow-dialog") === null, "仅收藏后关闭对话框");
   await wait(50);
@@ -142,7 +81,7 @@ test("提交任务：成功后关闭弹窗并跳到该文档详情（进度 Tab�
   services.library.actions.openBookDetail = (item) => opened.push(item);
   services.bridge.submitForm = async () => ({ status: "submitted", payload: { job_id: "job-x" } });
 
-  click(dom, byId("library-add-pdf-btn"));
+  clickWithMouseDown(dom, byId("library-add-pdf-btn"));
   await waitFor(() => byId("translation-workflow-dialog") !== null, "添加对话框打开");
   services.stores.uploadView.actions.patch({ ready: true, actionSlotVisible: true });
   services.ports.uploadStatePort.setUpload({ documentId: "doc-uploaded" });

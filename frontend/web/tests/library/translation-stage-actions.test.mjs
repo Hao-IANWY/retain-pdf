@@ -1,58 +1,19 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { JSDOM } from "jsdom";
+import { waitFor } from "../helpers/async.mjs";
+import { clickWithMouseDown, makeDom as makeDomWith } from "../helpers/dom.mjs";
 
-function makeDom() {
-  const dom = new JSDOM("<!doctype html><html><body><div id='root'></div></body></html>", {
-    url: "http://localhost/index.html",
-  });
-  for (const key of [
-    "window",
-    "document",
-    "HTMLElement",
-    "HTMLInputElement",
-    "HTMLButtonElement",
-    "Element",
-    "SVGElement",
-    "CustomEvent",
-    "Event",
-    "KeyboardEvent",
-    "MouseEvent",
-    "Node",
-    "MutationObserver",
-    "NodeFilter",
-  ]) {
-    Object.defineProperty(globalThis, key, {
-      value: dom.window[key] ?? dom.window,
-      configurable: true,
-      writable: true,
-    });
-  }
-  globalThis.requestAnimationFrame = (callback) => setTimeout(() => callback(0), 0);
-  globalThis.cancelAnimationFrame = (id) => clearTimeout(id);
-  globalThis.getComputedStyle = dom.window.getComputedStyle.bind(dom.window);
-  globalThis.IS_REACT_ACT_ENVIRONMENT = false;
-  return dom;
-}
+// 组件直接挂进 #root，并且用到了 SVG 图标（SVGElement）。
+const makeDom = () => makeDomWith("", {
+  html: "<!doctype html><html><body><div id='root'></div></body></html>",
+  keys: [
+    "window", "document", "HTMLElement", "HTMLInputElement", "HTMLButtonElement", "Element",
+    "SVGElement", "CustomEvent", "Event", "KeyboardEvent", "MouseEvent", "Node",
+    "MutationObserver", "NodeFilter",
+  ],
+});
 
-function click(dom, element) {
-  element.dispatchEvent(new dom.window.MouseEvent("mousedown", {
-    bubbles: true,
-    cancelable: true,
-    button: 0,
-  }));
-  element.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true, cancelable: true }));
-}
-
-async function waitFor(predicate, description) {
-  const deadline = Date.now() + 15_000;
-  while (Date.now() < deadline) {
-    const value = predicate();
-    if (value) return value;
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
-  assert.fail(`等待超时：${description}`);
-}
+const click = (dom, element) => clickWithMouseDown(dom, element, { cancelable: true });
 
 test("不明确的翻译阶段必须二次确认重复调用风险", async () => {
   const dom = makeDom();

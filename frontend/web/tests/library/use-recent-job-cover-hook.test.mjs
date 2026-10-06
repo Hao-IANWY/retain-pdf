@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
+import { wait, waitFor } from "../helpers/async.mjs";
 
 // useRecentJobCover(蓝图 §6 新增测试⑩)。覆盖:
 // - 缓存复用(image-loader.js 的模块级 Map,同一 URL+cacheVersion 只发一次
@@ -24,21 +25,6 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = false;
 const { createRoot } = await import("react-dom/client");
 const React = await import("react");
 const { useRecentJobCover } = await import("../../src/features/library/ui/display/useRecentJobCover.js");
-
-function wait(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function waitFor(predicate, description) {
-  const deadline = Date.now() + 15_000;
-  while (Date.now() < deadline) {
-    if (predicate()) {
-      return;
-    }
-    await wait(10);
-  }
-  assert.fail(`等待超时：${description}`);
-}
 
 function installFetchAndObjectUrlMocks() {
   const fetchCalls = [];

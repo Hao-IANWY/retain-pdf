@@ -1,83 +1,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { JSDOM } from "jsdom";
+import { wait, waitFor } from "../helpers/async.mjs";
+import { clickWithMouseDown, makeDom, typeInput } from "../helpers/dom.mjs";
+import { bootHomeApp } from "../helpers/home-app.mjs";
 
 // 书籍详情弹窗(参考 PDF_MD_lib 的 BookDetailModal)组件级测试:点卡片打开、
 // 元数据渲染、阅读状态切换走 patchDocument、馆藏/已翻译的动作集不同。
 //
 // 每个 test 一份全新 JSDOM(同一个 jsdom 第二次 createRoot 会停摆)。
 
-function makeDom(search = "") {
-  const dom = new JSDOM("<!doctype html><html><body></body></html>", {
-    url: `http://localhost/index.html${search}`,
-  });
-  for (const key of ["window", "document", "DocumentFragment", "HTMLElement", "HTMLButtonElement", "HTMLFormElement", "HTMLInputElement", "CustomEvent", "Event", "KeyboardEvent", "MouseEvent", "Node", "MutationObserver", "NodeFilter"]) {
-    Object.defineProperty(globalThis, key, {
-      value: dom.window[key] ?? dom.window,
-      writable: true,
-      configurable: true,
-    });
-  }
-  globalThis.window = dom.window;
-  globalThis.requestAnimationFrame = (callback) => setTimeout(() => callback(0), 0);
-  globalThis.cancelAnimationFrame = (id) => clearTimeout(id);
-  globalThis.getComputedStyle = dom.window.getComputedStyle.bind(dom.window);
-  globalThis.IS_REACT_ACT_ENVIRONMENT = false;
-  return dom;
-}
-
-function wait(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function waitFor(predicate, description) {
-  const deadline = Date.now() + 15_000;
-  while (Date.now() < deadline) {
-    const value = predicate();
-    if (value) {
-      return value;
-    }
-    await wait(15);
-  }
-  assert.fail(`等待超时：${description}`);
-}
-
-function click(dom, element) {
-  // Radix Tabs Trigger 挂在 mousedown 上，只 dispatch click 不会切 tab
-  element.dispatchEvent(new dom.window.MouseEvent("mousedown", { bubbles: true, cancelable: true, button: 0 }));
-  element.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true, cancelable: true }));
-}
-
-// 控制端输入：绕开 React 的 value 追踪，用原生 setter 写入再冒泡 input
-function typeInput(dom, element, value) {
-  const setter = Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value").set;
-  setter.call(element, value);
-  element.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
-}
-
-async function bootHomeApp(dom) {
-  const { createRoot } = await import("react-dom/client");
-  const React = await import("react");
-  const { createHomeComposition } = await import("../../src/app/home/create-home-composition.js");
-  const { HomeApp } = await import("../../src/app/home/HomeApp.jsx");
-
-  const host = dom.window.document.createElement("div");
-  host.id = "home-root";
-  dom.window.document.body.appendChild(host);
-
-  const services = createHomeComposition({
-    fetchGlossaries: async () => ({ items: [] }),
-    loadPersistedDeveloperConfig: () => ({}),
-    loadPersistedBrowserConfig: () => ({}),
-  });
-  services.initialize();
-
-  const root = createRoot(host);
-  root.render(React.createElement(HomeApp, { services }));
-  await waitFor(() => dom.window.document.getElementById("app-shell"), "HomeApp 首帧渲染");
-  await wait(0);
-  return { services, root, host };
-}
+// Radix Tabs Trigger 挂在 mousedown 上，只 dispatch click 不会切 tab
+const click = (dom, element) => clickWithMouseDown(dom, element, { cancelable: true });
 
 test("馆藏卡打开书籍详情:元数据 + 阅读状态切换 + 翻译/读原文动作,无对照阅读", async () => {
   const dom = makeDom("?mock=parallel");
@@ -284,7 +217,6 @@ test("书籍详情:后台轮询换 item 引用不覆盖正在编辑的标题", a
   services.dispose();
   host.remove();
 });
-
 
 test("进度 Tab：运行中的真实 OCR 任务提供取消，派生 OCR 不提供", async () => {
   const dom = makeDom();

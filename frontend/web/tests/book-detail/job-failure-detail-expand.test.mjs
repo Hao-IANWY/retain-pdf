@@ -7,33 +7,16 @@
  */
 import test from "node:test";
 import assert from "node:assert/strict";
-import { JSDOM } from "jsdom";
+import { waitFor } from "../helpers/async.mjs";
+import { click, makeDom as makeDomWith } from "../helpers/dom.mjs";
 
-function makeDom() {
-  const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http://localhost/index.html" });
-  for (const key of [
+// 这张卡里没有表单，原来就只装这些全局。
+const makeDom = () => makeDomWith("", {
+  keys: [
     "window", "document", "DocumentFragment", "HTMLElement", "HTMLButtonElement",
     "CustomEvent", "Event", "MouseEvent", "Node", "MutationObserver", "NodeFilter",
-  ]) {
-    Object.defineProperty(globalThis, key, { value: dom.window[key] ?? dom.window, writable: true, configurable: true });
-  }
-  globalThis.window = dom.window;
-  globalThis.requestAnimationFrame = (cb) => setTimeout(() => cb(0), 0);
-  globalThis.cancelAnimationFrame = (id) => clearTimeout(id);
-  globalThis.getComputedStyle = dom.window.getComputedStyle.bind(dom.window);
-  globalThis.IS_REACT_ACT_ENVIRONMENT = false;
-  return dom;
-}
-const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-async function waitFor(predicate, description) {
-  const deadline = Date.now() + 15_000;
-  while (Date.now() < deadline) {
-    const value = predicate();
-    if (value) return value;
-    await wait(15);
-  }
-  assert.fail(`等待超时：${description}`);
-}
+  ],
+});
 
 const FAILURE = {
   category: "provider", stage: "ocr", retryable: true,
@@ -58,7 +41,6 @@ async function mountCard(dom, props) {
 
 const buttonWith = (host, label) =>
   [...host.querySelectorAll("button")].find((b) => b.textContent.includes(label));
-const click = (dom, el) => el.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true }));
 
 test("点「展开完整错误」才去打详情端点，拿回的 traceback 真的画出来", async () => {
   const dom = makeDom();

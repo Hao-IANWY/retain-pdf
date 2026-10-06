@@ -1,47 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { JSDOM } from "jsdom";
+import { wait, waitFor } from "../helpers/async.mjs";
+import { makeDom } from "../helpers/dom.mjs";
 
 // 已有书再翻译链(B4):selectJob 有 document_id 时只开详情不开上传框;
 // 详情翻译提交后进度接在 #book-detail-status-section,网格静默不闪 loading。
 //
 // 风格沿用 book-detail-dialog-component.test.mjs:每条用例一份全新 JSDOM
 // (同一 jsdom 第二次 createRoot 会停摆),click 补 mousedown 贴近 Radix。
-
-function makeDom(search = "") {
-  const dom = new JSDOM("<!doctype html><html><body></body></html>", {
-    url: `http://localhost/index.html${search}`,
-  });
-  for (const key of ["window", "document", "DocumentFragment", "HTMLElement", "HTMLButtonElement", "HTMLFormElement", "HTMLInputElement", "CustomEvent", "Event", "KeyboardEvent", "MouseEvent", "Node", "MutationObserver", "NodeFilter"]) {
-    Object.defineProperty(globalThis, key, {
-      value: dom.window[key] ?? dom.window,
-      writable: true,
-      configurable: true,
-    });
-  }
-  globalThis.window = dom.window;
-  globalThis.requestAnimationFrame = (callback) => setTimeout(() => callback(0), 0);
-  globalThis.cancelAnimationFrame = (id) => clearTimeout(id);
-  globalThis.getComputedStyle = dom.window.getComputedStyle.bind(dom.window);
-  globalThis.IS_REACT_ACT_ENVIRONMENT = false;
-  return dom;
-}
-
-function wait(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function waitFor(predicate, description) {
-  const deadline = Date.now() + 15_000;
-  while (Date.now() < deadline) {
-    const value = predicate();
-    if (value) {
-      return value;
-    }
-    await wait(15);
-  }
-  assert.fail(`等待超时：${description}`);
-}
 
 test("有 document_id 点卡开详情,不开上传框", async () => {
   const dom = makeDom();

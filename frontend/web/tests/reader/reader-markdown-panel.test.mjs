@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
+import { wait } from "../helpers/async.mjs";
 
 const dom = new JSDOM("<!doctype html><html><body></body></html>", {
   url: "http://localhost/reader.html?job_id=job-markdown",
@@ -55,10 +56,6 @@ const { retainPdfReaderAdapters } = await import(
 const { parseMarkdownWithMath } = await import(
   "../../../../frontend/packages/reader/src/external.ts"
 );
-
-function wait(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 async function waitFor(predicate, description) {
   const deadline = Date.now() + 15_000;

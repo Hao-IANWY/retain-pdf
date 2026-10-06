@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
+import { wait, waitFor } from "../helpers/async.mjs";
 
 // ProcessingChoicePanel：提交按钮常显 + 禁用原因与下一步指引行。
 
@@ -22,19 +23,6 @@ const { createRoot } = await import("react-dom/client");
 const React = await import("react");
 const { ProcessingChoicePanel } = await import("../../src/features/ingest/ui/components/upload/ProcessingChoicePanel.jsx");
 const { APP_EVENTS } = await import("@/platform/contracts/app-contract.js");
-
-function wait(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function waitFor(predicate, description) {
-  const deadline = Date.now() + 15_000;
-  while (Date.now() < deadline) {
-    if (predicate()) return;
-    await wait(15);
-  }
-  assert.fail(`等待超时：${description}`);
-}
 
 function baseProps(overrides = {}) {
   return {

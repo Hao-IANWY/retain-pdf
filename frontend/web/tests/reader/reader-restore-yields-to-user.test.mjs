@@ -16,46 +16,19 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
-import { JSDOM } from "jsdom";
 
 import { useReadingAnchor } from "../../../../frontend/packages/reader/src/pdf/useReadingAnchor.ts";
 import {
   loadReaderViewState,
-  readerViewStateStorageKey,
   saveReaderViewState,
 } from "../../../../frontend/packages/reader/src/shared/state/reader-view-state.ts";
+import { installReaderDom } from "../helpers/dom.mjs";
 
-function installDom(url = "http://localhost/reader.html") {
-  const dom = new JSDOM("<!doctype html><html><body><div id='root'></div></body></html>", {
-    url, pretendToBeVisual: true,
-  });
-  const keys = [
-    "window", "document", "history", "location", "localStorage", "HTMLElement", "Element",
-    "Node", "Event", "MouseEvent", "KeyboardEvent", "WheelEvent", "MutationObserver",
-    "getSelection", "requestAnimationFrame", "cancelAnimationFrame",
-    "addEventListener", "removeEventListener", "dispatchEvent",
-  ];
-  const previous = Object.fromEntries(keys.map((key) => [key, globalThis[key]]));
-  for (const key of keys) {
-    const bound = ["requestAnimationFrame", "cancelAnimationFrame", "addEventListener",
-      "removeEventListener", "dispatchEvent"].includes(key);
-    const value = key === "getSelection"
-      ? dom.window.getSelection.bind(dom.window)
-      : bound ? dom.window[key].bind(dom.window) : dom.window[key];
-    Object.defineProperty(globalThis, key, { value, configurable: true, writable: true });
-  }
-  globalThis.IS_REACT_ACT_ENVIRONMENT = true;
-  return {
-    dom,
-    restore() {
-      for (const [key, value] of Object.entries(previous)) {
-        Object.defineProperty(globalThis, key, { value, configurable: true, writable: true });
-      }
-      delete globalThis.IS_REACT_ACT_ENVIRONMENT;
-      dom.window.close();
-    },
-  };
-}
+// 本文件要模拟键盘与滚轮，额外装 KeyboardEvent / WheelEvent。
+const installDom = (url = "http://localhost/reader.html") => installReaderDom({
+  url,
+  extraKeys: ["KeyboardEvent", "WheelEvent"],
+});
 
 /** 一个有 4 页、每页 800px 的壳。 */
 function buildShell() {

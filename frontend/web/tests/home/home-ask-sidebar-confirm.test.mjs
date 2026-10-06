@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
+import { waitFor } from "../helpers/async.mjs";
 
 // 组件动态导入：必须晚于全局 jsdom 变量就位（静态 import 会抢跑）。
 
@@ -37,15 +38,6 @@ async function mountSidebar({ onDelete }) {
     }),
   );
   return { root, host };
-}
-
-async function waitFor(predicate, description) {
-  const deadline = Date.now() + 15_000;
-  while (Date.now() < deadline) {
-    if (predicate()) return;
-    await new Promise((resolve) => setTimeout(resolve, 15));
-  }
-  assert.fail(`等待超时：${description}`);
 }
 
 function click(element) {

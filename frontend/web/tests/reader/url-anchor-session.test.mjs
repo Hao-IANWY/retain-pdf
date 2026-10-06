@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
+import { waitFor } from "../helpers/async.mjs";
 
 const dom = new JSDOM("<!doctype html><html><body><div id='root'></div></body></html>", {
   url: "http://localhost/reader.html?job_id=job-A",
@@ -28,15 +29,6 @@ const { setReaderAdapters } = await import(
 
 function wait(ms = 150) {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function waitFor(predicate, description, timeoutMs = 15_000) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    if (predicate()) return;
-    await wait(10);
-  }
-  assert.fail(`等待超时：${typeof description === "function" ? description() : description}`);
 }
 
 // 重试链是 use-url-anchor-jump.ts 的 JUMP_DELAYS_MS = [0,80,200,400,800]，而

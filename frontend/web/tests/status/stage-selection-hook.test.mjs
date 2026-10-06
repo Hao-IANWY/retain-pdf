@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
+import { waitFor } from "../helpers/async.mjs";
 
 function installDom() {
   const dom = new JSDOM("<!doctype html><html><body><div id=\"root\"></div></body></html>", {
@@ -17,20 +18,11 @@ function installDom() {
   return dom;
 }
 
+// 等 render 刷出来用 helpers 的 waitFor，不用固定 sleep：固定 sleep 赌的是「React 在 N 毫秒内
+// 把 render 刷出来」。concurrency=4 下 CPU 被抢，scheduler 的宏任务就落在 N 之后，断言读到
+// 的是刷之前的状态。实测：24 个忙等进程下这条 20 遍红 1 遍。
 function wait(ms = 25) {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-// 固定 sleep 赌的是「React 在 N 毫秒内把 render 刷出来」。concurrency=4 下 CPU 被抢，
-// scheduler 的宏任务就落在 N 之后，断言读到的是刷之前的状态。实测：24 个忙等进程下
-// 这条 20 遍红 1 遍。改成轮询等条件成立，和仓库里其它文件的 waitFor 一致。
-async function waitFor(predicate, description, timeoutMs = 15_000) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    if (predicate()) return;
-    await wait(10);
-  }
-  assert.fail(`等待超时：${typeof description === "function" ? description() : description}`);
 }
 
 /** 「不该多出一次 render」是条负向断言，这个窗口放长只会让门禁更严，不会更脆。 */

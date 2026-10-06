@@ -1,55 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { JSDOM } from "jsdom";
+import { waitFor } from "../helpers/async.mjs";
+import { makeDom } from "../helpers/dom.mjs";
 
 // usePageRange：换文档（弹窗不关）要重置并回填新 pageCount，关闭要清空。
-
-function makeDom() {
-  const dom = new JSDOM("<!doctype html><html><body></body></html>", {
-    url: "http://localhost/index.html",
-  });
-  for (const key of [
-    "window",
-    "document",
-    "DocumentFragment",
-    "HTMLElement",
-    "HTMLButtonElement",
-    "HTMLFormElement",
-    "HTMLInputElement",
-    "CustomEvent",
-    "Event",
-    "KeyboardEvent",
-    "MouseEvent",
-    "Node",
-    "MutationObserver",
-    "NodeFilter",
-  ]) {
-    Object.defineProperty(globalThis, key, {
-      value: dom.window[key] ?? dom.window,
-      writable: true,
-      configurable: true,
-    });
-  }
-  globalThis.window = dom.window;
-  globalThis.requestAnimationFrame = (callback) => setTimeout(() => callback(0), 0);
-  globalThis.cancelAnimationFrame = (id) => clearTimeout(id);
-  globalThis.getComputedStyle = dom.window.getComputedStyle.bind(dom.window);
-  globalThis.IS_REACT_ACT_ENVIRONMENT = false;
-  return dom;
-}
-
-function wait(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function waitFor(predicate, description) {
-  const deadline = Date.now() + 15_000;
-  while (Date.now() < deadline) {
-    if (predicate()) return;
-    await wait(10);
-  }
-  assert.fail(`等待超时：${description}`);
-}
 
 test("usePageRange：换文档重置并回填 1-N；关闭清空；越界在校验时报出而不是悄悄夹紧", async () => {
   makeDom();

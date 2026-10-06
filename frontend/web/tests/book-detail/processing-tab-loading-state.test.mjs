@@ -25,41 +25,8 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { JSDOM } from "jsdom";
-
-// 每个 test 一份全新 JSDOM（同一个 jsdom 第二次 createRoot 会停摆）。
-function makeDom() {
-  const dom = new JSDOM("<!doctype html><html><body></body></html>", {
-    url: "http://localhost/index.html",
-  });
-  for (const key of ["window", "document", "DocumentFragment", "HTMLElement", "HTMLButtonElement", "HTMLFormElement", "HTMLInputElement", "CustomEvent", "Event", "KeyboardEvent", "MouseEvent", "Node", "MutationObserver", "NodeFilter"]) {
-    Object.defineProperty(globalThis, key, {
-      value: dom.window[key] ?? dom.window,
-      writable: true,
-      configurable: true,
-    });
-  }
-  globalThis.window = dom.window;
-  globalThis.requestAnimationFrame = (callback) => setTimeout(() => callback(0), 0);
-  globalThis.cancelAnimationFrame = (id) => clearTimeout(id);
-  globalThis.getComputedStyle = dom.window.getComputedStyle.bind(dom.window);
-  globalThis.IS_REACT_ACT_ENVIRONMENT = false;
-  return dom;
-}
-
-function wait(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function waitFor(predicate, description) {
-  const deadline = Date.now() + 15_000;
-  while (Date.now() < deadline) {
-    const value = predicate();
-    if (value) return value;
-    await wait(15);
-  }
-  assert.fail(`等待超时：${description}`);
-}
+import { wait, waitFor } from "../helpers/async.mjs";
+import { makeDom } from "../helpers/dom.mjs";
 
 const idleTranslation = {
   item: {},

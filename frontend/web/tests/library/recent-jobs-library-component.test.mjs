@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { JSDOM } from "jsdom";
+import { wait, waitFor } from "../helpers/async.mjs";
+import { byId, click, makeDom } from "../helpers/dom.mjs";
+import { bootHomeApp } from "../helpers/home-app.mjs";
 
 // RecentJobsLibrary / RecentJobCard(Phase 3b recent-jobs 域)组件级测试。
 // 覆盖蓝图 §6 新增测试①②③:
@@ -11,50 +13,6 @@ import { JSDOM } from "jsdom";
 // ③ 卡片渲染隔离(replaceItem 单卡,断言其余卡片渲染计数不变——memo 回归锚,
 //    黑盒 DOM 比对无法区分"跳过 render"与"render 了但输出相同"，必须用
 //    RecentJobCard.jsx 导出的渲染计数器)。
-
-function makeDom(search = "") {
-  const dom = new JSDOM("<!doctype html><html><body></body></html>", {
-    url: `http://localhost/index.html${search}`,
-  });
-  for (const key of ["window", "document", "DocumentFragment", "HTMLElement", "HTMLButtonElement", "HTMLFormElement", "HTMLInputElement", "CustomEvent", "Event", "KeyboardEvent", "MouseEvent", "Node", "MutationObserver", "NodeFilter"]) {
-    Object.defineProperty(globalThis, key, {
-      value: dom.window[key] ?? dom.window,
-      writable: true,
-      configurable: true,
-    });
-  }
-  globalThis.window = dom.window;
-  globalThis.requestAnimationFrame = (callback) => setTimeout(() => callback(0), 0);
-  // Radix Presence/Tabs(阶段 B 引入)在 jsdom 下需要 cancelAnimationFrame
-  // (TabsContent 的 mount 动画计时器清理)和 getComputedStyle(Presence 读取
-  // animation-name 判断退场动画是否结束)——jsdom 的 window 上有实现,只是没有
-  // 像 requestAnimationFrame 一样被复制到裸 global 上,这里一并补上。NodeFilter
-  // 是阶段 C(TranslationWorkflowDialog 换 Radix Dialog)新增的需要——
-  // Dialog.Content 的 FocusScope 用它做可聚焦元素树遍历。
-  globalThis.cancelAnimationFrame = (id) => clearTimeout(id);
-  globalThis.getComputedStyle = dom.window.getComputedStyle.bind(dom.window);
-  globalThis.IS_REACT_ACT_ENVIRONMENT = false;
-  return dom;
-}
-
-function wait(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function waitFor(predicate, description) {
-  const deadline = Date.now() + 15_000;
-  while (Date.now() < deadline) {
-    if (predicate()) {
-      return;
-    }
-    await wait(15);
-  }
-  assert.fail(`等待超时：${description}`);
-}
-
-function click(dom, element) {
-  element.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true }));
-}
 
 function makeItem(index, overrides = {}) {
   return {
@@ -70,38 +28,9 @@ function makeItem(index, overrides = {}) {
   };
 }
 
-async function bootHomeApp(dom) {
-  const { createRoot } = await import("react-dom/client");
-  const React = await import("react");
-  const { createHomeComposition } = await import("../../src/app/home/create-home-composition.js");
-  const { HomeApp } = await import("../../src/app/home/HomeApp.jsx");
-
-  const host = dom.window.document.createElement("div");
-  host.id = "home-root";
-  dom.window.document.body.appendChild(host);
-
-  const services = createHomeComposition({
-    fetchGlossaries: async () => ({ items: [] }),
-    loadPersistedDeveloperConfig: () => ({}),
-    loadPersistedBrowserConfig: () => ({}),
-  });
-  services.initialize();
-
-  const root = createRoot(host);
-  root.render(React.createElement(HomeApp, { services }));
-  await waitFor(() => dom.window.document.getElementById("library-view"), "HomeApp 首帧渲染");
-  await wait(0);
-
-  return { services, root, host };
-}
-
-function byId(dom, id) {
-  return dom.window.document.getElementById(id);
-}
-
 test("RecentJobsLibrary：初始加载(mock=parallel)渲染网格 + DOM 契约", async () => {
   const dom = makeDom("?mock=parallel");
-  const { services, root, host } = await bootHomeApp(dom);
+  const { services, root, host } = await bootHomeApp(dom, { readyId: "library-view" });
 
   // mock=parallel 走 isMockMode() 短路(fetchLibraryBookList/fetchJobList 不
   // 打真实网络),验证 mountRecentJobsFeature 装配在 initialize() 同步链内
@@ -130,7 +59,7 @@ test("RecentJobsLibrary：初始加载(mock=parallel)渲染网格 + DOM 契约",
 
 test("RecentJobsLibrary：卡片交互(select / reader)", { skip: "CI-only flake：高负载下点开详情后 job-2 按钮 3s 未出现，本地 6 连过；放行发版，前端 owner 跟进重渲逻辑" }, async () => {
   const dom = makeDom("?mock=parallel");
-  const { services, root, host } = await bootHomeApp(dom);
+  const { services, root, host } = await bootHomeApp(dom, { readyId: "library-view" });
 
   const items = [makeItem(1, { status: "running", display_stage: "translation" }), makeItem(2), makeItem(3)];
   services.library.recentJobsStore.actions.setItems(items);
@@ -182,7 +111,7 @@ test("RecentJobsLibrary：卡片交互(select / reader)", { skip: "CI-only flake
 
 test("RecentJobsLibrary：批量删除使用应用确认弹窗，支持取消与确认", async () => {
   const dom = makeDom("?mock=parallel");
-  const { services, root, host } = await bootHomeApp(dom);
+  const { services, root, host } = await bootHomeApp(dom, { readyId: "library-view" });
 
   const items = [
     makeItem(1, { document_id: "doc-1" }),
@@ -236,7 +165,7 @@ test("RecentJobsLibrary：批量删除使用应用确认弹窗，支持取消与
 
 test("RecentJobsLibrary：批量删除遇到收藏保护时二次确认清空收藏后重试", async () => {
   const dom = makeDom("?mock=parallel");
-  const { services, root, host } = await bootHomeApp(dom);
+  const { services, root, host } = await bootHomeApp(dom, { readyId: "library-view" });
 
   const items = [
     makeItem(1, { document_id: "doc-1" }),
@@ -300,7 +229,7 @@ test("RecentJobsLibrary：批量删除遇到收藏保护时二次确认清空收
 
 test("RecentJobsLibrary：同一 document_id 刷新 job 时网格与列表复用稳定卡片身份", async () => {
   const dom = makeDom("?mock=parallel");
-  const { services, root, host } = await bootHomeApp(dom);
+  const { services, root, host } = await bootHomeApp(dom, { readyId: "library-view" });
 
   const first = makeItem(1, { document_id: "doc-stable" });
   services.library.recentJobsStore.actions.setItems([first]);
@@ -344,7 +273,7 @@ test("RecentJobsLibrary：同一 document_id 刷新 job 时网格与列表复用
 
 test("RecentJobsLibrary：筛选和 items 刷新会清理不可操作的批量选择", async () => {
   const dom = makeDom("?mock=parallel");
-  const { services, root, host } = await bootHomeApp(dom);
+  const { services, root, host } = await bootHomeApp(dom, { readyId: "library-view" });
 
   const first = makeItem(1, { document_id: "doc-1", tags: ["alpha"] });
   const second = makeItem(2, { document_id: "doc-2", tags: ["beta"] });
@@ -390,7 +319,7 @@ test("RecentJobsLibrary：卡片眼睛=快速阅读(已完成→对照阅读;失
   // 只留一个眼睛=快速阅读:已完成派发对照阅读;没有可读目标(失败且无 document_id)
   // 点了不派发任何东西(不再一路捅进阅读器深处报错)。
   const dom = makeDom("?mock=parallel");
-  const { services, root, host } = await bootHomeApp(dom);
+  const { services, root, host } = await bootHomeApp(dom, { readyId: "library-view" });
 
   const items = [
     makeItem(1, { status: "failed" }),
@@ -426,7 +355,7 @@ test("RecentJobsLibrary：馆藏文档卡(未翻译)——徽标/点卡片开详
   // 馆藏文档(合成 job_id `doc:<id>`)进网格:徽标"馆藏"、点卡片开书籍详情弹窗、
   // 眼睛=读原文(派发带 documentId、不带 jobId 的 openReaderRequested)。
   const dom = makeDom("?mock=parallel");
-  const { services, root, host } = await bootHomeApp(dom);
+  const { services, root, host } = await bootHomeApp(dom, { readyId: "library-view" });
 
   const libraryOnlyItem = {
     job_id: "doc:doc-ref-6a1f2c", document_id: "doc-ref-6a1f2c", library_only: true,
@@ -466,7 +395,7 @@ test("书籍详情弹窗:馆藏点翻译 → 立刻接进度 + 网格静默更�
   // 点馆藏卡开详情 → 翻译整本 → mock 挂 active_job_id →
   // 详情 payload/进度卡立刻有 job_id，网格有真实 job 行，不靠整页 loading 重载。
   const dom = makeDom("?mock=parallel");
-  const { services, root, host } = await bootHomeApp(dom);
+  const { services, root, host } = await bootHomeApp(dom, { readyId: "library-view" });
   const { HOME_LOADING_STATES } = await import("@/platform/contracts/home-view-contract.js");
 
   const { getMockDocumentList } = await import("@/platform/mock/documents.js");
@@ -554,7 +483,7 @@ test("书籍详情弹窗:馆藏点翻译 → 立刻接进度 + 网格静默更�
 
 test("RecentJobsLibrary：卡片渲染隔离(replaceItem 单卡,其余 23 张卡片渲染计数不变)", async () => {
   const dom = makeDom("?mock=parallel");
-  const { services, root, host } = await bootHomeApp(dom);
+  const { services, root, host } = await bootHomeApp(dom, { readyId: "library-view" });
   const {
     getCardRenderCountForTests,
     resetCardRenderCountsForTests,
@@ -613,7 +542,7 @@ test("RecentJobsLibrary：workflow 挂起不死锁(开→job-updated 仍打补�
   // 补丁不受影响),但被 scheduleRefresh(整页刷新)会被挂起吞掉;关闭后
   // scheduleRefresh({delay:300}) 应该让刷新恢复,不能永久卡死。
   const dom = makeDom("?mock=parallel");
-  const { services, root, host } = await bootHomeApp(dom);
+  const { services, root, host } = await bootHomeApp(dom, { readyId: "library-view" });
   const { APP_EVENTS } = await import("@/platform/contracts/app-contract.js");
   const { HOME_LOADING_STATES } = await import("@/platform/contracts/home-view-contract.js");
 

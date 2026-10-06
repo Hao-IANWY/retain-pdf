@@ -2,34 +2,8 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { JSDOM } from "jsdom";
-
-function makeDom() {
-  const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http://localhost/index.html" });
-  for (const key of [
-    "window", "document", "DocumentFragment", "HTMLElement", "HTMLButtonElement",
-    "HTMLFormElement", "HTMLInputElement", "CustomEvent", "Event", "KeyboardEvent",
-    "MouseEvent", "Node", "MutationObserver", "NodeFilter",
-  ]) {
-    Object.defineProperty(globalThis, key, { value: dom.window[key] ?? dom.window, writable: true, configurable: true });
-  }
-  globalThis.window = dom.window;
-  globalThis.requestAnimationFrame = (cb) => setTimeout(() => cb(0), 0);
-  globalThis.cancelAnimationFrame = (id) => clearTimeout(id);
-  globalThis.getComputedStyle = dom.window.getComputedStyle.bind(dom.window);
-  globalThis.IS_REACT_ACT_ENVIRONMENT = false;
-  return dom;
-}
-const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-async function waitFor(predicate, description) {
-  const deadline = Date.now() + 15_000;
-  while (Date.now() < deadline) {
-    const value = predicate();
-    if (value) return value;
-    await wait(15);
-  }
-  assert.fail(`等待超时：${typeof description === "function" ? description() : description}`);
-}
+import { waitFor } from "../helpers/async.mjs";
+import { makeDom } from "../helpers/dom.mjs";
 
 // 失败的翻译任务会拉起 BookTranslateProgressPanel，它要 HomeShellProviders。
 const services = {
@@ -38,18 +12,6 @@ const services = {
   statusDetail: { controller: { openStatusDetailDialog: () => {} } },
   // 运行中的翻译会拉起嵌入状态卡（useStatusCardModel 要 reader）。
   reader: { openReader: () => {} },
-};
-
-
-const OCR_FAILURE = {
-  category: "provider", stage: "ocr", retryable: true,
-  summary: "任务失败，但暂未识别出明确根因",
-  root_cause: "MinerU batch task failed: parsing failed, please try again later",
-  suggestion: "查看 log_tail 和完整错误日志进一步排查", provider: "mineru",
-};
-const TRANSLATION_FAILURE = {
-  category: "translation", stage: "translation", retryable: true,
-  summary: "翻译阶段失败", root_cause: "DeepSeek 返回空译文", provider: "deepseek",
 };
 
 const idleOcr = {
@@ -62,19 +24,6 @@ const idleTranslation = {
   onRangeOnChange() {}, onStartPageChange() {}, onEndPageChange() {},
   onTranslate() {}, onRetryStage: async () => {},
 };
-
-const failedOcrJob = (failure = OCR_FAILURE, extra = {}) => ({
-  job_id: "job-ocr-1", workflow: "ocr", job_type: "ocr", status: "failed",
-  created_at: "2026-10-01T00:00:00Z", failure, ...extra,
-});
-const failedTranslation = (failure = TRANSLATION_FAILURE) => ({
-  ...idleTranslation,
-  item: {
-    job_id: "job-tr-1", workflow: "translate", status: "failed",
-    created_at: "2026-10-02T00:00:00Z", failure,
-  },
-  status: { label: "失败", tone: "failed" },
-});
 
 async function mountTab(dom, props) {
   const { createRoot } = await import("react-dom/client");
@@ -94,7 +43,6 @@ async function mountTab(dom, props) {
   await waitFor(() => host.querySelector(".book-detail-processing-card"), "进度卡渲染");
   return { root, host };
 }
-
 
 const COVERAGE = {
   page_count: 6,

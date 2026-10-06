@@ -12,6 +12,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
+import { wait } from "../helpers/async.mjs";
 
 const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http://localhost/" });
 for (const key of ["window", "document", "HTMLElement", "Event", "Node", "MutationObserver"]) {
@@ -27,8 +28,6 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = false;
 const { createRoot } = await import("react-dom/client");
 const React = await import("react");
 const { ProgressBlock } = await import("../../src/features/jobs/ui/ProgressBlock.jsx");
-
-const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function renderProgress(renderOptions) {
   const host = dom.window.document.createElement("div");

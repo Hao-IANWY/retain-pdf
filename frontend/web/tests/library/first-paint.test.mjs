@@ -5,12 +5,8 @@ import { createRecentJobsLoader } from '../../src/features/library/domain/recent
 import { createRecentJobsStatePort } from '../../src/features/library/domain/recent-jobs/state.js';
 import { libraryCardBadge } from '../../src/features/library/domain/card/library-card-badge.js';
 import { cardSignatureOf } from '../../src/features/library/ui/shell/book-card/format.js';
+import { deferred } from "../helpers/async.mjs";
 
-function deferred() {
-  let resolve, reject;
-  const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
-  return { promise, resolve, reject };
-}
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 globalThis.window = { setTimeout, clearTimeout };
 const document = (id = 'one') => ({ document_id: id, active_job_id: `job-${id}`, title: `${id}.pdf`, page_count: 8 });

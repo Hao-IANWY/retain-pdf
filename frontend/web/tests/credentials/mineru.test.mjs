@@ -8,6 +8,7 @@ import { readCredentialDialogValues, ocrTokenFromDialogValues } from "../../src/
 import { normalizeBrowserStoredConfig } from "../../src/platform/config/storage.js";
 import { getOcrProviderDefinition, normalizeOcrProvider } from "../../src/platform/config/providers.js";
 import { createWorkflowPayloadAssembly } from "../../src/features/ingest/domain/workflow/payload-assembly.js";
+import { deferred } from "../helpers/async.mjs";
 
 const storedConfig = new Map();
 globalThis.window = { localStorage: {
@@ -24,12 +25,6 @@ function state() {
     ocrProvider: "paddle", ocrCredentialRef: paddle.credential_ref,
     paddleToken: "paddle-legacy", translationCredentialRef: translation.credential_ref,
   } });
-}
-
-function deferred() {
-  let resolve;
-  const promise = new Promise((done) => { resolve = done; });
-  return { promise, resolve };
 }
 
 function vaultHarness({ port = state(), items = [paddle, mineru, translation], listCredentials } = {}) {

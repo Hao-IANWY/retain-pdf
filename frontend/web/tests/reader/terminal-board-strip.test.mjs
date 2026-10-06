@@ -10,34 +10,13 @@
  */
 import test from "node:test";
 import assert from "node:assert/strict";
-import { JSDOM } from "jsdom";
+import { wait, waitFor } from "../helpers/async.mjs";
+import { makeDom as makeDomWith, READER_PANEL_DOM_KEYS } from "../helpers/dom.mjs";
 
-function makeDom() {
-  const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http://localhost/reader.html" });
-  for (const key of [
-    "window", "document", "DocumentFragment", "HTMLElement", "HTMLButtonElement",
-    "CustomEvent", "Event", "MouseEvent", "Node", "MutationObserver", "NodeFilter",
-    "AbortController", "localStorage", "URL",
-  ]) {
-    Object.defineProperty(globalThis, key, { value: dom.window[key] ?? dom.window, writable: true, configurable: true });
-  }
-  globalThis.window = dom.window;
-  globalThis.requestAnimationFrame = (cb) => setTimeout(() => cb(0), 0);
-  globalThis.cancelAnimationFrame = (id) => clearTimeout(id);
-  globalThis.getComputedStyle = dom.window.getComputedStyle.bind(dom.window);
-  globalThis.IS_REACT_ACT_ENVIRONMENT = false;
-  return dom;
-}
-const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-async function waitFor(predicate, description) {
-  const deadline = Date.now() + 15_000;
-  while (Date.now() < deadline) {
-    const value = predicate();
-    if (value) return value;
-    await wait(15);
-  }
-  assert.fail(`等待超时：${description}`);
-}
+const makeDom = () => makeDomWith("", {
+  url: "http://localhost/reader.html",
+  keys: READER_PANEL_DOM_KEYS,
+});
 
 /** 端点真正返回的形状：`ApiResponse::ok(...)` 包成 {code, message, data}。 */
 const envelope = (items) => ({

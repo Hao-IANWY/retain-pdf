@@ -11,34 +11,8 @@
  */
 import test from "node:test";
 import assert from "node:assert/strict";
-import { JSDOM } from "jsdom";
-
-function makeDom() {
-  const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http://localhost/index.html" });
-  for (const key of [
-    "window", "document", "DocumentFragment", "HTMLElement", "HTMLButtonElement",
-    "HTMLFormElement", "HTMLInputElement", "CustomEvent", "Event", "KeyboardEvent",
-    "MouseEvent", "Node", "MutationObserver", "NodeFilter",
-  ]) {
-    Object.defineProperty(globalThis, key, { value: dom.window[key] ?? dom.window, writable: true, configurable: true });
-  }
-  globalThis.window = dom.window;
-  globalThis.requestAnimationFrame = (cb) => setTimeout(() => cb(0), 0);
-  globalThis.cancelAnimationFrame = (id) => clearTimeout(id);
-  globalThis.getComputedStyle = dom.window.getComputedStyle.bind(dom.window);
-  globalThis.IS_REACT_ACT_ENVIRONMENT = false;
-  return dom;
-}
-const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-async function waitFor(predicate, description) {
-  const deadline = Date.now() + 15_000;
-  while (Date.now() < deadline) {
-    const value = predicate();
-    if (value) return value;
-    await wait(15);
-  }
-  assert.fail(`等待超时：${typeof description === "function" ? description() : description}`);
-}
+import { wait, waitFor } from "../helpers/async.mjs";
+import { makeDom } from "../helpers/dom.mjs";
 
 // 失败的翻译任务会拉起 BookTranslateProgressPanel，它要 HomeShellProviders。
 const services = {

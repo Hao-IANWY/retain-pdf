@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
+import { waitFor } from "../helpers/async.mjs";
 
 const dom = new JSDOM("<!doctype html><body><div id='root'></div></body>", {
   url: "http://localhost/reader.html",
@@ -34,15 +35,6 @@ const { AiMarkdownAnswer } = await import("../../../../frontend/packages/reader/
 const { syncAnswerImageDisplaySize } = await import(
   "../../../../frontend/packages/reader/src/components/ai/RetainMarkstream.tsx"
 );
-
-async function waitFor(predicate, description) {
-  const deadline = Date.now() + 15_000;
-  while (Date.now() < deadline) {
-    if (predicate()) return;
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
-  assert.fail(`等待超时：${description}`);
-}
 
 test("current AI Markdown component hydrates a complete image while the answer is still streaming", async () => {
   const calls = [];

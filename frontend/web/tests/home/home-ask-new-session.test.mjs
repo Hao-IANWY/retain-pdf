@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
+import { waitFor } from "../helpers/async.mjs";
 
 const dom = new JSDOM("<!doctype html><html><body><div id='root'></div></body></html>", {
   url: "http://localhost/",
@@ -26,19 +27,11 @@ const { useHomeAskRuntime } = await import(
   "../../src/features/ask/ui/use-home-ask-runtime.ts"
 );
 
+// 等条件用 helpers 的 waitFor：固定 50ms 赌的是「React 在 50ms 内把首帧刷出来」。负载高时
+// 没刷，apiRef.current 还是 null，下面第一句就 TypeError: reading 'send'。实测把预算压到
+// 0 → 10/10 红。
 function wait(ms = 10) {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-// 固定 50ms 赌的是「React 在 50ms 内把首帧刷出来」。负载高时没刷，apiRef.current
-// 还是 null，下面第一句就 TypeError: reading 'send'。实测把预算压到 0 → 10/10 红。
-async function waitFor(predicate, description, timeoutMs = 15_000) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    if (predicate()) return;
-    await wait(10);
-  }
-  assert.fail(`等待超时：${typeof description === "function" ? description() : description}`);
 }
 
 test("newSession 复位运行态：生成中新会话后可立即再问", async () => {

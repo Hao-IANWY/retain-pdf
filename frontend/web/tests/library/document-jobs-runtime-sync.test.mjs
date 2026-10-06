@@ -10,20 +10,7 @@ import {
   upsertDocumentJob,
   useDocumentJobs,
 } from "../../src/features/book-detail/ui/use-document-jobs.js";
-
-function wait(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function waitFor(predicate, description) {
-  const deadline = Date.now() + 15_000;
-  while (Date.now() < deadline) {
-    const value = predicate();
-    if (value) return value;
-    await wait(10);
-  }
-  assert.fail(`等待超时：${description}`);
-}
+import { wait, waitFor } from "../helpers/async.mjs";
 
 test("documentJobs upsert 保留任务身份并合并 runtime 状态", () => {
   const queued = upsertDocumentJob([], {

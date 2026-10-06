@@ -21,9 +21,15 @@
  */
 import test from "node:test";
 import assert from "node:assert/strict";
-import { JSDOM } from "jsdom";
 
 import { code, readSource } from "../helpers/source-text.mjs";
+import { wait } from "../helpers/async.mjs";
+import { makeDom as makeDomWith, READER_PANEL_DOM_KEYS } from "../helpers/dom.mjs";
+
+const makeDom = () => makeDomWith("", {
+  url: "http://localhost/reader.html",
+  keys: READER_PANEL_DOM_KEYS,
+});
 
 const read = (rel) => readSource(rel, import.meta.url);
 
@@ -32,24 +38,6 @@ const read = (rel) => readSource(rel, import.meta.url);
 // readEnv 读的就是这两个名字。不桩的话下面每一条都会在「门根本没渲染」上恒绿。
 process.env.RETAIN_PDF_FRONTEND_API_BASE = "http://localhost:8000";
 process.env.RETAIN_PDF_FRONTEND_X_API_KEY = "test-key";
-
-function makeDom() {
-  const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http://localhost/reader.html" });
-  for (const key of [
-    "window", "document", "DocumentFragment", "HTMLElement", "HTMLButtonElement",
-    "CustomEvent", "Event", "MouseEvent", "Node", "MutationObserver", "NodeFilter",
-    "AbortController", "localStorage", "URL",
-  ]) {
-    Object.defineProperty(globalThis, key, { value: dom.window[key] ?? dom.window, writable: true, configurable: true });
-  }
-  globalThis.window = dom.window;
-  globalThis.requestAnimationFrame = (cb) => setTimeout(() => cb(0), 0);
-  globalThis.cancelAnimationFrame = (id) => clearTimeout(id);
-  globalThis.getComputedStyle = dom.window.getComputedStyle.bind(dom.window);
-  globalThis.IS_REACT_ACT_ENVIRONMENT = false;
-  return dom;
-}
-const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function renderTerminal(dom, props) {
   const { createRoot } = await import("react-dom/client");
