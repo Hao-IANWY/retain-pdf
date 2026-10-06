@@ -12,9 +12,9 @@ use crate::storage_paths::resolve_source_pdf;
 pub(super) fn derive_display_name(
     upload: Option<&UploadRecord>,
     job: &JobSnapshot,
-    titles: &crate::services::book_projection::DocumentTitles,
+    titles: &crate::services::artifacts::DocumentTitles,
 ) -> String {
-    if let Some(title) = crate::services::book_projection::document_title(upload, titles) {
+    if let Some(title) = crate::services::artifacts::document_title(upload, titles) {
         return title;
     }
     if let Some(source_file_name) = source_file_name(upload, job) {

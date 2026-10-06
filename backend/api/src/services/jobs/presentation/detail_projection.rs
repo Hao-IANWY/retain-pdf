@@ -146,7 +146,7 @@ pub(super) fn build_summary_projection(
     let upload = upload_id(job).and_then(|id| db.get_upload(id).ok());
     let upload = upload.as_ref();
     let mut summaries = SummaryCache::default();
-    let titles = crate::services::book_projection::document_titles_for(db, upload);
+    let titles = crate::services::artifacts::document_titles_for(db, upload);
     let display_name = derive_display_name(upload, job, &titles);
     let cover_url = super::helpers::cover_url(job, data_root, base_url);
     DetailSummaryProjection {

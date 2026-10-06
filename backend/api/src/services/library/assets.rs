@@ -151,6 +151,7 @@ mod tests {
             downloads_dir,
             scripts_dir,
             python_bin: "python3",
+            pipeline_command: "",
             asset_config,
         };
         (deps, root)

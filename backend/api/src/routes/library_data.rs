@@ -28,10 +28,10 @@ use crate::services::library::api::{
     apply_document_metadata_suggestion_view,
     create_document_metadata_suggestion_view,
     delete_document_view, document_cover_download,
-    document_source_pdf_download, document_thumbnail_download, get_document,
-    list_document_metadata_suggestions_view, list_documents,
-    ocr_document_view, patch_document, search_blocks_view,
-    translate_document_view,
+    document_reading, document_source_pdf_download, document_thumbnail_download,
+    document_translation_coverage, get_document, list_document_metadata_suggestions_view,
+    list_documents, ocr_document_view, patch_document, search_blocks_view,
+    translate_document_view, DocumentReadingView, TranslationCoverageView,
 };
 use crate::AppState;
 
@@ -68,28 +68,9 @@ pub async fn get_document_route(
 pub async fn get_document_reading_route(
     State(state): State<AppState>,
     ApiPath(document_id): ApiPath<String>,
-) -> Result<Json<ApiResponse<crate::services::merge::reading::DocumentReadingView>>, AppError> {
+) -> Result<Json<ApiResponse<DocumentReadingView>>, AppError> {
     let deps = build_library_route_deps(&state);
-    let source_pdf = document_source_pdf_download(&deps.library, &document_id)?.path;
-    let db = state.db.clone();
-    let config = state.config.clone();
-    let view = tokio::task::spawn_blocking(move || {
-        let artifact_deps = crate::services::derived_artifacts::DerivedArtifactDeps::with_pipeline_command(
-            &config.python_bin,
-            &config.pipeline_command,
-        );
-        crate::services::merge::reading::resolve_reading_target(
-            &db,
-            &config.data_root,
-            artifact_deps,
-            &document_id,
-            &source_pdf,
-        )
-        .map(|target| target.view(&config.data_root))
-    })
-    .await
-    .map_err(|_| AppError::internal("document reading task failed"))??;
-    Ok(ok_json(view))
+    Ok(ok_json(document_reading(&deps.library, &document_id).await?))
 }
 
 /// GET /api/v1/documents/:id/translation-coverage —— 翻译覆盖和任务记录（书籍详情「进度」）。
@@ -98,18 +79,9 @@ pub async fn get_document_reading_route(
 pub async fn get_document_translation_coverage_route(
     State(state): State<AppState>,
     ApiPath(document_id): ApiPath<String>,
-) -> Result<Json<ApiResponse<crate::services::merge::coverage::TranslationCoverageView>>, AppError> {
+) -> Result<Json<ApiResponse<TranslationCoverageView>>, AppError> {
     let deps = build_library_route_deps(&state);
-    let document = get_document(&deps.library, &document_id, "")?;
-    let page_count = document.page_count;
-    let db = state.db.clone();
-    let data_root = state.config.data_root.clone();
-    let view = tokio::task::spawn_blocking(move || {
-        crate::services::merge::coverage::translation_coverage(&db, &data_root, &document_id, page_count)
-    })
-    .await
-    .map_err(|_| AppError::internal("translation coverage task failed"))??;
-    Ok(ok_json(view))
+    Ok(ok_json(document_translation_coverage(&deps.library, &document_id).await?))
 }
 
 /// GET /api/v1/documents/:id/source.pdf — 无翻译 job 也能读源文件。

@@ -9,13 +9,12 @@ use super::helpers::{page_count_for_job, source_file_name, thumbnail_url, upload
 use crate::config::limits::MAX_JOB_LIMIT;
 use crate::db::Db;
 use crate::job_failure::classify_job_failure;
-use crate::models::JobFailureInfo;
 use crate::error::AppError;
 use crate::models::api::{
     summarize_list_invocation, to_absolute_url, DocumentJobListView, JobFailureBriefView,
     JobListItemView, JobListView, ListDocumentJobsQuery, ListJobsQuery,
 };
-use crate::models::domain::{JobSnapshot, UploadRecord};
+use crate::models::domain::{JobFailureInfo, JobSnapshot, UploadRecord};
 
 pub fn build_job_list_view(
     db: &Db,
@@ -74,7 +73,7 @@ fn build_job_list_items(
     // Upload metadata was always optional: an unavailable record falls back to
     // job artifacts and the source URL, without retrying per display field.
     let uploads = db.get_uploads(&ids).unwrap_or_default();
-    let titles = crate::services::book_projection::document_titles_for(db, uploads.values());
+    let titles = crate::services::artifacts::document_titles_for(db, uploads.values());
     let live_stages = if include_live_stage {
         load_live_stage_snapshots(db, jobs, data_root)
     } else {
@@ -104,7 +103,7 @@ fn build_job_list_item_view(
     job: &JobSnapshot,
     base_url: &str,
     upload: Option<&UploadRecord>,
-    titles: &crate::services::book_projection::DocumentTitles,
+    titles: &crate::services::artifacts::DocumentTitles,
     summaries: &mut SummaryCache,
     live_stage: Option<&LiveStageSnapshot>,
 ) -> JobListItemView {

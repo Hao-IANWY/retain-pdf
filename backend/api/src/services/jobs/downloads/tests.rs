@@ -284,6 +284,7 @@ async fn document_images_use_the_same_bounded_generation_without_jobs() {
         downloads_dir: &fixture.root,
         scripts_dir: &fixture.root,
         python_bin: &fixture.renderer,
+        pipeline_command: "",
         asset_config: &asset_config,
     };
     let (first, duplicate, thumbnail, ()) = tokio::join!(

@@ -13,11 +13,9 @@ use crate::models::api::{
 };
 use crate::routes::common::{build_library_route_deps, ok_json, ApiJson, ApiPath};
 use crate::services::library::api::{
-    add_collection_documents_view, create_collection_view, delete_collection_view,
-    list_collections_view, patch_collection_view, remove_collection_document_view,
-};
-use crate::services::collection_workspace::{
-    ensure_collection_workspace, CollectionWorkspace, ReadingBook,
+    add_collection_documents_view, collection_agent_workspace, create_collection_view,
+    delete_collection_view, list_collections_view, patch_collection_view,
+    remove_collection_document_view, CollectionWorkspace,
 };
 use crate::AppState;
 
@@ -93,35 +91,6 @@ pub async fn collection_agent_workspace_route(
     State(state): State<AppState>,
     ApiPath(collection_id): ApiPath<String>,
 ) -> Result<Json<ApiResponse<CollectionWorkspace>>, AppError> {
-    let db = state.db.clone();
-    let config = state.config.clone();
-    // 多次范围翻译的书要按需生成合并目录（子进程），放进阻塞线程。
-    let workspace = tokio::task::spawn_blocking(move || {
-        let deps = crate::services::derived_artifacts::DerivedArtifactDeps::with_pipeline_command(
-            &config.python_bin,
-            &config.pipeline_command,
-        );
-        let reading_book = |document: &crate::models::api::DocumentRecord| {
-            let upload = db.find_upload_for_document(&document.document_id).ok()??;
-            let target = crate::services::merge::reading::resolve_reading_target(
-                &db,
-                &config.data_root,
-                deps,
-                &document.document_id,
-                std::path::Path::new(&upload.stored_path),
-            )
-            .ok()?;
-            match target {
-                crate::services::merge::reading::ReadingTarget::Merged { job_id, merged } => {
-                    Some(ReadingBook { job_id, root: merged.root })
-                }
-                // 单个任务、没有译文：交回原来那套按 active_job 的逻辑。
-                _ => None,
-            }
-        };
-        ensure_collection_workspace(&db, &config.data_root, &collection_id, &reading_book)
-    })
-    .await
-    .map_err(|_| AppError::internal("collection workspace task failed"))??;
-    Ok(ok_json(workspace))
+    let deps = build_library_route_deps(&state);
+    Ok(ok_json(collection_agent_workspace(&deps.library, &collection_id).await?))
 }

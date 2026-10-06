@@ -92,9 +92,9 @@ fn clean_title(title: &str) -> String {
     }
 }
 
-/// 任务所属那本书的名字 —— 和书籍详情 / 书架卡片同一个规则（derive_display_name）。
+/// 任务所属那本书的名字 —— 和书籍详情 / 书架卡片同一个规则（services::artifacts 的书名）。
 pub(crate) fn job_title(db: &Db, job: &JobSnapshot) -> String {
-    crate::services::book_projection::job_display_name(db, job)
+    crate::services::artifacts::job_display_title(db, job)
 }
 
 pub(crate) fn job_download_file_name(db: &Db, job: &JobSnapshot, kind: DownloadKind) -> String {

@@ -12,6 +12,7 @@ mod documents;
 mod media;
 mod metadata_suggestions;
 mod ocr;
+mod reading;
 mod search;
 mod translate;
 mod translate_plan;
@@ -48,5 +49,7 @@ pub struct LibraryDeps<'a> {
     /// Used for document cover/thumbnail generation via derived_artifacts.
     pub scripts_dir: &'a Path,
     pub python_bin: &'a str,
+    /// 合并阅读（多次范围翻译拼一本）要跑 pipeline 生成合并目录。
+    pub pipeline_command: &'a str,
     pub asset_config: &'a AssetConfig,
 }

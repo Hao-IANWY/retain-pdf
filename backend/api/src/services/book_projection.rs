@@ -23,7 +23,7 @@ use metadata::{
     build_book_summary, derive_display_name, page_count_for_library, source_file_name,
     source_url_file_name, upload_id,
 };
-pub(crate) use metadata::{document_title, document_titles_for, DocumentTitles};
+use crate::services::artifacts::{document_titles_for, DocumentTitles};
 
 pub(crate) fn build_library_book_list_view(
     db: &Db,
@@ -57,16 +57,6 @@ pub(crate) fn build_library_book_list_view(
         })
         .collect();
     Ok(LibraryBookListView { items })
-}
-
-/// 任务所属那本书的显示名（文档标题 → 上传文件名 → job_id），和详情页同一个规则。
-/// 下载文件名用它（services::download_names）。
-pub(crate) fn job_display_name(db: &Db, job: &JobSnapshot) -> String {
-    let ids: Vec<_> = upload_id(job).into_iter().collect();
-    let uploads = db.get_uploads(&ids).unwrap_or_default();
-    let upload = upload_id(job).and_then(|id| uploads.get(id));
-    let titles = document_titles_for(db, upload);
-    derive_display_name(upload, job, &titles)
 }
 
 pub(crate) fn build_library_book_detail_view(
