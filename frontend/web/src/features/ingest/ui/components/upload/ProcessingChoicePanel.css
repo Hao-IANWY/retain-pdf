@@ -1,6 +1,6 @@
 /* 处理方式选择：动作区、选项卡、页码范围、公式模式。（ProcessingChoicePanel）
  *
- * @owns upload, translation-workflow-card, translation-budget-note, result-panel, form, math-mode-inline, page-range, credential-gate, progress-track, progress-bar */
+ * @owns upload, translation-workflow-card, translation-budget-note, result-panel, form, math-mode-inline, page-range, credential-gate, progress-track, progress-bar, submit-hint */
 
 @utility upload-action-slot {
   position: relative;
@@ -191,6 +191,47 @@
     border: 1px solid var(--ink);
     background: var(--ink);
     color: var(--paper);
+  }
+
+  /* 禁用态得看得出不能点：原来 opacity 1、底色和可用时一样。
+   * 提交中（data-busy）也是 disabled，但那是「正在进行」，不该变灰。 */
+  & > button:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+  }
+
+  & > button[data-busy]:disabled {
+    cursor: progress;
+    opacity: 1;
+  }
+}
+
+/* 提交被拦时的一行说明（只在文件已就绪、缺凭据时出）：小号灰字 + 链接式动作。 */
+@utility submit-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+@utility submit-hint-action {
+  display: inline;
+  min-height: 0;
+  margin-left: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--accent);
   }
 }
 

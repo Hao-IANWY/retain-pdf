@@ -51,33 +51,26 @@ async function renderPanel(props) {
   return { host, root };
 }
 
-test("缺文件：按钮禁用但可见，hint 指引选择文件并可一键打开", async () => {
-  const fileInput = dom.window.document.createElement("input");
-  fileInput.id = "file";
-  fileInput.type = "file";
-  dom.window.document.body.appendChild(fileInput);
-  let fileClicked = 0;
-  fileInput.click = () => { fileClicked += 1; };
-
+test("缺文件：按钮禁用但可见，title 说明原因；不再额外出 hint 行（拖放区已说清）", async () => {
   const { host, root } = await renderPanel(baseProps());
   const submitBtn = host.querySelector("#submit-btn");
   assert.equal(submitBtn.disabled, true);
   assert.match(submitBtn.getAttribute("title") || "", /选择 PDF/);
-  assert.equal(submitBtn.getAttribute("aria-describedby"), "submit-hint");
-
-  const hint = host.querySelector("#submit-hint");
-  assert.ok(hint, "禁用时有一行明确文案");
-  assert.match(hint.textContent, /选择 PDF/);
-
-  hint.querySelector(".submit-hint-action").dispatchEvent(
-    new dom.window.MouseEvent("click", { bubbles: true }),
-  );
-  await wait(0);
-  assert.equal(fileClicked, 1, "hint 动作把用户带到文件选择");
+  // 旧行为：底部再冒一行无样式的「请先选择 PDF 文件…再提交任务。选择文件」，
+  // 和上方拖放区的「单个 PDF / 最大 50MB」同屏说两遍。
+  // 注意别直接 assert.equal(element, null)：失败时 inspect 整个 JSDOM 节点会把进程撑爆。
+  assert.equal(host.querySelector("#submit-hint")?.textContent ?? null, null);
+  assert.equal(submitBtn.getAttribute("aria-describedby"), null);
 
   root.unmount();
   host.remove();
-  fileInput.remove();
+});
+
+test("上传中（文件已选、未就绪）：同样不出 hint 行，进度在拖放区里", async () => {
+  const { host, root } = await renderPanel(baseProps({ uploadReady: false, submitDisabled: true }));
+  assert.equal(host.querySelector("#submit-hint")?.textContent ?? null, null);
+  root.unmount();
+  host.remove();
 });
 
 test("已上传被拦：hint 指引补凭据并可一键打开设置", async () => {
