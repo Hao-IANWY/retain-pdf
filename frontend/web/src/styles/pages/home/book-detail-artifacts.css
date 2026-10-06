@@ -195,6 +195,63 @@
   font-size: 9.5px;
 }
 
+/* 调试文件：默认折叠，比上面的分组更淡，免得和用得上的文件抢眼。 */
+.book-detail-artifact-debug {
+  /* 它是 grid 子项：不写 min-width 时会被 summary 里那行不换行的说明撑宽，窄屏下把下载按钮挤出去。 */
+  min-width: 0;
+  padding: 10px 14px;
+  border: 1px dashed color-mix(in srgb, var(--line) 70%, transparent);
+  border-radius: 20px;
+}
+
+.book-detail-artifact-debug > summary {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  list-style: none;
+  cursor: pointer;
+}
+
+.book-detail-artifact-debug > summary::-webkit-details-marker {
+  display: none;
+}
+
+.book-detail-artifact-debug > summary svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}
+
+.book-detail-artifact-debug-chevron {
+  transition: transform 160ms var(--ease-out);
+}
+
+.book-detail-artifact-debug[open] .book-detail-artifact-debug-chevron {
+  transform: rotate(90deg);
+}
+
+.book-detail-artifact-debug > summary span {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.book-detail-artifact-debug > summary small {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 10.5px;
+  font-weight: 450;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.book-detail-artifact-debug .book-detail-artifact-item-icon {
+  color: var(--muted);
+}
+
 @media (max-width: 899px) {
   .book-detail-artifact-items {
     grid-template-columns: minmax(0, 1fr);

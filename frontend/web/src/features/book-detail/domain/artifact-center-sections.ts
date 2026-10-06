@@ -9,7 +9,7 @@ import type {
   ArtifactCenterSection,
   BuildArtifactCenterInput,
 } from "./artifact-center-types.js";
-import { GROUP_META, groupFor, kindFor, labelFor, previewable } from "./artifact-classification.js";
+import { GROUP_META, groupFor, isDebugArtifact, kindFor, labelFor, previewable } from "./artifact-classification.js";
 import { artifactKey, jobAttempt, numberOrNull, text, workflowOf } from "./artifact-values.js";
 
 function buildJob(job: DocumentJobSummary): ArtifactCenterJob | null {
@@ -84,6 +84,7 @@ export function buildArtifactCenterSections(input: BuildArtifactCenterInput): Ar
         jobId,
         workflow: workflowOf(job),
         previewable: previewable(item),
+        debug: isDebugArtifact(item),
       });
     }
   }

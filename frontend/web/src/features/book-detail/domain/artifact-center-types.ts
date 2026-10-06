@@ -64,6 +64,8 @@ export type ArtifactCenterItem = {
   jobId: string;
   workflow: string;
   previewable: boolean;
+  /** 排查用的文件（事件流、请求日志、OCR 原始返回、诊断报告等）：文件页收进默认折叠的「调试文件」。 */
+  debug?: boolean;
 };
 
 export type ArtifactCenterJob = {

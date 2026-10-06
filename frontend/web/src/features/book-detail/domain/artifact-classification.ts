@@ -18,6 +18,20 @@ export function isDiagnosticArtifact(item: ArtifactManifestItem): boolean {
   return /(diagnostic|report|summary|failure|error|log|trace)/.test(key);
 }
 
+// 后端 manifest 的 artifact_group：debug / provider 两组是流水线中间产物和 OCR 供应商的原始返回，
+// 只有排查问题时才用得上。
+const DEBUG_ARTIFACT_GROUP = /^(debug|provider|typst)$/;
+// 老后端不一定给 artifact_group，按键名兜底：事件流、请求日志、断点、渲染配置、OCR 原始数据。
+const DEBUG_ARTIFACT_KEY = /(events|journal|checkpoint|render.config|translation.manifest|layout.json|provider|paddle|mineru|typst|pipeline)/;
+
+/** 排查用的文件：文件页不和 PDF / Markdown / 任务包摆在一起，收进「调试文件」。 */
+export function isDebugArtifact(item: ArtifactManifestItem): boolean {
+  if (DEBUG_ARTIFACT_GROUP.test(text(item.artifact_group).toLowerCase())) return true;
+  if (isDiagnosticArtifact(item)) return true;
+  // 只看键名不看文件名：译文 PDF 的文件名来自用户的书名，书名里带 events / pipeline 不该被当成调试文件。
+  return DEBUG_ARTIFACT_KEY.test(artifactKey(item));
+}
+
 export function groupFor(job: DocumentJobSummary, item: ArtifactManifestItem): ArtifactCenterGroupId {
   if (isDiagnosticArtifact(item)) return "diagnostics";
   const workflow = workflowOf(job);
@@ -29,15 +43,18 @@ export function labelFor(item: ArtifactManifestItem): string {
   if (/layout.docx|\.docx$/.test(key)) return "Word 排版稿";
   if (/side.by.side|comparison|bilingual/.test(key)) return "对照 PDF";
   if (/translated.pdf|output.pdf|result.pdf|^pdf$/.test(key)) return "译文 PDF";
+  // 识别报告的文件名是 document.v1.report.json，必须先于「结构化文档」判断，否则会被 document.v1 吃掉。
+  if (/normalization.report|document\.v1\.report/.test(key)) return "识别报告";
   if (/normalized.document|document\.v1/.test(key)) return "结构化文档";
-  if (/normalization.report/.test(key)) return "识别报告";
   if (/markdown.*bundle|bundle.*markdown/.test(key)) return "Markdown 任务包";
   if (/bundle|archive|zip/.test(key)) return "完整任务包";
   if (/translation.manifest/.test(key)) return "翻译清单";
   if (/layout\.json/.test(key)) return "版式数据";
   if (/events\.json/.test(key)) return "事件记录";
-  if (/paddle_result|paddle_raw/.test(key)) return "识别原始数据";
+  if (/paddle_result|paddle_raw|mineru_result|mineru_raw/.test(key)) return "识别原始数据";
   if (/request.journal/.test(key)) return "翻译请求记录";
+  if (/translation.checkpoint/.test(key)) return "翻译断点";
+  if (/render.config/.test(key)) return "渲染配置";
   if (/markdown/.test(key)) return "Markdown";
   if (/diagnostic/.test(key)) return "诊断报告";
   if (/report/.test(key)) return "处理报告";

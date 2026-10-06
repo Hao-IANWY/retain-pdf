@@ -5,6 +5,7 @@ import {
   buildArtifactCenterSections,
   formatArtifactBytes,
   formatArtifactTime,
+  layoutArtifactCenter,
   mergeArtifactLinksIntoManifest,
   selectArtifactQuickDownloads,
 } from "../../src/features/book-detail/domain/artifact-center-model.js";
@@ -261,4 +262,80 @@ test("artifact center: 内部文件名映射人话标签，不裸奔", () => {
     assert.ok(labels.includes(label), `${file} → ${label}`);
     assert.ok(!labels.some((text) => text === file), `${file} 不裸奔`);
   }
+});
+
+test("artifact center: 文件页每类只摆最新一份，调试文件和旧任务的同类文件收进调试区", () => {
+  const ocrJobs = [
+    { job_id: "ocr-new", workflow: "ocr", status: "succeeded", attempt: 1, created_at: "2026-10-06T02:32:50Z", updated_at: "2026-10-06T02:34:58Z" },
+    { job_id: "ocr-old", workflow: "ocr", status: "failed", attempt: 16, created_at: "2026-10-06T02:28:11Z", updated_at: "2026-10-06T02:31:46Z" },
+  ];
+  const sections = buildArtifactCenterSections({
+    documentId: "doc-1",
+    source,
+    jobs: ocrJobs,
+    manifests: {
+      "ocr-new": {
+        items: [
+          // 同一次任务里两个键指向同一份 paddle_result.json
+          { artifact_key: "layout_json", artifact_group: "json", ready: true, file_name: "paddle_result.json", resource_path: "/new/layout" },
+          { artifact_key: "provider_result_json", artifact_group: "provider", ready: true, file_name: "paddle_result.json", resource_path: "/new/provider" },
+          { artifact_key: "events_jsonl", artifact_group: "debug", ready: true, file_name: "events.jsonl", resource_path: "/new/events" },
+          { artifact_key: "markdown_raw", artifact_group: "markdown", ready: true, file_name: "full.md", resource_path: "/new/md", updated_at: "2026-10-06T02:34:58Z" },
+          { artifact_key: "normalization_report_json", artifact_group: "json", ready: true, file_name: "document.v1.report.json", resource_path: "/new/report" },
+        ],
+      },
+      "ocr-old": {
+        items: [
+          { artifact_key: "events_jsonl", artifact_group: "debug", ready: true, file_name: "events.jsonl", resource_path: "/old/events" },
+          // 失败任务更晚写出的同类文件也不能顶掉成功任务的那份
+          { artifact_key: "markdown_raw", artifact_group: "markdown", ready: true, file_name: "full.md", resource_path: "/old/md", updated_at: "2026-10-07T00:00:00Z" },
+        ],
+      },
+    },
+  });
+  const layout = layoutArtifactCenter(sections);
+  const ocr = layout.sections.find((section) => section.id === "ocr");
+  assert.deepEqual(ocr.items.map((item) => item.url), ["/new/md"], "OCR 分组只剩成功任务的 Markdown");
+  assert.equal(layout.sections.some((section) => section.id === "diagnostics"), false, "只有调试文件的「诊断与报告」整组收起");
+  const debugUrls = layout.debug.map((entry) => entry.item.url).sort();
+  assert.deepEqual(debugUrls, ["/new/events", "/new/layout", "/new/provider", "/new/report", "/old/events", "/old/md"]);
+  assert.equal(layout.debug.find((entry) => entry.item.url === "/old/md").superseded, true, "旧任务的同类文件标成旧版本");
+  assert.equal(layout.debug.find((entry) => entry.item.url === "/new/events").superseded, false);
+  // 拆分只影响文件页怎么摆：sections 原样保留，左栏快捷下载照旧能挑到文件
+  assert.equal(sections.find((section) => section.id === "ocr").items.length, 6);
+});
+
+test("artifact center: 调试文件按键名判断，书名里带 events 的译文 PDF 不算调试文件", () => {
+  const sections = buildArtifactCenterSections({
+    documentId: "doc-1",
+    source,
+    jobs,
+    manifests: {
+      "translate-1": {
+        items: [
+          { artifact_key: "translated_pdf", artifact_group: "rendered", ready: true, file_name: "Major events in pipeline chemistry-translated.pdf", resource_path: "/pdf" },
+        ],
+      },
+    },
+  });
+  const item = sections.find((section) => section.id === "translation").items[0];
+  assert.equal(item.debug, false);
+  assert.equal(item.label, "译文 PDF");
+});
+
+test("artifact center: 识别报告不被「结构化文档」吃掉", () => {
+  const sections = buildArtifactCenterSections({
+    documentId: "doc-1",
+    source,
+    jobs,
+    manifests: {
+      "ocr-1": {
+        items: [
+          { artifact_key: "normalization_report_json", ready: true, file_name: "document.v1.report.json", resource_path: "/r" },
+        ],
+      },
+    },
+  });
+  const labels = sections.flatMap((section) => section.items.map((item) => item.label));
+  assert.deepEqual(labels.filter((label) => label !== "原始 PDF"), ["识别报告"]);
 });
