@@ -128,7 +128,12 @@
 @import "../../features/jobs/ui/StageRetry.css";
 @import "../../features/jobs/ui/ResultActions.css";
 /* 书籍详情按职责拆分：壳层 → 概览 → 处理 → 文件产物。 */
-@import "../pages/home/book-detail-shell.css" layer(pages);
+/* 原 book-detail-shell.css 按组件拆分（顺序与拆分前一致）。 */
+@import "../../features/book-detail/ui/shell/BookDetailShell.css" layer(pages);
+@import "../../features/book-detail/ui/panels/ArtifactQuickDownloads.css" layer(pages);
+@import "../../features/book-detail/ui/shell/BookDetailLeftReading.css" layer(pages);
+@import "../../features/book-detail/ui/tabs/BookDetailRightTabs.css" layer(pages);
+@import "../../features/book-detail/ui/shell/BookDetailShellResponsive.css" layer(pages);
 @import "../pages/home/book-detail-overview.css" layer(pages);
 /* 「进度」分区按组件拆分；layout 定义共享变量，必须在最前。 */
 @import "../pages/home/book-detail-processing/layout.css" layer(pages);

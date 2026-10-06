@@ -1,5 +1,5 @@
 // 详情右栏 Tab 切换壳：简介 / 处理 / 文件。
-// 壳与导航样式见 book-detail-shell.css（.book-detail-right-tab.is-active）。
+// 页签样式见同目录 BookDetailRightTabs.css（.book-detail-right-tab.is-active）。
 
 import { useEffect, useState } from "react";
 import { Tabs as TabsPrimitive } from "radix-ui";

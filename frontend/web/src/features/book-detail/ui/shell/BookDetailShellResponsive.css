@@ -1,0 +1,130 @@
+/* 书籍详情外壳的滚动条、窄屏（≤ 899px / ≤ 719px）与减少动效适配，跨左右两栏。
+ *
+ * @owns book-detail */
+
+.book-detail-right-panel::-webkit-scrollbar,
+.book-detail-shell-left::-webkit-scrollbar {
+  width: 8px;
+}
+
+.book-detail-right-panel::-webkit-scrollbar-thumb,
+.book-detail-shell-left::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink) 18%, transparent);
+  background-clip: padding-box;
+}
+
+@media (max-width: 899px) and (min-width: 720px) {
+  .book-detail-shell-grid {
+    grid-template-columns: 230px minmax(0, 1fr);
+  }
+
+  .book-detail-shell-left {
+    padding: 18px 15px 18px 18px;
+  }
+
+  .book-detail-shell-right {
+    padding: 14px 16px 18px;
+  }
+}
+@media (max-width: 719px) {
+  #book-detail-dialog.book-detail-dialog {
+    width: calc(100dvw - 20px);
+    height: calc(100dvh - 20px);
+  }
+
+  .book-detail-shell-grid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 112px minmax(0, 1fr);
+  }
+
+  .book-detail-shell-left {
+    padding: 12px 50px 12px 12px;
+    overflow: hidden;
+    border-right: 0;
+    border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+  }
+
+  .book-detail-cover-actions {
+    position: static;
+    display: grid;
+    grid-template-columns: 64px minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
+  }
+
+  .book-detail-cover-preview {
+    width: 64px;
+    height: 86px;
+    aspect-ratio: auto;
+    border-radius: 10px;
+  }
+
+  .book-detail-cover-buttons {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 7px;
+    padding: 0;
+  }
+
+  .book-detail-cover-buttons > button {
+    width: auto;
+    min-height: 38px;
+    flex: 1 1 130px;
+  }
+
+  .book-detail-quick-downloads,
+  .book-detail-left-reading-card {
+    display: none;
+  }
+
+  .book-detail-shell-right {
+    padding: 10px 12px 12px;
+  }
+
+  .book-detail-right-tabs {
+    gap: 8px;
+  }
+
+  .book-detail-right-tabs-list {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+    max-width: none;
+  }
+
+  .book-detail-right-tab {
+    min-height: 40px;
+    padding-inline: 8px;
+  }
+}
+
+/* 前庭敏感：去掉位移与无限旋转，保留颜色/透明度反馈。 */
+@media (prefers-reduced-motion: reduce) {
+  .book-detail-quick-download-btn {
+    transition:
+      border-color 150ms var(--ease-out),
+      background-color 150ms var(--ease-out);
+  }
+
+  .book-detail-quick-download-btn:hover:not(:disabled) {
+    transform: none;
+  }
+
+  .book-detail-quick-downloads-loader,
+  .book-detail-quick-download-btn > svg.is-spinning {
+    animation: none;
+  }
+
+  .book-detail-right-tab {
+    transition:
+      background-color 150ms var(--ease-out),
+      color 150ms var(--ease-out);
+  }
+
+  .book-detail-right-tab:active {
+    transform: none;
+  }
+}
