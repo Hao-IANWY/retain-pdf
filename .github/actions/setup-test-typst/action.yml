@@ -18,3 +18,7 @@ runs:
         test -x "$typst_test_bin"
         "$typst_test_bin" --version
         echo "TYPST_BIN=$typst_test_bin" >> "$GITHUB_ENV"
+        # 也放进 PATH：agent 说明书里的例子直接写 `typst compile …`，AI 服务测试要求它在
+        # PATH 上能找到（test_the_board_examples_only_name_tools_that_exist）。流水线照旧
+        # 认 TYPST_BIN，两条路找到的是同一个二进制。
+        echo "$(dirname "$typst_test_bin")" >> "$GITHUB_PATH"

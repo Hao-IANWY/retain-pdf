@@ -188,9 +188,6 @@ jobs:
           uv run --project "$RETAIN_PDF_SERVICES_ROOT" retainpdf-pipeline --help
           uv run --project "$RETAIN_PDF_SERVICES_ROOT" python -c "import retainpdf_ai, retainpdf_pipeline"
 
-      - name: AI Service Tests
-        run: uv run --project "$RETAIN_PDF_SERVICES_ROOT" python -m pytest "$RETAIN_PDF_SERVICES_ROOT/ai/tests" -q
-
       # 这一步必须排在装 typst 之前——它验证的就是「机器上没有 typst 时单元测试
       # 依然全绿」。#106 把二进制定位移进 try 内之后有 15 个用例悄悄开始依赖
       # 机器上装没装 typst，本机和 CI 都有，两边同时看不见，直到有人在干净的
@@ -209,6 +206,13 @@ jobs:
 
       - name: Setup Typst for offline formula tests
         uses: ./.github/actions/setup-test-typst
+
+      # AI 服务测试排在装 typst 之后：test_the_board_examples_only_name_tools_that_exist
+      # 要求 agent 说明书里的命令（cat、typst）在机器上真的存在 —— agent 和流水线跑在
+      # 同一个环境里，typst 是运行时依赖。「没有 typst 也得全绿」只约束上面那步流水线
+      # 单元测试，不约束这里。以前这一步一直被前面的依赖清单检查挡住、从没跑到过。
+      - name: AI Service Tests
+        run: uv run --project "$RETAIN_PDF_SERVICES_ROOT" python -m pytest "$RETAIN_PDF_SERVICES_ROOT/ai/tests" -q
 
       - name: Offline translation regression
         run: uv run --project "$RETAIN_PDF_SERVICES_ROOT" python "$RETAIN_PDF_SERVICES_ROOT/pipeline/devtools/run_translation_tests.py"
