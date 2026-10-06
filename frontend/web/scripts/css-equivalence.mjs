@@ -4,7 +4,7 @@
 //   node scripts/css-equivalence.mjs snapshot <基准.json>   # 改之前：构建并记下基准
 //   node scripts/css-equivalence.mjs compare  <基准.json>   # 改之后：构建并与基准对比
 //
-// 比的是 dist/css/{home,detail}.css 的编译结果（不是源文件），按「上下文（@layer / @media
+// 比的是 dist/css/{home,detail,reader}.css 的编译结果（不是源文件），按「上下文（@layer / @media
 // / @supports 链）+ 选择器」逐条比声明：
 //
 // 1. 连顺序都完全一样 → 纯搬家，界面不可能变。
@@ -21,7 +21,7 @@ import { fileURLToPath } from "node:url";
 import postcss from "postcss";
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
-const BUNDLES = ["home", "detail"];
+const BUNDLES = ["home", "detail", "reader"];
 
 function build() {
   execFileSync("npm", ["run", "-s", "build:css"], { cwd: ROOT, stdio: ["ignore", "ignore", "inherit"] });

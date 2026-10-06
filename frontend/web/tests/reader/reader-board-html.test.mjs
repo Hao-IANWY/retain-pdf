@@ -171,7 +171,7 @@ test("关闭按钮渲染得出来，而且没有 CSS 把它藏掉", () => {
 test("叠加层不能盖住顶栏和 AI 面板", () => {
   // 根容器是 position:relative 且占满视口。写 inset:0 会把顶栏（下载/关闭/模式
   // 页签）和右边的面板一起盖住 —— 那时既点不了别的产物、也关不掉这一块。
-  const css = read("../../src/styles/entries/reader.css");
+  const css = read("../../src/features/reader/ui/board-html.css");
   const rule = css.slice(css.indexOf(".reader-board-pane {"));
   const body = rule.slice(0, rule.indexOf("}"));
   assert.doesNotMatch(body, /inset:\s*0\s*;/, "叠加层盖住了整个阅读页");

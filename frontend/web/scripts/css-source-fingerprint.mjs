@@ -26,7 +26,7 @@ import { fileURLToPath } from "node:url";
 const WEB_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const REPO_ROOT = dirname(dirname(WEB_ROOT));
 
-/** reader.css 的源：入口自己，加上它 @import 的那棵 reader 样式树。
+/** reader.css 的源：入口自己、入口用相对路径引入的宿主分片，加上它 @import 的那棵 reader 样式树。
  *
  * 入口里另外两个 @import 是 `tailwindcss` 和 `@xterm/xterm/css/xterm.css` ——
  * 它们随 node_modules 走，由 lockfile 管，不在这里追。 */
@@ -47,14 +47,28 @@ function cssFilesUnder(dir) {
   return out;
 }
 
+/** 入口里用相对路径 @import 的宿主分片（features/reader/ui/*.css 等）。
+ *  它们不在 reader 包目录里，不追的话改了分片指纹不变，门禁读的还是旧产物。 */
+function entryRelativeImports(entry) {
+  const out = [];
+  for (const match of readFileSync(entry, "utf8").matchAll(/@import\s+"(\.{1,2}\/[^"]+\.css)"/g)) {
+    out.push(join(dirname(entry), match[1]));
+  }
+  return out;
+}
+
 /** 列出全部源文件，按仓库相对路径排序 —— 排序必须稳定，否则指纹随文件系统漂。 */
 export function readerCssSourceFiles() {
-  const files = [];
+  const files = new Set();
   for (const source of CSS_SOURCES) {
-    if (source.kind === "file") files.push(source.path);
-    else files.push(...cssFilesUnder(source.path));
+    if (source.kind === "file") {
+      files.add(source.path);
+      for (const imported of entryRelativeImports(source.path)) files.add(imported);
+    } else {
+      for (const file of cssFilesUnder(source.path)) files.add(file);
+    }
   }
-  return files.sort();
+  return [...files].sort();
 }
 
 /** 指纹里带上路径，这样「新增/删除一个分片」也会变 —— 只哈希内容的话，

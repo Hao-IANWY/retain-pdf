@@ -34,7 +34,7 @@ const read = (relative) =>
 
 const PANEL = read("../../src/features/reader/ui/terminal.tsx");
 const CHROME = read("../../src/features/reader/ui/terminal-chrome.tsx");
-const CSS = read("../../src/styles/entries/reader.css");
+const CSS = read("../../src/features/reader/ui/terminal-chrome.css");
 
 let counter = 1;
 const nextId = () => `t${++counter}`;

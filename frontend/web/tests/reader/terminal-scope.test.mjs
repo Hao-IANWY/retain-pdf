@@ -145,6 +145,6 @@ test("当前作用域要看得出来", () => {
   // 切错了范围而不自知,得到的结论是错的。
   assert.match(CHROME, /aria-pressed=\{scope\.kind === "job"\}/);
   assert.match(CHROME, /aria-pressed=\{active\}/);
-  const css = read("../../src/styles/entries/reader.css");
+  const css = read("../../src/features/reader/ui/terminal-chrome.css");
   assert.match(css, /\.reader-terminal-scope-option\[aria-pressed="true"\]/);
 });

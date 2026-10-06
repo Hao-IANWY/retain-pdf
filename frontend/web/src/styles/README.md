@@ -60,7 +60,7 @@ Reader 样式只改 `frontend/packages/reader/styles/*`。`src/styles/reader/` �
 
 卡片之间共享的值只在 `layout.css` 里定义成变量，其它文件引用变量，不复制数值、不借用别的组件的类名。响应式规则跟着组件走，放在各自文件末尾。
 
-## 组件样式放在组件旁边（迁移中）
+## 组件样式放在组件旁边
 
 新写或迁移的组件样式放在组件文件旁边，同名：`TranslationCoveragePanel.tsx` 旁边是
 `TranslationCoveragePanel.css`。类名不改（仍是全局类名 + 组件前缀），`entries/*.css` 逐个
@@ -78,13 +78,21 @@ Reader 样式只改 `frontend/packages/reader/styles/*`。`src/styles/reader/` �
 
 门禁（`tests/architecture/css-module-boundaries.test.mjs`）：
 
-- 单个样式文件 ≤ 400 行。现存超标的登记在 `helpers/css-oversize-allowlist.json`，只减不增，
-  降到 400 行以内就必须从清单里删掉；
+- 单个样式文件 ≤ 400 行。超标清单 `helpers/css-oversize-allowlist.json` 已清空（2026-10 迁移完成），
+  只减不增 —— 不要往里加，文件变大就按组件拆；
 - 组件旁样式的 `@owns` / `@uses` 约束。
 
-迁移时用 `npm run css:equivalence -- snapshot <基准.json>`（改前）和 `compare`（改后）核对编译结果：
+拆分或搬家时用 `npm run css:equivalence -- snapshot <基准.json>`（改前）和 `compare`（改后）核对
+home / detail / reader 三份编译结果：
 规则、声明、顺序都相同才算纯搬家；顺序变了会列出「先后调换且设置同一属性」的规则对 ——
 它们若命中同一元素界面就会变。拆分时尽量保持规则原来的先后顺序。
+
+拆分时踩过的坑：
+
+- `@utility` 的输出顺序由 Tailwind 决定，跟它在哪个文件、第几行无关，可以随意归属；
+  普通规则、`@media`、`@layer` 块按源码先后输出，只能按连续行段切，并按原顺序引入；
+- 同名 `@utility`（比如 `hidden`）不要拆成两个文件里的两段 —— 输出顺序会变；
+- 跨行的选择器列表（`a,\nb {`）以第一行为起点，切口落在中间会少一条规则。
 
 ## 归属规则
 

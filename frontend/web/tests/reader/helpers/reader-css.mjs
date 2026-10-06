@@ -21,11 +21,12 @@
  *    就断错。这里改成真的配对花括号。
  */
 import { readFileSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const PKG_STYLES = fileURLToPath(new URL("../../../../packages/reader/styles/", import.meta.url));
 const WEB_ENTRIES = fileURLToPath(new URL("../../../src/styles/entries/", import.meta.url));
+const WEB_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 
 /** 注释先剥掉：`/* { *\/` 里的花括号会把配对算错。 */
 export const stripComments = (css) => css.replace(/\/\*[\s\S]*?\*\//g, "");
@@ -42,7 +43,15 @@ export function readerStyleSources() {
     out.push({ name: `packages/reader/styles/${name}`, css: stripComments(readFileSync(join(PKG_STYLES, name), "utf8")) });
   }
   for (const name of readdirSync(WEB_ENTRIES).filter((n) => /^reader.*\.css$/.test(n)).sort()) {
-    out.push({ name: `web/src/styles/entries/${name}`, css: stripComments(readFileSync(join(WEB_ENTRIES, name), "utf8")) });
+    const entryCss = readFileSync(join(WEB_ENTRIES, name), "utf8");
+    out.push({ name: `web/src/styles/entries/${name}`, css: stripComments(entryCss) });
+    // 入口用相对路径引入的宿主分片（features/reader/ui/*.css）同样编进 dist/css/reader.css，
+    // 不跟进去就又回到上面的盲区 2。包目录里的已经扫过，跳过。
+    for (const match of entryCss.matchAll(/@import\s+"(\.{1,2}\/[^"]+\.css)"/g)) {
+      const file = resolve(WEB_ENTRIES, match[1]);
+      if (file.startsWith(PKG_STYLES)) continue;
+      out.push({ name: `web/${relative(WEB_ROOT, file)}`, css: stripComments(readFileSync(file, "utf8")) });
+    }
   }
   return out;
 }

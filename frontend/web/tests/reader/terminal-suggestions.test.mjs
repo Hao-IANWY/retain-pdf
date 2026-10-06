@@ -194,7 +194,7 @@ test("id 稳定，不拿 label/path 当键", () => {
 
 test("提示行会换行，不会把终端挤窄", () => {
   // dock 可以拖到 30vw，四个 chip 一行放不下。
-  const css = read("../../src/styles/entries/reader.css");
+  const css = read("../../src/features/reader/ui/terminal-chrome.css");
   const block = css.slice(css.indexOf(".reader-terminal-suggestions {"));
   assert.match(block.slice(0, 300), /flex-wrap:\s*wrap/);
 });
