@@ -1163,7 +1163,7 @@ body.is-soft-reader-open {
   background: color-mix(in srgb, var(--warn) 10%, var(--paper));
 }
 
-/* 主页问答视图挂载时的壳布局（#home-ask-view 样式本体在 home-ask.css，
+/* 主页问答视图挂载时的壳布局（#home-ask-view 样式本体在 features/ask/ui/*.css，
    但 .app-shell 选择器归本文件所有） */
 .app-shell:has(#home-ask-view) {
   min-height: 100vh;

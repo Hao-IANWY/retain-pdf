@@ -17,9 +17,15 @@ import { describe, it } from "node:test";
 const view = readFileSync(
   new URL("../../src/features/ask/ui/HomeAskView.tsx", import.meta.url), "utf8",
 );
-const css = readFileSync(
-  new URL("../../src/styles/pages/home/home-ask.css", import.meta.url), "utf8",
-);
+// 问答的样式放在组件旁边、分了好几个文件：按 entries/home.css 的引入顺序拼起来再查
+// （也就是真正生效的层叠顺序，和拆分前单个文件里的先后一致），以后再拆也不断。
+function askCss() {
+  const entry = readFileSync(new URL("../../src/styles/entries/home.css", import.meta.url), "utf8");
+  return [...entry.matchAll(/@import "\.\.\/\.\.\/(features\/ask\/ui\/[^"]+\.css)"/g)]
+    .map((match) => readFileSync(new URL(`../../src/${match[1]}`, import.meta.url), "utf8"))
+    .join("\n");
+}
+const css = askCss();
 
 describe("跟随底部的滚动容器", () => {
   it("视图把 ref 交给了 useStickToBottom", () => {

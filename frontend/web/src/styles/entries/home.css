@@ -53,7 +53,16 @@
 @import "../pages/home/status-detail.utilities.css";
 @import "../pages/home/app-update.css";
 @import "../pages/home/ai-assistant.css";
-@import "../pages/home/home-ask.css";
+/* 主页 AI 问答：样式放在组件旁边（顺序与原 home-ask.css 一致）。 */
+@import "../../features/ask/ui/HomeAskView.css";
+@import "../../features/ask/ui/HomeAskSidebar.css";
+@import "../../features/ask/ui/HomeAskMain.css";
+@import "../../features/ask/ui/HomeAskThread.css";
+@import "../../features/ask/ui/HomeAskMessageControls.css";
+@import "../../features/ask/ui/operations/AgentOperationCard.css";
+@import "../../features/ask/ui/HomeAskMarkdown.css";
+@import "../../features/ask/ui/HomeAskComposer.css";
+@import "../../features/ask/ui/HomeAskResponsive.css";
 @import "../pages/home/app-settings.css";
 @import "../pages/home/library-shell.css";
 @import "../pages/home/library-search-island.css";
