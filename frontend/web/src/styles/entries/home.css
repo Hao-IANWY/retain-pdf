@@ -134,7 +134,12 @@
 @import "../../features/book-detail/ui/shell/BookDetailLeftReading.css" layer(pages);
 @import "../../features/book-detail/ui/tabs/BookDetailRightTabs.css" layer(pages);
 @import "../../features/book-detail/ui/shell/BookDetailShellResponsive.css" layer(pages);
-@import "../pages/home/book-detail-overview.css" layer(pages);
+/* 原 book-detail-overview.css 按组件拆分（顺序与拆分前一致）。 */
+@import "../../features/book-detail/ui/tabs/overview/hero.css" layer(pages);
+@import "../../features/book-detail/ui/tabs/overview/cards.css" layer(pages);
+@import "../../features/book-detail/ui/tabs/overview/management.css" layer(pages);
+@import "../../features/book-detail/ui/tabs/overview/activity.css" layer(pages);
+@import "../../features/book-detail/ui/tabs/overview/responsive.css" layer(pages);
 /* 「进度」分区按组件拆分；layout 定义共享变量，必须在最前。 */
 @import "../pages/home/book-detail-processing/layout.css" layer(pages);
 @import "../pages/home/book-detail-processing/processing-card.css" layer(pages);

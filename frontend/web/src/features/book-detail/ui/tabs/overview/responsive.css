@@ -1,0 +1,35 @@
+/* 书籍详情 · 概览页签（BookDetailOverviewTab）：窄屏（≤ 899px / ≤ 719px）适配。
+ *
+ * @owns book-detail */
+
+@media (max-width: 899px) and (min-width: 720px) {
+  .book-detail-overview-main-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 719px) {
+  .book-detail-overview-hero {
+    min-height: 210px;
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 20px;
+  }
+
+  .book-detail-overview-actions {
+    width: 100%;
+    flex-direction: row;
+  }
+
+  .book-detail-overview-action {
+    flex: 1 1 0;
+  }
+
+  .book-detail-overview-stats,
+  .book-detail-overview-main-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .book-detail-overview-stat {
+    min-height: 88px;
+  }
+}

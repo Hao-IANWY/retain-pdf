@@ -37,7 +37,7 @@ Reader 样式只改 `frontend/packages/reader/styles/*`。`src/styles/reader/` �
 | 文件 | 负责范围 |
 |------|----------|
 | `features/book-detail/ui/` 下 5 个外壳文件 | 弹窗双栏、封面区、快速下载、右栏 Tabs、滚动条与窄屏适配（`BookDetailShell` → `ArtifactQuickDownloads` → `BookDetailLeftReading` → `BookDetailRightTabs` → `BookDetailShellResponsive`，全是普通规则，顺序不能换） |
-| `book-detail-overview.css` | 概览主视觉、元信息、阅读与活动 |
+| `features/book-detail/ui/tabs/overview/` | 概览：hero → cards → management → activity → responsive（普通规则，顺序不能换） |
 | `book-detail-processing/` | 「进度」分区，按组件一个文件（见下表） |
 | `book-detail-artifacts.css` | 文件分组、产物卡片、预览和下载动作 |
 
