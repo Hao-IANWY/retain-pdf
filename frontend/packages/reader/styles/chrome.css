@@ -16,7 +16,8 @@
  * 护栏撤了。一个一个控件去算是守不住的，改成顶栏统一给托盘留位。
  */
 .reader-react-root {
-  --reader-tray-width: 300px;
+  /* 托盘现在只有「下载」+「关闭」两颗：约 166px 宽 + 右边距 28px。 */
+  --reader-tray-width: 200px;
 }
 
 /* Reader 顶栏只放场景预设；窗格的自由组合由各自的小选择器负责。 */
@@ -29,9 +30,10 @@
   justify-content: center;
   gap: 10px;
   height: 60px;
-  /* 右边给托盘留位。居中因此不是相对视口而是相对「除去托盘的那块」——
-     这正是想要的：托盘本来就压在上面。 */
-  padding-inline: 72px var(--reader-tray-width, 300px);
+  /* 两边都给托盘留同样的宽度：页签才是**相对视口**居中，同时不会滑到托盘底下。
+     以前只给右边留（左 72px、右 300px），页签相对「除去托盘的那块」居中，1440px 下
+     往左偏了 114px。托盘收窄（下载收成一颗按钮）之后，两边对称留位放得下。 */
+  padding-inline: var(--reader-tray-width, 200px);
   border-bottom: 1px solid color-mix(in srgb, var(--ink) 8%, transparent);
   background: color-mix(in srgb, var(--paper) 94%, transparent);
   box-shadow: 0 1px 0 color-mix(in srgb, var(--paper) 72%, transparent);
@@ -181,14 +183,6 @@
     max-width: none;
   }
 
-  /* ≤900px 下载组只剩图标，托盘窄很多；同时左边也收一收，给中间的页签留地方。 */
-  .reader-react-root {
-    --reader-tray-width: 200px;
-  }
-
-  .reader-workspace-bar {
-    padding-inline: 12px var(--reader-tray-width, 200px);
-  }
 }
 
 @keyframes reader-live-translation-pulse {
@@ -284,92 +278,133 @@
   gap: 8px;
 }
 
+/* 「下载」按钮 + 点开的菜单（原文 / 对照 / 译文 PDF）。<details> 实现，见
+   ReaderDownloadActions.tsx。 */
 .reader-download-actions {
+  position: relative;
+}
+
+.reader-download-trigger {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
-  padding: 3px;
+  gap: 5px;
+  min-height: 36px;
+  padding: 0 12px;
   border: 1px solid color-mix(in srgb, var(--ink) 8%, transparent);
   border-radius: 999px;
+  color: color-mix(in srgb, var(--ink) 70%, var(--muted));
   background: color-mix(in srgb, var(--paper) 88%, transparent);
   box-shadow: 0 10px 28px color-mix(in srgb, var(--shadow-color) 10%, transparent);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-}
-
-/* 整组的 ⤓ 前缀：把这一组和顶栏中间的模式页签区分开。
- *
- * 两组原本共用 FileText / Columns2 / Languages 三个图标，词也几乎一样，都有
- * 「对照」—— 一个切视图、一个下文件。前缀在宽窄屏都保留（900 断点只裁文字
- * 标签，不裁图标），否则窄屏下三个下载按钮无从分辨。
- * 它不可点、不夺焦，纯装饰。 */
-.reader-download-actions-prefix {
-  display: inline-flex;
-  align-items: center;
-  padding: 0 6px 0 7px;
-  margin-right: 1px;
-  color: color-mix(in srgb, var(--ink) 38%, var(--muted));
-  border-right: 1px solid color-mix(in srgb, var(--ink) 10%, transparent);
-  pointer-events: none;
-}
-
-/* 按钮外面那层：disabled 的按钮不派发鼠标事件，title 得挂在它身上才弹得出来
- * （见 ReaderDownloadActions.tsx）。它不该在布局上多占一层，所以就是个
- * inline-flex 的贴身盒。 */
-.reader-download-action-slot {
-  display: inline-flex;
-}
-
-.reader-download-action {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  min-height: 30px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: 999px;
-  color: color-mix(in srgb, var(--ink) 62%, var(--muted));
-  background: transparent;
-  font: inherit;
   font-size: 12px;
   font-weight: 650;
   cursor: pointer;
-  transition: color 130ms ease, background 130ms ease;
+  list-style: none;
+  user-select: none;
+}
+
+.reader-download-trigger::-webkit-details-marker {
+  display: none;
+}
+
+.reader-download-trigger:hover,
+.reader-download-trigger:focus-visible,
+.reader-download-actions[open] .reader-download-trigger {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 6%, var(--paper));
+  outline: none;
+}
+
+.reader-download-trigger-caret {
+  opacity: 0.6;
+  transition: transform 130ms ease;
+}
+
+.reader-download-actions[open] .reader-download-trigger-caret {
+  transform: rotate(180deg);
+}
+
+.reader-download-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  display: grid;
+  gap: 2px;
+  min-width: 200px;
+  padding: 5px;
+  border: 1px solid color-mix(in srgb, var(--ink) 8%, transparent);
+  border-radius: 14px;
+  background: var(--paper);
+  box-shadow: 0 14px 34px color-mix(in srgb, var(--shadow-color) 16%, transparent);
+}
+
+.reader-download-action {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 10px;
+  color: var(--ink);
+  background: transparent;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: background 130ms ease;
+}
+
+.reader-download-action svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: color-mix(in srgb, var(--ink) 60%, var(--muted));
+}
+
+.reader-download-action-text {
+  display: grid;
+  gap: 2px;
+}
+
+/* 没就绪的那一路不隐藏、就地写原因（以前是 title，要悬停才看得到）。 */
+.reader-download-action-reason {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 450;
 }
 
 .reader-download-action:hover:not(:disabled),
 .reader-download-action:focus-visible:not(:disabled) {
-  color: var(--ink);
   background: color-mix(in srgb, var(--ink) 6%, transparent);
   outline: none;
 }
 
-/* 产物还没就绪时禁用，但**不隐藏** —— 看不见那一路的人会以为功能没了；
- * 原因写在 title / aria-label 里（「译文 PDF 尚未生成或清单不可用」）。 */
 .reader-download-action:disabled {
-  opacity: 0.38;
   cursor: default;
+}
+
+.reader-download-action:disabled .reader-download-action-label,
+.reader-download-action:disabled svg {
+  opacity: 0.45;
 }
 
 .reader-download-action.is-busy {
   opacity: 0.6;
 }
 
-/* 窄屏只留图标 —— 按钮本身还在，下载仍然够得到。
- *
- * 900px 这个数是算出来的，不是拍的：顶栏页签在内容盒里居中（左右各 72px
- * 内边距），带文字的下载组连同关闭按钮约 274px，加上 ⤓ 前缀约 296px。900 以下
- * 两边会开始压到一起，而顶栏页签被盖住比下载少三个字糟得多。
- *
- * 裁的只是文字：⤓ 前缀和每个按钮的图标都留着，否则窄屏下三个按钮一模一样。 */
-@media (max-width: 900px) {
-  .reader-download-action {
-    padding: 0;
-    width: 32px;
-    justify-content: center;
+/* 窄屏「下载」两个字收掉，只留图标；托盘跟着变窄，顶栏两边的留位一起收。 */
+@media (max-width: 720px) {
+  .reader-react-root {
+    --reader-tray-width: 150px;
   }
 
-  .reader-download-action-label {
+  .reader-download-trigger {
+    padding: 0 9px;
+  }
+
+  .reader-download-trigger-label {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -422,6 +457,11 @@
 }
 
 @media (max-width: 520px) {
+  /* 「关闭」也只剩图标：托盘约 90px。 */
+  .reader-react-root {
+    --reader-tray-width: 104px;
+  }
+
   .reader-close-home-btn {
     padding: 0;
     width: 36px;

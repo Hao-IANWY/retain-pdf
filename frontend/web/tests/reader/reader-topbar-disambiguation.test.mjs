@@ -26,21 +26,27 @@ const DOWNLOADS = read("../../../packages/reader/src/components/react-pdf/Reader
 const CHROME = read("../../../packages/reader/styles/chrome.css");
 const APP = read("../../../packages/reader/src/ReaderAppReactPdf.tsx");
 
-test("下载组有自己的组标识，不再和模式页签共用一身图标", () => {
-  assert.match(DOWNLOADS, /reader-download-actions-prefix/,
-    "下载组没有组前缀 —— 它和中间的模式页签用同一套图标、同样的词");
-  assert.match(DOWNLOADS, /\bDownload\b/, "前缀不是下载语义的图标");
-  assert.match(CHROME, /\.reader-download-actions-prefix\s*\{/,
-    "前缀没样式 —— 会挤在第一个按钮上看不出是组标识");
+test("下载收成一颗「下载」按钮，和中间的模式页签分得开", () => {
+  // 以前三路摊开、和模式页签同一套图标 + 都写着「对照」，靠一个 ⤓ 组前缀区分；
+  // 现在收成一颗带下载图标和「下载」字样的按钮，三路在点开的菜单里。
+  assert.match(DOWNLOADS, /<summary[^>]*className="reader-download-trigger"/, "下载不是一颗按钮");
+  assert.match(DOWNLOADS, /<Download\s/, "按钮上没有下载图标");
+  assert.match(DOWNLOADS, /reader-download-trigger-label">下载</, "按钮上没有「下载」两个字");
+  assert.doesNotMatch(DOWNLOADS, /reader-download-actions-prefix/, "组前缀那套已经不需要了");
 });
 
-test("前缀和各按钮的图标在窄屏都不能被裁掉", () => {
-  // 900 断点只裁文字标签。裁掉图标 = 三个下载按钮长得一模一样；
-  // 裁掉前缀 = 窄屏又回到「两组图标撞脸」。
-  const at900 = CHROME.slice(CHROME.indexOf("@media (max-width: 900px)"));
-  const block = at900.slice(0, at900.indexOf("\n}\n\n"));
-  assert.match(block, /\.reader-download-action-label/, "断点里没在裁文字标签，前提变了");
-  assert.doesNotMatch(block, /\.reader-download-actions-prefix/, "窄屏把组前缀裁了");
+test("顶栏两边对称留位：模式页签相对视口居中，又不会滑到托盘底下", () => {
+  // 以前左 72px、右 300px，页签相对「除去托盘的那块」居中，1440px 下往左偏 114px。
+  const bar = CHROME.slice(CHROME.indexOf(".reader-workspace-bar {"));
+  const block = bar.slice(0, bar.indexOf("\n}\n"));
+  assert.match(block, /padding-inline:\s*var\(--reader-tray-width, 200px\);/, "顶栏不是两边对称留位");
+  assert.doesNotMatch(CHROME, /padding-inline:\s*(?:72px|12px) var\(--reader-tray-width/, "又回到只给右边留位");
+});
+
+test("窄屏只收「下载」两个字，图标留着", () => {
+  const at720 = CHROME.slice(CHROME.indexOf("@media (max-width: 720px) {\n  .reader-react-root"));
+  const block = at720.slice(0, at720.indexOf("\n}\n\n"));
+  assert.match(block, /\.reader-download-trigger-label/, "断点里没在收文字");
   assert.doesNotMatch(block, /display:\s*none/, "窄屏用 display:none 藏了整块");
 });
 

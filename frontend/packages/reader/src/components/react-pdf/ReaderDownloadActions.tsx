@@ -1,4 +1,4 @@
-/** 顶栏的三路下载：原文 / 对照 / 译文。
+/** 顶栏的下载：一个「下载」按钮，点开是原文 / 对照 / 译文三路。
  *
  * ## 为什么在顶栏而不是原来的圆钮菜单里
  *
@@ -7,13 +7,19 @@
  * CSS 在任何 dock 面板开着时整个吃掉 —— 开着 Markdown 就下不了 PDF，而且看不
  * 出为什么。顶栏这一组和「关闭回主页」同一层，永远在，也永远不被面板遮住。
  *
- * ## 为什么不做成一个下拉
+ * ## 为什么收成一个按钮
  *
- * 三个而已，直接摊开比多一层点击好；而且 disabled 的那个要能把原因说出来
- * （title），藏进下拉里就得先点开才知道「译文还没生成」。
+ * 以前三路摊开在顶栏右上角，托盘约 320px 宽；顶栏为了不被它压住，右边留位、左边
+ * 不留，中间的模式页签（源文件 / 对照 / 翻译文件）就是相对「除去托盘的那块」居中，
+ * 1440px 下往左偏了 114px —— 用户说「原文、对照、译文都不在中间了」。收成一个按钮后
+ * 托盘只剩「下载 + 关闭」，顶栏两边留同样的宽度，页签真正居中。
+ *
+ * disabled 的那一路照样就地说出原因：原因直接写在菜单项下面一行（以前是 title，
+ * 要悬停才看得到）。用原生 <details>：三路按钮一直在 DOM 里（id 不变，下载委托和
+ * 测试都认它们），只是收起时不显示。
  */
-import { Columns2, Download, FileText, Languages } from "lucide-react";
-import type { ReactElement } from "react";
+import { ChevronDown, Columns2, Download, FileText, Languages } from "lucide-react";
+import { useEffect, useRef, type ReactElement } from "react";
 
 import {
   READER_DOWNLOAD_ACTIONS,
@@ -48,60 +54,64 @@ export function ReaderDownloadActions(props: ReaderDownloadActionsProps): ReactE
   const ctx = useReaderContext();
   const download = props.download ?? ctx?.download;
   const { urls, downloadItems, busyActions, handleDownload } = useReaderDownloads(download);
+  const menuRef = useRef<HTMLDetailsElement | null>(null);
+
+  // 点菜单外面或按 Esc 收起（<details> 自己只会在点 summary 时开合）。
+  useEffect(() => {
+    const close = () => {
+      if (menuRef.current?.open) menuRef.current.open = false;
+    };
+    const onPointerDown = (event: PointerEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) close();
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") close();
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, []);
 
   return (
-    <div className="reader-download-actions" role="group" aria-label="下载 PDF">
-      {/* 这个 ⤓ 是给眼睛看的组标签，不是按钮。
-        *
-        * 没有它的时候这一组和顶栏中间的模式页签**用的是同一套图标**
-        * （FileText / Columns2 / Languages）、词也几乎一样（原文/对照/译文
-        * vs 源文件/对照/翻译文件），两组都写着「对照」，挨在一条栏上。一个切
-        * 视图、一个下文件，看不出区别 —— 用户报的就是这个。
-        *
-        * 为什么不改成「按当前模式下载」的单个按钮：≤900px 时文字标签会被裁掉
-        * 只剩图标（见 chrome.css 的 900 断点），单按钮方案在窄屏反而更糊；而且
-        * 三路摊开是为了让 disabled 的那一路能就地说出原因。
-        *
-        * 为什么不去掉各自的图标：同样是那条 900 断点 —— 去掉就变成三个一模一样
-        * 的按钮。所以留图标，给整组加前缀。
-        * 读屏走的是 role=group 的 aria-label，所以这里 aria-hidden。 */}
-      <span className="reader-download-actions-prefix" aria-hidden>
-        <Download size={14} strokeWidth={2.2} />
-      </span>
-      {downloadItems.map((action) => {
-        const meta = READER_DOWNLOAD_ACTIONS[action];
-        const url = trimReaderDownloadString(urls[action]);
-        const busy = busyActions.has(action);
-        const enabled = Boolean(url) && !busy;
-        const reason = enabled ? "" : readerDownloadDisabledReason(action, urls);
-        const Icon = ICONS[action];
-        return (
-          // 外面这层 span 是为了**让「为什么点不动」这句话真的弹得出来**。
-          //
-          // disabled 的按钮在主流浏览器上不派发鼠标事件，挂在它自己身上的
-          // title 永远不显示 —— 原因只有读屏拿得到（aria-label 还在），鼠标
-          // 用户看到的就是一个灰掉的按钮。窄屏（≤900px）下文字标签还会被裁成
-          // 1px 只留图标，那时连「这是哪一路」都没了。
-          // span 不是 disabled，hover 照样触发。
-          <span
-            key={action}
-            className="reader-download-action-slot"
-            title={enabled ? `下载${meta.label}` : reason}
-          >
+    <details ref={menuRef} className="reader-download-actions">
+      <summary className="reader-download-trigger" aria-label="下载 PDF" title="下载 PDF">
+        <Download size={15} strokeWidth={2.1} aria-hidden />
+        <span className="reader-download-trigger-label">下载</span>
+        <ChevronDown size={13} strokeWidth={2.2} aria-hidden className="reader-download-trigger-caret" />
+      </summary>
+      <div className="reader-download-menu" role="group" aria-label="下载 PDF">
+        {downloadItems.map((action) => {
+          const meta = READER_DOWNLOAD_ACTIONS[action];
+          const url = trimReaderDownloadString(urls[action]);
+          const busy = busyActions.has(action);
+          const enabled = Boolean(url) && !busy;
+          const reason = enabled ? "" : readerDownloadDisabledReason(action, urls);
+          const Icon = ICONS[action];
+          return (
             <button
+              key={action}
               type="button"
               id={`reader-download-${action}`}
               className={`reader-download-action${busy ? " is-busy" : ""}`}
               disabled={!enabled}
               aria-label={enabled ? `下载${meta.label}` : reason}
-              onClick={() => void handleDownload(action)}
+              onClick={() => {
+                if (menuRef.current) menuRef.current.open = false;
+                void handleDownload(action);
+              }}
             >
               <Icon size={15} strokeWidth={2.1} aria-hidden />
-              <span className="reader-download-action-label">{SHORT[action]}</span>
+              <span className="reader-download-action-text">
+                <span className="reader-download-action-label">{SHORT[action]} PDF</span>
+                {reason ? <span className="reader-download-action-reason">{reason}</span> : null}
+              </span>
             </button>
-          </span>
-        );
-      })}
-    </div>
+          );
+        })}
+      </div>
+    </details>
   );
 }
