@@ -2,8 +2,8 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { waitFor } from "../helpers/async.mjs";
 import { makeDom } from "../helpers/dom.mjs";
+import { idleOcr, idleTranslation, mountProcessingTab } from "./helpers/processing-tab-fixture.mjs";
 
 // 失败的翻译任务会拉起 BookTranslateProgressPanel，它要 HomeShellProviders。
 const services = {
@@ -14,35 +14,7 @@ const services = {
   reader: { openReader: () => {} },
 };
 
-const idleOcr = {
-  job: null, pending: false, cancelling: false, error: "", rangeOn: false, startPage: "1", endPage: "",
-  onRangeOnChange() {}, onStartPageChange() {}, onEndPageChange() {}, onOcr() {}, onCancel() {},
-};
-const idleTranslation = {
-  item: {}, status: { label: "尚未翻译", tone: "muted" }, isActive: false, canTranslate: true,
-  rangeOn: false, startPage: "1", endPage: "",
-  onRangeOnChange() {}, onStartPageChange() {}, onEndPageChange() {},
-  onTranslate() {}, onRetryStage: async () => {},
-};
-
-async function mountTab(dom, props) {
-  const { createRoot } = await import("react-dom/client");
-  const React = await import("react");
-  const { HomeShellProviders } = await import("../../src/ui/context/home-services-context.js");
-  const { BookDetailProcessingTab } = await import(
-    "../../src/features/book-detail/ui/tabs/BookDetailProcessingTab.js"
-  );
-  const host = dom.window.document.createElement("div");
-  dom.window.document.body.appendChild(host);
-  const root = createRoot(host);
-  root.render(React.createElement(
-    HomeShellProviders,
-    { services },
-    React.createElement(BookDetailProcessingTab, props),
-  ));
-  await waitFor(() => host.querySelector(".book-detail-processing-card"), "进度卡渲染");
-  return { root, host };
-}
+const mountTab = (dom, props) => mountProcessingTab(dom, props, services);
 
 const COVERAGE = {
   page_count: 6,

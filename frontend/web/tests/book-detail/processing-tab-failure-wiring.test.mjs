@@ -11,8 +11,9 @@
  */
 import test from "node:test";
 import assert from "node:assert/strict";
-import { wait, waitFor } from "../helpers/async.mjs";
+import { wait } from "../helpers/async.mjs";
 import { makeDom } from "../helpers/dom.mjs";
+import { idleOcr, idleTranslation, mountProcessingTab } from "./helpers/processing-tab-fixture.mjs";
 
 // 失败的翻译任务会拉起 BookTranslateProgressPanel，它要 HomeShellProviders。
 const services = {
@@ -20,6 +21,8 @@ const services = {
   statusCard: { store: { getSnapshot: () => ({ snapshot: {} }), subscribe: () => () => {} } },
   statusDetail: { controller: { openStatusDetailDialog: () => {} } },
 };
+
+const mountTab = (dom, props) => mountProcessingTab(dom, props, services);
 
 // 字段取自真实数据：一条 MinerU 解析失败 / 一条翻译失败。
 const OCR_FAILURE = {
@@ -31,17 +34,6 @@ const OCR_FAILURE = {
 const TRANSLATION_FAILURE = {
   category: "translation", stage: "translation", retryable: true,
   summary: "翻译阶段失败", root_cause: "DeepSeek 返回空译文", provider: "deepseek",
-};
-
-const idleOcr = {
-  job: null, pending: false, cancelling: false, error: "", rangeOn: false, startPage: "1", endPage: "",
-  onRangeOnChange() {}, onStartPageChange() {}, onEndPageChange() {}, onOcr() {}, onCancel() {},
-};
-const idleTranslation = {
-  item: {}, status: { label: "尚未翻译", tone: "muted" }, isActive: false, canTranslate: true,
-  rangeOn: false, startPage: "1", endPage: "",
-  onRangeOnChange() {}, onStartPageChange() {}, onEndPageChange() {},
-  onTranslate() {}, onRetryStage: async () => {},
 };
 
 const failedOcrJob = (failure = OCR_FAILURE, extra = {}) => ({
@@ -56,25 +48,6 @@ const failedTranslation = (failure = TRANSLATION_FAILURE) => ({
   },
   status: { label: "失败", tone: "failed" },
 });
-
-async function mountTab(dom, props) {
-  const { createRoot } = await import("react-dom/client");
-  const React = await import("react");
-  const { HomeShellProviders } = await import("../../src/ui/context/home-services-context.js");
-  const { BookDetailProcessingTab } = await import(
-    "../../src/features/book-detail/ui/tabs/BookDetailProcessingTab.js"
-  );
-  const host = dom.window.document.createElement("div");
-  dom.window.document.body.appendChild(host);
-  const root = createRoot(host);
-  root.render(React.createElement(
-    HomeShellProviders,
-    { services },
-    React.createElement(BookDetailProcessingTab, props),
-  ));
-  await waitFor(() => host.querySelector(".book-detail-processing-card"), "进度卡渲染");
-  return { root, host };
-}
 
 const cards = (host) => [...host.querySelectorAll("[data-job-failure]")];
 const translationRegion = (host) => host.querySelector('[data-processing-region="translation"]');
