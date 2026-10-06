@@ -260,6 +260,7 @@
       ],
       "devtool_files": [],
       "test_files": [
+        "devtools/tests/rendering/test_merge_translated_pdf.py",
         "devtools/tests/rendering/test_page_classifier.py",
         "devtools/tests/rendering/test_page_profile.py",
         "devtools/tests/rendering/test_pikepdf_overlay_merge.py",
@@ -445,6 +446,8 @@
         "devtools/tests/rendering/test_background_image_detect.py",
         "devtools/tests/rendering/test_bbox_text_strip_document.py",
         "devtools/tests/rendering/test_margin_text_cleanup.py",
+        "devtools/tests/rendering/test_merge_translated_artifacts.py",
+        "devtools/tests/rendering/test_merge_translated_pdf.py",
         "devtools/tests/rendering/test_page_classifier.py",
         "devtools/tests/rendering/test_page_profile.py",
         "devtools/tests/rendering/test_pdf_metadata.py",
@@ -510,7 +513,9 @@
         "retainpdf_pipeline/render/source_cleanup/pdf/document.py",
         "retainpdf_pipeline/render/source_cleanup/pdf/stream_engine.py",
         "retainpdf_pipeline/render/source_cleanup/pdf/text_ops.py",
-        "retainpdf_pipeline/render/source_cleanup/pdf/xobject_ops.py"
+        "retainpdf_pipeline/render/source_cleanup/pdf/xobject_ops.py",
+        "retainpdf_pipeline/render/tools/merge_translated_artifacts.py",
+        "retainpdf_pipeline/render/tools/merge_translated_pdf.py"
       ],
       "devtool_files": [],
       "test_files": [
@@ -519,6 +524,7 @@
         "devtools/tests/rendering/test_bbox_text_strip_document.py",
         "devtools/tests/rendering/test_clone_form_xobject_null_key.py",
         "devtools/tests/rendering/test_hidden_text_strip.py",
+        "devtools/tests/rendering/test_merge_translated_pdf.py",
         "devtools/tests/rendering/test_xobject_sanitize.py"
       ],
       "runtime_required": true,
@@ -557,6 +563,8 @@
         "devtools/tests/rendering/test_block_class_consumers.py",
         "devtools/tests/rendering/test_latex_command_registry.py",
         "devtools/tests/rendering/test_latex_source_repair.py",
+        "devtools/tests/rendering/test_merge_translated_artifacts.py",
+        "devtools/tests/rendering/test_merge_translated_pdf.py",
         "devtools/tests/rendering/test_mitex_latex_coverage.py",
         "devtools/tests/rendering/test_overlay_source_font_cache.py",
         "devtools/tests/rendering/test_pikepdf_overlay_merge.py",
@@ -584,6 +592,7 @@
         "devtools/tests/rendering/test_typst_source_fit.py",
         "devtools/tests/rendering/test_typst_structured_lines.py",
         "devtools/tests/rendering/test_word_export.py",
+        "devtools/tests/rendering/test_word_fit_verification.py",
         "devtools/tests/rendering/test_word_html_fit.py",
         "devtools/tests/test_document_operation_boundaries.py",
         "devtools/tests/test_external_tools.py",
