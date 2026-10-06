@@ -7,7 +7,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { Page } from "react-pdf";
@@ -22,15 +21,14 @@ import {
 } from "./reader-dom-contract.js";
 import {
   projectReaderRegion,
-  readerRegionCopyText,
   type ReaderRegionHighlight,
 } from "../shared/data/reader-regions.js";
 import {
-  copyReaderText,
   hitTestReaderTextHoverTarget,
+  HOVER_TOOLS_HEIGHT,
+  HOVER_TOOLS_WIDTH,
+  hoverToolsOutside,
   projectReaderTextHoverTargets,
-  READER_TEXT_HOVER_COPY_CLASS,
-  READER_TEXT_HOVER_ID_CLASS,
   READER_TEXT_HOVER_TOOLS_CLASS,
   ReaderTextHoverLayer,
 } from "./ReaderTextHoverLayer.js";
@@ -39,8 +37,6 @@ import type { ReaderLiveTranslationLayoutPage as LiveTranslationLayoutPage } fro
 import type { LiveTranslationPageState } from "../shared/data/live-translation-state.js";
 
 export const DEFAULT_ASPECT = 1.414;
-/** 框上方工具条（编号 / 复制）占的高度，见 .reader-text-hover-tools。 */
-const HOVER_TOOLS_BAND = 26;
 
 type PdfPageSlotProps = {
   pageNumber: number;
@@ -127,52 +123,51 @@ function PdfPageSlotInner({
       setLocalHoveredTextId((current) => (current === next ? current : next));
     }
   };
-  const [copiedSignal, setCopiedSignal] = useState(0);
   const hoveredTextTarget = useMemo(
     () => textHoverTargets.find((target) => target.itemId === hoveredTextId) || null,
     [hoveredTextId, textHoverTargets],
   );
 
   const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    // 触屏没有悬停：手指滑动（滚动）不该换框，框由点按决定（见 handlePointerDown）。
+    if (event.pointerType === "touch") return;
     // 拖选正文时隐藏轮廓，绝不接管 PDF textLayer 的事件。
     if (event.buttons !== 0) {
       setHoveredTextId(null);
       return;
     }
-    // 鼠标在框上方的工具条（编号 / 复制）上：它在块外，按坐标命中会把框收掉，按钮就点不到了。
+    // 鼠标在工具条（编号 / 复制）上：工具条可能在框外，按坐标命中会把框收掉，按钮就点不到了。
     if ((event.target as HTMLElement | null)?.closest?.(`.${READER_TEXT_HOVER_TOOLS_CLASS}`)) return;
     const hostRect = event.currentTarget.getBoundingClientRect();
     const x = event.clientX - hostRect.left;
     const y = event.clientY - hostRect.top;
-    // 工具条在框外上方。鼠标斜着往上走向按钮时会先经过上面别的块（比如页眉），
-    // 按坐标命中就换成那一块、按钮跟着没了。所以在当前框正上方这一条带里时保持不动。
+    // 工具条在框外上方时（矮 / 窄的块，比如行间公式），鼠标斜着走向按钮可能先经过上面
+    // 别的块。只在工具条自己那一小块范围里保持当前框 —— 以前保持的是框上方整条带，
+    // 紧贴在上面的短块（比如图注）从下面就再也悬停不到了。
     const current = hoveredTextTarget?.rect;
     if (
       current
+      && hoverToolsOutside(current)
       && x >= current.left - 4
-      && x <= current.left + current.width + 4
-      && y >= current.top - HOVER_TOOLS_BAND
+      && x <= current.left + HOVER_TOOLS_WIDTH
+      && y >= current.top - HOVER_TOOLS_HEIGHT
       && y <= current.top
     ) return;
     const target = hitTestReaderTextHoverTarget(textHoverTargets, x, y);
     setHoveredTextId(target?.itemId || null);
   };
 
-  // 双击一个内容块：整块复制（左栏原文、右栏译文），框上的按钮显示「已复制」。
-  // 浏览器默认的双击选词这时没有意义，顺手清掉。
-  const handleTextRegionDoubleClick = async (event: ReactMouseEvent<HTMLDivElement>) => {
-    if ((event.target as HTMLElement | null)?.closest?.(`.${READER_TEXT_HOVER_COPY_CLASS}, .${READER_TEXT_HOVER_ID_CLASS}`)) return;
+  // 触屏 / 笔：点一下块就出框和「复制」（没有悬停可用）。点工具条本身不算（按钮自己
+  // 拦了 pointerdown）。
+  const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === "mouse") return;
     const hostRect = event.currentTarget.getBoundingClientRect();
     const target = hitTestReaderTextHoverTarget(
       textHoverTargets,
       event.clientX - hostRect.left,
       event.clientY - hostRect.top,
     );
-    if (!target) return;
-    const text = readerRegionCopyText(target.highlight.region, pane === "translated" ? "translated" : "source");
-    if (!text) return;
-    window.getSelection()?.removeAllRanges();
-    if (await copyReaderText(text)) setCopiedSignal((value) => value + 1);
+    setHoveredTextId(target?.itemId || null);
   };
 
   // notify pane of aspect so placeholder heights stay correct when windowed out.
@@ -199,8 +194,11 @@ function PdfPageSlotInner({
       // page boundary so source-PDF hover hit testing stays active without
       // placing an interactive overlay above the native text selection layer.
       onPointerMoveCapture={handlePointerMove}
-      onDoubleClick={handleTextRegionDoubleClick}
-      onPointerLeave={() => setHoveredTextId(null)}
+      onPointerDown={handlePointerDown}
+      // 触屏抬手也会触发 pointerleave：那时框得留着，不然「复制」一闪就没了。
+      onPointerLeave={(event) => {
+        if (event.pointerType === "mouse") setHoveredTextId(null);
+      }}
       style={{
         width,
         height: boxHeight,
@@ -263,7 +261,6 @@ function PdfPageSlotInner({
       <ReaderTextHoverLayer
         target={active ? hoveredTextTarget : null}
         pane={pane === "translated" ? "translated" : "source"}
-        copiedSignal={copiedSignal}
       />
     </div>
   );

@@ -9,6 +9,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 import {
   copyReaderText,
+  hoverToolsOutside,
   projectReaderTextHoverTargets,
   ReaderTextHoverLayer,
 } from "../../../../frontend/packages/reader/src/pdf/ReaderTextHoverLayer.tsx";
@@ -131,11 +132,41 @@ test("正文里的行内公式原样保留 $…$", () => {
   assert.equal(readerRegionCopyText(region, "source"), "Suppose no force acts on $m$");
 });
 
-test("工具条在框外上方；鼠标在框正上方那条带里时保持当前框（斜着移向按钮不会换块）", () => {
+test("工具条：一般的块放框内右上角，只有矮 / 窄的块（行间公式）才放框外上方", () => {
+  assert.equal(hoverToolsOutside({ left: 0, top: 0, width: 400, height: 120 }), false, "正文段落");
+  assert.equal(hoverToolsOutside({ left: 0, top: 0, width: 140, height: 22 }), true, "一行高的窄公式");
+  assert.equal(hoverToolsOutside({ left: 0, top: 0, width: 600, height: 18 }), true, "一行高的宽标题也放外面");
+  const markup = renderToStaticMarkup(createElement(ReaderTextHoverLayer, { target: target("source"), pane: "source" }));
+  assert.match(markup, /data-placement="outside"/, "测试夹具的块 160×60：宽度不够，放外面");
+});
+
+test("只在框外工具条自己那一小块里保持当前框；不再保持整条带（紧贴上方的短块要能悬停到）", () => {
   const slot = readFileSync(new URL("../../../../frontend/packages/reader/src/pdf/PdfPageSlot.tsx", import.meta.url), "utf8");
-  assert.match(slot, /y >= current\.top - HOVER_TOOLS_BAND/);
-  assert.match(slot, /closest\?\.\(`\.\$\{READER_TEXT_HOVER_TOOLS_CLASS\}`\)\) return;/);
+  assert.doesNotMatch(slot, /HOVER_TOOLS_BAND/);
+  assert.match(slot, /hoverToolsOutside\(current\)/);
+  assert.match(slot, /x <= current\.left \+ HOVER_TOOLS_WIDTH/);
   const css = readFileSync(new URL("../../../../frontend/packages/reader/styles/react-pdf.css", import.meta.url), "utf8");
-  assert.match(css, /\.reader-text-hover-tools\s*\{[^}]*bottom:\s*100%/);
-  assert.match(css, /\.reader-text-hover-layer\s*\{[^}]*z-index:\s*7/, "压在公式 / 表格选择层（6）之上");
+  assert.match(css, /\.reader-text-hover-tools\[data-placement="inside"\]\s*\{[^}]*top:\s*4px/);
+  assert.match(css, /\.reader-text-hover-tools\[data-placement="outside"\]\s*\{[^}]*bottom:\s*100%/);
+  assert.match(css, /\.reader-text-hover-layer\s*\{[^}]*z-index:\s*7/);
+});
+
+test("双击 / 三击留给浏览器选词选段：不再整块复制、不清选区", () => {
+  const slot = readFileSync(new URL("../../../../frontend/packages/reader/src/pdf/PdfPageSlot.tsx", import.meta.url), "utf8");
+  assert.doesNotMatch(slot, /onDoubleClick/);
+  assert.doesNotMatch(slot, /removeAllRanges/);
+});
+
+test("触屏：点一下块出框，滑动不换框，抬手（pointerleave）不收框", () => {
+  const slot = readFileSync(new URL("../../../../frontend/packages/reader/src/pdf/PdfPageSlot.tsx", import.meta.url), "utf8");
+  assert.match(slot, /onPointerDown=\{handlePointerDown\}/);
+  assert.match(slot, /if \(event\.pointerType === "mouse"\) return;/, "点按出框只给触屏 / 笔");
+  assert.match(slot, /if \(event\.pointerType === "touch"\) return;/, "触屏滑动不换框");
+  assert.match(slot, /if \(event\.pointerType === "mouse"\) setHoveredTextId\(null\)/, "只有鼠标离开才收框");
+});
+
+test("「已复制」的定时器随换块清掉（A 上复制后马上换 B 复制，B 的提示不会被提前收掉）", () => {
+  const layer = readFileSync(new URL("../../../../frontend/packages/reader/src/pdf/ReaderTextHoverLayer.tsx", import.meta.url), "utf8");
+  assert.match(layer, /timers\.forEach\(\(timer\) => window\.clearTimeout\(timer\)\)/);
+  assert.match(layer, /\}, \[itemId\]\);/);
 });

@@ -212,7 +212,7 @@
   animation: reader-region-focus 680ms ease-out both;
 }
 
-/* 内容块悬停层：红色虚线框 + 框上方的翻译编号和「复制」（对照时左右两栏同一块一起画）。
+/* 内容块悬停层：红色虚线框 + 翻译编号和「复制」（对照时左右两栏同一块一起画）。
    这是阅读页上唯一的块级交互 —— 点块浮条、公式 / 表格点选层都删了。
    层本身不接事件，不阻断 textLayer 的拖选；只有工具条可点。 */
 .reader-text-hover-layer {
@@ -234,17 +234,26 @@
   animation: reader-text-hover-in 100ms ease-out both;
 }
 
-/* 框外上方的一排小工具（编号 + 复制），横向排开、不盖住内容。 */
+/* 编号 + 复制一排小工具。一般放在框内右上角（在块的命中范围里，鼠标走过去不换块、
+   不盖住上一块）；框太矮或太窄放不下时（data-placement="outside"，见 hoverToolsOutside）
+   挪到框外上方，底部留 3px 接住从框往上移的鼠标。 */
 .reader-text-hover-tools {
   position: absolute;
-  bottom: 100%;
-  left: -2px;
   display: flex;
   align-items: center;
   gap: 4px;
-  /* 底部留 3px 接住从框往上移的鼠标：中间有缝的话，指针一出块框就收了。 */
-  padding-bottom: 3px;
   pointer-events: auto;
+}
+
+.reader-text-hover-tools[data-placement="inside"] {
+  top: 4px;
+  right: 4px;
+}
+
+.reader-text-hover-tools[data-placement="outside"] {
+  bottom: 100%;
+  left: -2px;
+  padding-bottom: 3px;
 }
 
 .reader-text-hover-copy {
