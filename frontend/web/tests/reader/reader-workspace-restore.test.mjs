@@ -1,4 +1,4 @@
-/** 阅读页的工作台：存下来的面板要真的回来，对照被面板挤掉要有人说话。
+/** 阅读页的工作台：存下来的面板要真的回来。
  *
  * ## 这里守的三件事，以及它们各自是怎么被实测出来的
  *
@@ -11,9 +11,9 @@
  * 2. 种 `{mode:"translated", assistantPanel:"terminal"}` → dock 同样是空的，
  *    而且 storage 里那条**在 200ms 内被改写成 null**。恢复 mode 触发重渲染 →
  *    持久化 effect 跟着跑 → 把刚被丢弃的 null 写回去。不是少恢复一次，是删数据。
- * 3. 1440 宽、有译文的书上开一个终端 → 右栏从 720px 塌成 0，顶栏选中项从
- *    「对照」跳到「源文件」，全程零解释。（上游猜的是「对照 tab 还亮着」，
- *    实测不是：它会跳到源文件。病一样 —— 没人告诉用户发生了什么。）
+ * 3. 1440 宽、有译文的书上开一个终端 → 右栏让给面板，顶栏选中项从「对照」跳到
+ *    「源文件」。顶栏原来有一条「辅助面板占了右半边…」的提示，用户要求删掉了；
+ *    这里只守 composition 本身的取舍。
  *
  * ## 为什么第 2 条要真渲染
  *
@@ -27,18 +27,7 @@ import { JSDOM } from "jsdom";
 import {
   resolveReaderPaneComposition,
 } from "../../../../frontend/packages/reader/src/ReaderAppReactPdf.tsx";
-import {
-  compareDegradedCopy,
-  ReaderWorkspaceTabs,
-} from "../../../../frontend/packages/reader/src/components/react-pdf/ReaderWorkspaceTabs.tsx";
 import { READER_ASSISTANT_PANEL_IDS } from "../../../../frontend/packages/reader/src/shared/types/reader-assistant-panels.ts";
-import {
-  allRules,
-  hidingDeclarations,
-  isStateSelector,
-  readerStyleSources,
-  selectorHitsChain,
-} from "./helpers/reader-css.mjs";
 
 const dom = new JSDOM("<!doctype html><html><body></body></html>", {
   url: "http://localhost/reader.html",
@@ -237,7 +226,7 @@ test("用户关掉面板就存 null —— 否则关了也白关", () => {
   view.unmount();
 });
 
-// --------------------------------------------- 3. 降级要说话
+// --------------------------------------------- 3. 面板占了右栏时的台面
 
 const compose = (patch) => resolveReaderPaneComposition({
   mode: "compare",
@@ -250,80 +239,13 @@ const compose = (patch) => resolveReaderPaneComposition({
   ...patch,
 });
 
-test("对照被面板降级这件事，composition 自己认得出来", () => {
+test("开着面板时对照退成单栏；从选区问 AI 锁哪一栏就留哪一栏", () => {
   const degraded = compose({ assistantOpen: true });
   assert.equal(degraded.visibleMode, "source");
-  assert.equal(degraded.showTranslated, false, "右栏确实没了");
-  assert.equal(degraded.compareDegradedByAssistant, true);
+  assert.equal(degraded.showTranslated, false, "右栏确实让给了面板");
 
-  // 从选区问 AI 会锁到某一栏，右栏同样无声消失，同样要说话。
   const locked = compose({ assistantOpen: true, assistantPdfPane: "translated" });
   assert.equal(locked.visibleMode, "translated");
-  assert.equal(locked.compareDegradedByAssistant, true);
 
-  // 没开面板、或者本来就不是对照，就没有「降级」这回事。
-  assert.equal(compose({}).compareDegradedByAssistant, false);
-  assert.equal(compose({ mode: "source", assistantOpen: true }).compareDegradedByAssistant, false);
-  assert.equal(compose({ mode: "translated", assistantOpen: true }).compareDegradedByAssistant, false);
-});
-
-function renderTabs(props) {
-  const host = document.createElement("div");
-  document.body.appendChild(host);
-  const root = createRoot(host);
-  act(() => root.render(React.createElement(ReaderWorkspaceTabs, {
-    documentReady: true,
-    onModeChange() {},
-    ...props,
-  })));
-  return { host, cleanup: () => { act(() => root.unmount()); host.remove(); } };
-}
-
-test("降级时顶栏真的画出一条提示，而且点得动", () => {
-  const composition = compose({ assistantOpen: true });
-  let restored = 0;
-  const { host, cleanup } = renderTabs({
-    mode: composition.visibleMode,
-    compareDegraded: composition.compareDegradedByAssistant,
-    onRestoreCompare: () => { restored += 1; },
-  });
-  const notice = host.querySelector(".reader-compare-degraded");
-  assert.ok(notice, "降级时顶栏没有任何提示");
-  // 断言的是**屏幕上的字**，不是某个变量存在。
-  assert.equal(notice.textContent.trim(), compareDegradedCopy("source"));
-  assert.match(notice.textContent, /辅助面板/);
-  assert.match(notice.textContent, /对照/);
-  // 光说不够，得能一步拿回来。
-  act(() => notice.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true })));
-  assert.equal(restored, 1, "提示点了没反应");
-  cleanup();
-
-  // 锁到译文栏时说的是「只剩译文」，不能一律说原文。
-  const locked = compose({ assistantOpen: true, assistantPdfPane: "translated" });
-  const two = renderTabs({ mode: locked.visibleMode, compareDegraded: true, onRestoreCompare() {} });
-  assert.match(two.host.querySelector(".reader-compare-degraded").textContent, /译文/);
-  two.cleanup();
-
-  // 先证了「有」，再证「没降级时确实不画」—— 反过来写的话它永远绿。
-  const three = renderTabs({ mode: "compare", compareDegraded: false });
-  assert.equal(three.host.querySelector(".reader-compare-degraded"), null);
-  three.cleanup();
-});
-
-test("没有任何 CSS 把这条提示整体藏起来（圆钮就是这么没的）", () => {
-  const chain = [new Set(["reader-workspace-bar"]), new Set(["reader-compare-degraded"])];
-  const offenders = [];
-  for (const { name, css } of readerStyleSources()) {
-    for (const rule of allRules(css)) {
-      if (isStateSelector(rule.prelude)) continue;
-      if (!selectorHitsChain(rule.prelude, chain)) continue;
-      const hits = hidingDeclarations(rule.body);
-      if (hits.length) offenders.push(`${name}: ${rule.prelude}`);
-    }
-  }
-  assert.deepEqual(offenders, [], `这条提示被 CSS 藏起来了：\n  ${offenders.join("\n  ")}`);
-  // 反向自检：扫描器确实扫到了这条选择器，不是空扫一遍然后全绿。
-  const seenSelector = readerStyleSources().some(({ css }) => allRules(css)
-    .some((rule) => selectorHitsChain(rule.prelude, chain)));
-  assert.ok(seenSelector, "扫描器根本没看见 .reader-compare-degraded，这条门禁是空的");
+  assert.equal(compose({}).visibleMode, "compare", "没开面板就还是对照");
 });

@@ -61,14 +61,6 @@ export type ReaderPaneComposition = {
   sourceOnly: boolean;
   /** 无可并排的最终译文 (sourceOnly || !translatedUrl)：页签禁用判定 */
   sourceViewOnly: boolean;
-  /**
-   * 对照被辅助面板降级成了单栏。**顶栏必须就此说话。**
-   *
-   * 实测（1440 宽、有译文的书、开终端）：右栏从 720px 塌成 0，顶栏选中项从
-   * 「对照」跳到「源文件」，全程没有一个字解释。用户看到的是「开个终端，译文
-   * 没了」，而终端和译文毫无关系。关掉面板它又自己回来 —— 更像坏了。
-   */
-  compareDegradedByAssistant: boolean;
 };
 
 /**
@@ -115,9 +107,6 @@ export function resolveReaderPaneComposition(input: {
     && (visibleMode === "translated" || visibleMode === "compare");
   const compareMode = visibleMode === "compare" && showTranslated;
   const showSource = overlayOnSource || visibleMode !== "translated" || !showTranslated;
-  // 降级发生在「会话想要对照，可见台面却不是对照」时。assistantPdfPane 锁栏
-  // （从选区问 AI）也算 —— 那条路同样会让右栏无声消失。
-  const compareDegradedByAssistant = input.mode === "compare" && visibleMode !== "compare";
   const kind: ReaderPaneComposition["kind"] = overlayOnSource
     ? "live-overlay"
     : visibleMode === "compare"
@@ -134,7 +123,6 @@ export function resolveReaderPaneComposition(input: {
     overlayOnSource,
     sourceOnly: input.sourceOnly,
     sourceViewOnly,
-    compareDegradedByAssistant,
   };
 }
 
@@ -407,8 +395,6 @@ export function ReaderAppReactPdf() {
             state: c.liveTranslation,
             onToggle: () => setLiveTranslationVisible((visible) => !visible),
           } : null}
-          compareDegraded={paneComposition.compareDegradedByAssistant}
-          onRestoreCompare={closeAssistant}
         />
         <ReaderAssistantDock active={assistantPanel} />
         {assistantOpen ? <ReaderAssistantSplitResizeHandle /> : null}

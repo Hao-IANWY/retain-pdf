@@ -1,5 +1,5 @@
 import type { ReactElement } from "react";
-import { Columns2, FileText, Languages, PanelRightClose, Radio } from "lucide-react";
+import { Columns2, FileText, Languages, Radio } from "lucide-react";
 import type { LiveTranslationState } from "../../shared/data/live-translation-state.js";
 import { useReaderContext } from "./reader-context.js";
 
@@ -26,23 +26,7 @@ export type ReaderWorkspaceTabsProps = {
     state: LiveTranslationState;
     onToggle: () => void;
   } | null;
-  /**
-   * 对照被辅助面板降级成了单栏（paneComposition.compareDegradedByAssistant）。
-   * 传了就在顶栏上说这件事，并给一个一键恢复。
-   */
-  compareDegraded?: boolean;
-  onRestoreCompare?: () => void;
 };
-
-/** 降级时顶栏那条提示说什么。
- *
- * 只写「对照不可用」没用 —— 用户要知道**是谁占了它**和**怎么拿回来**。
- * 降级到哪一栏也得说：从选区问 AI 会锁到译文栏，这时留下的是译文不是原文。
- */
-export function compareDegradedCopy(visiblePane: ReaderWorkspaceMode): string {
-  const kept = visiblePane === "translated" ? "译文" : "原文";
-  return `辅助面板占了右半边，对照只剩${kept} · 点此关闭面板恢复对照`;
-}
 
 export function liveTranslationStatusCopy(state: LiveTranslationState): string {
   if (state.connection === "live") return `实时译文 · ${state.pagesByPage.size} 页`;
@@ -78,8 +62,6 @@ export function ReaderWorkspaceTabs(props: ReaderWorkspaceTabsProps): ReactEleme
     documentReady,
     onModeChange,
     liveTranslation = null,
-    compareDegraded = false,
-    onRestoreCompare,
   } = props;
   const sourceViewOnly = props.sourceViewOnly ?? ctx?.sourceViewOnly ?? false;
   const liveCopy = liveTranslation ? liveTranslationStatusCopy(liveTranslation.state) : "";
@@ -125,19 +107,6 @@ export function ReaderWorkspaceTabs(props: ReaderWorkspaceTabsProps): ReactEleme
           );
         })}
       </div>
-      {compareDegraded ? (
-        <button
-          type="button"
-          className="reader-compare-degraded"
-          // 不写 role="status"：那会把 button 的角色**换掉**，读屏就不再报「可点」，
-          // 而这条提示的要点正是「点它能拿回来」。
-          onClick={onRestoreCompare}
-          title={compareDegradedCopy(mode)}
-        >
-          <PanelRightClose size={13} strokeWidth={2.2} aria-hidden />
-          <span className="reader-compare-degraded-label">{compareDegradedCopy(mode)}</span>
-        </button>
-      ) : null}
     </header>
   );
 }

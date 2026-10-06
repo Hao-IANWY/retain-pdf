@@ -44,7 +44,6 @@ const WIDTHS = [1440, 900, 700, 580, 520, 465, 420, 375];
 function buildPage() {
   const bar = renderToStaticMarkup(createElement(ReaderWorkspaceTabs, {
     mode: "compare", documentReady: true, onModeChange() {},
-    compareDegraded: true, onRestoreCompare() {},
   }));
   const tray = renderToStaticMarkup(createElement(ReaderDownloadActions, {
     download: { jobId: "j", urls: { source: "/a.pdf", sideBySide: "/b.pdf", translated: "/c.pdf" } },

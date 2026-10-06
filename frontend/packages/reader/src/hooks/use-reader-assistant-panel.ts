@@ -50,8 +50,7 @@ export type ReaderAssistantPanelUpdate =
 
 /** 重开阅读页时该恢复哪个面板 —— **只看存下来的东西**。
  *
- * 当前会话 mode 刻意不是输入：面板开合和左右分栏是两件正交的事（对照被面板
- * 降级那件事由 paneComposition.compareDegradedByAssistant 负责说话）。把当前
+ * 当前会话 mode 刻意不是输入：面板开合和左右分栏是两件正交的事。把当前
  * mode 掺进来正是病 1 的成因。
  */
 export function resolveInitialAssistantPanel(
