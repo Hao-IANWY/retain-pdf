@@ -22,6 +22,7 @@ import {
   BookDetailArtifactsTab,
   BookDetailManageTab,
 } from "./tabs/index.js";
+import { useTranslationCoverage } from "./use-translation-coverage.js";
 import { useBookDetailLiveItem } from "./use-book-detail-live-item.js";
 import { useBookDetailDocument } from "./use-book-detail-document.js";
 import { useBookDetailTranslate } from "./use-book-detail-translate.js";
@@ -97,6 +98,7 @@ export function BookDetailDialog() {
       void docState.refreshDocument?.();
     },
   });
+  const coverage = useTranslationCoverage({ open, documentId, jobs: documentJobs.jobs });
   const translateState = useBookDetailTranslate({
     open,
     documentId,
@@ -251,6 +253,7 @@ export function BookDetailDialog() {
               // 结果操作行读全局 statusCard store，注入点放在这里（对话框本身
               // 长在 HomeShellProviders 内），让「进度」Tab 组件保持纯展示。
               resultActionsSlot={<ProcessingResultActions />}
+              coverage={coverage}
               ocr={{
                 job: documentJobs.ocrStatusJob,
                 rangeOn: ocrState.rangeOn,

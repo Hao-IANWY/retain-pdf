@@ -8,6 +8,7 @@ import { JobFailureCard } from "../panels/processing/JobFailureCard.js";
 import { loadJobFailureDetail } from "../../domain/job-failure-detail.js";
 import type { JobFailureBrief } from "@/platform/contracts/library-payloads.js";
 import { ProcessingJobSummary } from "../panels/processing/ProcessingJobSummary.jsx";
+import { JobHistoryPanel, TranslationCoveragePanel } from "../panels/processing/TranslationCoveragePanel.js";
 import { btn } from "../panels/ui.jsx";
 import { documentJobPresentation, isDocumentJobActive } from "../use-document-jobs.js";
 import { countFromProgress, percentFromProgress } from "../../domain/progress-value.js";
@@ -61,7 +62,7 @@ function ScanIcon() {
 // 取全局服务；那四个按钮要读 statusCard store（useStatusCardModel），一旦直接
 // 写在这里，孤立挂载本组件的组件级测试就会因为缺少 HomeShellProviders 而崩。
 // 真正的注入点在 BookDetailDialog（它本来就在 providers 里）。
-export function BookDetailProcessingTab({ ocr, translation, loading = false, error = "", resultActionsSlot = null }: any) {
+export function BookDetailProcessingTab({ ocr, translation, loading = false, error = "", resultActionsSlot = null, coverage = null }: any) {
   const ocrJob = ocr?.job ?? null;
   const ocrActive = isDocumentJobActive(ocrJob);
   const ocrStatus = documentJobPresentation(ocrJob, "尚未执行");
@@ -260,6 +261,11 @@ export function BookDetailProcessingTab({ ocr, translation, loading = false, err
             首帧未知时不渲染，避免「还不知道」被画成「已完成，请下载」。 */}
         {bootstrapping ? null : resultActionsSlot}
       </section>
+
+      {/* 整本书翻了哪些页（多次范围翻译时由哪几次拼成）、做过哪些任务。和阅读入口同一套
+          合并规则，这里说第 7 页来自哪次翻译，阅读器打开时就是那次。 */}
+      <TranslationCoveragePanel coverage={coverage} />
+      <JobHistoryPanel coverage={coverage} />
     </div>
   );
 }

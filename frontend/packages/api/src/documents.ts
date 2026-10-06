@@ -233,6 +233,42 @@ export async function fetchDocumentReading(apiPrefix: string, documentId: string
   return unwrapEnvelope<DocumentReadingView>(await resp.json());
 }
 
+/** GET /documents/:id/translation-coverage —— 一本书翻了哪些页、每次任务提供了几页。 */
+export type TranslationCoverageSegment = { first: number; last: number; job_id: string | null };
+export type TranslationCoverageJob = {
+  job_id: string;
+  workflow: string;
+  status: string;
+  created_at: string;
+  finished_at: string | null;
+  model: string;
+  /** 这个任务处理的文档页（1 起）。 */
+  pages: number[];
+  /** 当前合并结果里取自它的页数。 */
+  supplied_pages: number;
+  ocr_reused: boolean;
+};
+export type TranslationCoverageView = {
+  page_count: number;
+  translated_pages: number;
+  contributing_jobs: number;
+  segments: TranslationCoverageSegment[];
+  jobs: TranslationCoverageJob[];
+};
+
+export async function fetchDocumentTranslationCoverage(
+  apiPrefix: string,
+  documentId: string,
+): Promise<TranslationCoverageView> {
+  const normalized = `${documentId || ""}`.trim();
+  if (!normalized) throw new Error("缺少 document_id。");
+  const resp = await fetch(buildApiEndpoint(apiPrefix, `documents/${encodeURIComponent(normalized)}/translation-coverage`), {
+    headers: buildApiHeaders(),
+  });
+  if (!resp.ok) throw new Error(`读取翻译覆盖失败。(${resp.status})`);
+  return unwrapEnvelope<TranslationCoverageView>(await resp.json());
+}
+
 export async function createDocumentMetadataSuggestion(
   apiPrefix: string,
   documentId: string,

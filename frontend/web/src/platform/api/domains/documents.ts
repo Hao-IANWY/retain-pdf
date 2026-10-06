@@ -11,10 +11,17 @@ import {
   createDocumentMetadataSuggestion as _canonCreateDocumentMetadataSuggestion,
   fetchDocumentMetadataSuggestions as _canonFetchDocumentMetadataSuggestions,
   fetchDocumentReading as _canonFetchDocumentReading,
+  fetchDocumentTranslationCoverage as _canonFetchDocumentTranslationCoverage,
 } from "@retainpdf/api/documents";
 import { mockable } from "./_mockable.js";
 
-export type { DocumentRecord, DocumentReadingView } from "@retainpdf/api/documents";
+export type {
+  DocumentRecord,
+  DocumentReadingView,
+  TranslationCoverageView,
+  TranslationCoverageJob,
+  TranslationCoverageSegment,
+} from "@retainpdf/api/documents";
 
 export const fetchDocumentList = mockable(_canonFetchDocumentList, MockDocuments.fetchDocumentList);
 export const fetchDocumentByJobId = mockable(_canonFetchDocumentByJobId, MockDocuments.fetchDocumentByJobId);
@@ -31,4 +38,12 @@ export const fetchDocumentReading = mockable(_canonFetchDocumentReading, async (
   job_id: null,
   merged: false,
   contributing_job_ids: [],
+}));
+// mock 没有覆盖数据：返回空，详情页不显示覆盖条。
+export const fetchDocumentTranslationCoverage = mockable(_canonFetchDocumentTranslationCoverage, async () => ({
+  page_count: 0,
+  translated_pages: 0,
+  contributing_jobs: 0,
+  segments: [],
+  jobs: [],
 }));

@@ -127,6 +127,33 @@ export type DocumentReadingView = {
     contributing_job_ids: string[];
 };
 export declare function fetchDocumentReading(apiPrefix: string, documentId: string): Promise<DocumentReadingView>;
+/** GET /documents/:id/translation-coverage —— 一本书翻了哪些页、每次任务提供了几页。 */
+export type TranslationCoverageSegment = {
+    first: number;
+    last: number;
+    job_id: string | null;
+};
+export type TranslationCoverageJob = {
+    job_id: string;
+    workflow: string;
+    status: string;
+    created_at: string;
+    finished_at: string | null;
+    model: string;
+    /** 这个任务处理的文档页（1 起）。 */
+    pages: number[];
+    /** 当前合并结果里取自它的页数。 */
+    supplied_pages: number;
+    ocr_reused: boolean;
+};
+export type TranslationCoverageView = {
+    page_count: number;
+    translated_pages: number;
+    contributing_jobs: number;
+    segments: TranslationCoverageSegment[];
+    jobs: TranslationCoverageJob[];
+};
+export declare function fetchDocumentTranslationCoverage(apiPrefix: string, documentId: string): Promise<TranslationCoverageView>;
 export declare function createDocumentMetadataSuggestion(apiPrefix: string, documentId: string, payload?: CreateDocumentMetadataSuggestionInput): Promise<DocumentMetadataSuggestion>;
 export declare function fetchDocumentMetadataSuggestions(apiPrefix: string, documentId: string, { limit }?: {
     limit?: number;

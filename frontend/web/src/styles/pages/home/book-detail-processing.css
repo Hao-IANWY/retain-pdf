@@ -752,3 +752,188 @@
   font-size: 11px;
   color: var(--destructive);
 }
+
+/* 翻译覆盖条 + 任务记录：在「处理」卡片下方各一张卡，和处理卡同一套底色与圆角。
+ * 单色设计：不同次的翻译用墨色深浅区分（data-shade 1 最深、4 最浅），没翻译的页是浅底。 */
+.book-detail-coverage,
+.book-detail-job-history {
+  display: grid;
+  gap: 10px;
+  padding: 14px 15px;
+  border-radius: 24px;
+  background: color-mix(in srgb, var(--bg) 58%, var(--paper));
+}
+
+.book-detail-coverage-head {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.book-detail-coverage-title {
+  flex: 0 0 auto;
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.book-detail-coverage-summary {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 10.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.book-detail-coverage-percent {
+  margin-left: auto;
+  color: var(--ink);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.book-detail-coverage-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10px, 1fr));
+  gap: 3px;
+}
+
+.book-detail-coverage-strip[data-dense="true"] {
+  grid-template-columns: repeat(auto-fill, minmax(5px, 1fr));
+  gap: 2px;
+}
+
+.book-detail-coverage-cell,
+.book-detail-job-history-swatch {
+  display: block;
+  min-height: 10px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--ink) 7%, var(--paper));
+}
+
+.book-detail-coverage-strip[data-dense="true"] .book-detail-coverage-cell {
+  min-height: 8px;
+  border-radius: 2px;
+}
+
+.book-detail-coverage-cell[data-shade="1"],
+.book-detail-job-history-swatch[data-shade="1"] { background: color-mix(in srgb, var(--ink) 82%, var(--paper)); }
+.book-detail-coverage-cell[data-shade="2"],
+.book-detail-job-history-swatch[data-shade="2"] { background: color-mix(in srgb, var(--ink) 58%, var(--paper)); }
+.book-detail-coverage-cell[data-shade="3"],
+.book-detail-job-history-swatch[data-shade="3"] { background: color-mix(in srgb, var(--ink) 38%, var(--paper)); }
+.book-detail-coverage-cell[data-shade="4"],
+.book-detail-job-history-swatch[data-shade="4"] { background: color-mix(in srgb, var(--ink) 22%, var(--paper)); }
+
+.book-detail-job-history-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.book-detail-job-history-row {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px;
+  padding: 9px 0;
+  border-top: 1px solid color-mix(in srgb, var(--ink) 7%, transparent);
+}
+
+.book-detail-job-history-row:first-child {
+  border-top: 0;
+  padding-top: 2px;
+}
+
+.book-detail-job-history-swatch {
+  width: 10px;
+  margin-top: 3px;
+}
+
+.book-detail-job-history-swatch[data-shade="0"] {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 16%, transparent);
+}
+
+.book-detail-job-history-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.book-detail-job-history-line {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.book-detail-job-history-kind {
+  flex: 0 0 auto;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.book-detail-job-history-pages {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.book-detail-job-history-meta,
+.book-detail-job-history-supplied {
+  color: var(--muted);
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+
+/* 各项之间用间距分隔，不用圆点：折行后圆点会挂在下一行行首，CSS 隐藏不了行首那一个。 */
+.book-detail-job-history-meta {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 10px;
+}
+
+.book-detail-job-history-meta-part {
+  white-space: nowrap;
+}
+
+.book-detail-job-history-row[data-status-tone="failed"] .book-detail-job-history-kind,
+.book-detail-job-history-row[data-status-tone="idle"] .book-detail-job-history-kind {
+  color: var(--muted);
+}
+
+.book-detail-job-history-status {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 10.5px;
+  line-height: 1.5;
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+  white-space: nowrap;
+}
+
+.book-detail-job-history-status[data-status-tone="done"] {
+  color: var(--ink);
+}
+
+.book-detail-job-history-status[data-status-tone="active"] {
+  color: var(--paper);
+  background: var(--ink);
+}
+
+.book-detail-job-history-status[data-status-tone="failed"] {
+  color: var(--ink);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 30%, transparent);
+}
