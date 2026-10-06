@@ -32,6 +32,9 @@ test("CredentialsDialog：OCR/DeepSeek 校验三态(缺失/错误/通过)", asyn
   dom.window.document.dispatchEvent(new dom.window.CustomEvent(APP_EVENTS.openBrowserCredentials));
   await waitFor(() => byId(dom, "app-settings-dialog") !== null, "打开设置");
   await waitFor(() => byId(dom, "browser-paddle-validate-btn") !== null, "API 工作台就绪");
+  // 先等表单异步回填完再点：回填晚于点击时会把刚写上的校验结果冲掉，机器一忙就
+  // 卡在「OCR 缺失态」等满 15 秒（CI 37460174210）。保存那几步同理。
+  await waitForDialogReady();
 
   // ---- OCR(paddle):缺失 → 错误 → 通过 ----
   clickWithMouseDown(dom, byId(dom, "browser-paddle-validate-btn"));
@@ -90,6 +93,7 @@ test("CredentialsDialog：保存(浏览器模式)——写隐藏 input、同步 
   dom.window.document.dispatchEvent(new dom.window.CustomEvent(APP_EVENTS.openBrowserCredentials));
   await waitFor(() => byId(dom, "app-settings-dialog") !== null, "打开设置");
   await waitFor(() => byId(dom, "browser-api-key") !== null, "API 工作台就绪");
+  await waitForDialogReady();
 
   assert.equal(byId(dom, "browser-model-base-url").type, "url", "翻译 API 地址保持 URL 输入语义");
   assert.ok(byId(dom, "browser-translation-provider"), "翻译 API 使用服务商下拉选择");
@@ -279,6 +283,7 @@ test("CredentialsDialog：保存(桌面模式)——走 saveDesktopConfig 分支
   }));
   // 首配门现在就是设置中心停在 api tab（独立外壳已退役）。
   await waitFor(() => byId(dom, "browser-api-key") !== null, "打开接口设置(setupMode)");
+  await waitForDialogReady();
 
   typeInput(dom, byId(dom, "browser-paddle-token"), "paddle-desktop");
   typeInput(dom, byId(dom, "browser-api-key"), "deepseek-desktop");
@@ -360,6 +365,7 @@ test("CredentialsDialog：vault 里的明文不进新浏览器，保存仍只写
 
   dom.window.document.dispatchEvent(new dom.window.CustomEvent(APP_EVENTS.openBrowserCredentials));
   await waitFor(() => byId(dom, "browser-api-key") !== null, "API 工作台就绪");
+  await waitForDialogReady();
   typeInput(dom, byId(dom, "browser-paddle-token"), "paddle-existing");
   typeInput(dom, byId(dom, "browser-api-key"), "translation-updated");
 
@@ -420,6 +426,7 @@ test("CredentialsDialog：重启后从浏览器存储恢复可查看值，不再
 
   dom.window.document.dispatchEvent(new dom.window.CustomEvent(APP_EVENTS.openBrowserCredentials));
   await waitFor(() => byId(dom, "browser-api-key") !== null, "API 工作台就绪");
+  await waitForDialogReady();
   // 断言停在凭据状态这一层，不去比输入框的 .value。
   //
   // 可见输入框是非受控的，由 syncCredentialDialogFields 命令式写 .value，而它拿的
