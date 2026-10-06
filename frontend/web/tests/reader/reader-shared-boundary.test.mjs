@@ -4,6 +4,8 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { importSpecifiers } from "../helpers/source-text.mjs";
+
 const REPO_ROOT = fileURLToPath(new URL("../../../../", import.meta.url));
 const READER_SRC = join(REPO_ROOT, "frontend/packages/reader/src");
 const SHARED_ROOT = join(READER_SRC, "shared");
@@ -22,11 +24,6 @@ function sourceFilesUnder(root) {
     }
   }
   return files.sort();
-}
-
-function importSpecifiers(source) {
-  const pattern = /\b(?:import\s*(?:\(|(?:type\s+)?(?:[^"'();]*?\s+from\s+)?)|export\s+(?:type\s+)?[^"';]*?\s+from\s+|require\s*\()\s*["']([^"']+)["']/g;
-  return Array.from(source.matchAll(pattern), (match) => match[1]);
 }
 
 function isUpwardExternal(specifier) {

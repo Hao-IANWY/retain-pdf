@@ -6,6 +6,8 @@ import { dirname, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import { importSpecifiers } from "../helpers/source-text.mjs";
+
 const execFileAsync = promisify(execFile);
 const REPO_ROOT = fileURLToPath(new URL("../../../../", import.meta.url));
 const WEB_ROOT = join(REPO_ROOT, "frontend/web");
@@ -51,11 +53,6 @@ function exportTargets(value) {
   if (typeof value === "string") return [value];
   if (!value || typeof value !== "object") return [];
   return Object.values(value).flatMap(exportTargets);
-}
-
-function importSpecifiers(source) {
-  const pattern = /\b(?:import\s*(?:\(|(?:type\s+)?(?:[^"'();]*?\s+from\s+)?)|export\s+(?:type\s+)?[^"';]*?\s+from\s+|require\s*\()\s*["']([^"']+)["']/g;
-  return Array.from(source.matchAll(pattern), (match) => match[1]);
 }
 
 // 从 vite.config.ts 文本解析 build.lib.entry 的 <entryKey, 源码路径> 表。

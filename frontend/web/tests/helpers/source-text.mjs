@@ -52,3 +52,12 @@ export function region(src, startAnchor, endAnchor, label = "") {
   assert.ok(offset >= 0, `找不到终点锚点 ${endAnchor}${where}`);
   return rest.slice(0, offset + 1);
 }
+
+/** 一份源码里所有 import / export-from / 动态 import() / require() 的模块说明符。
+ *
+ * test-layout 与 reader 的两条包边界门禁原来各抄一份同样的正则，收到这里保证三处认的是
+ * 同一种写法。 */
+export function importSpecifiers(source) {
+  const pattern = /\b(?:import\s*(?:\(|(?:type\s+)?(?:[^"'();]*?\s+from\s+)?)|export\s+(?:type\s+)?[^"';]*?\s+from\s+|require\s*\()\s*["']([^"']+)["']/g;
+  return Array.from(source.matchAll(pattern), (match) => match[1]);
+}
