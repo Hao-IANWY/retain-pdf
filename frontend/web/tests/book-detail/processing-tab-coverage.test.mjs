@@ -36,6 +36,8 @@ const services = {
   library: { actions: {} },
   statusCard: { store: { getSnapshot: () => ({ snapshot: {} }), subscribe: () => () => {} } },
   statusDetail: { controller: { openStatusDetailDialog: () => {} } },
+  // 运行中的翻译会拉起嵌入状态卡（useStatusCardModel 要 reader）。
+  reader: { openReader: () => {} },
 };
 
 
@@ -194,5 +196,35 @@ test("失败任务在任务记录里写原因，原始错误收在展开里", as
   const details = row?.querySelector("details");
   assert.ok(details && !details.open, "原始错误默认收起");
   assert.match(details.textContent, /failed to upload file/);
+  root.unmount(); host.remove();
+});
+
+test("翻译任务跑在 OCR 阶段：进度只出现一次；OCR 站写实时说明，翻译站「等待中」，不摆旧结果", async () => {
+  const dom = makeDom();
+  const running = {
+    ...idleTranslation,
+    canTranslate: false,
+    isActive: true,
+    item: {
+      job_id: "job-live", workflow: "book", status: "running", created_at: "2026-10-06T02:28:11Z",
+      stage_snapshot: {
+        display_stage: "ocr",
+        stage_detail: "OCR provider 已返回 done，bundle 尚未就绪，12s 后重试（第 2/8 次）",
+        progress: { current: 32, total: 48, unit: "page" },
+      },
+    },
+    status: { label: "处理中", tone: "active" },
+  };
+  const { root, host } = await mountTab(dom, { loading: false, ocr: idleOcr, translation: running, coverage: COVERAGE });
+  assert.equal(host.querySelector("[data-processing-unified-status]")?.textContent, "翻译中 · 32/48 页 · 67%");
+  assert.equal(host.querySelectorAll(".book-detail-processing-progress").length, 1, "进度条只有顶部一条");
+  assert.equal(
+    host.querySelector("[data-stage-meta='ocr']")?.textContent,
+    "OCR provider 已返回 done，bundle 尚未就绪，12s 后重试（第 2/8 次）",
+  );
+  assert.equal(host.querySelector("[data-stage-meta='translate']"), null, "跑新任务时不摆上一次的翻译结果");
+  const translateStage = host.querySelector("[data-stage-key='translate']");
+  assert.equal(translateStage?.getAttribute("data-state"), "pending");
+  assert.equal(translateStage?.querySelector(".book-detail-status")?.textContent, "等待中");
   root.unmount(); host.remove();
 });

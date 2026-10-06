@@ -22,12 +22,6 @@
   padding: 14px;
 }
 
-/* 卡内的阶段条（OCR / 翻译 / 渲染 / 完成）不显示：上面的流水线已经画了同一件事，
- * 运行中会出现两套阶段。卡片只留取消 / 用时 / 详情和当前阶段的进度说明。 */
-.bd-job-status-flow {
-  display: none;
-}
-
 .bd-job-status-head {
   display: grid;
   min-height: 32px;
@@ -268,7 +262,6 @@
 
 @media (max-width: 719px) {
   .bd-job-status-inner {
-    min-height: 224px;
     gap: 10px;
     padding: 11px;
   }
@@ -296,4 +289,17 @@
   .bd-job-status-head-center {
     text-align: left;
   }
+}
+
+/* 卡内的阶段条和阶段详情区都不显示，卡片只剩一行：取消任务 | 当前阶段 · 用时 | 详情。
+ * - 阶段条（OCR / 翻译 / 渲染 / 完成）：上面的流水线已经画了同一件事；
+ * - 阶段详情区（「正在上传 PDF」+「重试 OCR」）：实时说明已经写在流水线当前站下面，
+ *   这里那行还常常是过时的（OCR 早传完了还写着「正在上传」），任务跑着时摆「重试」也不对；
+ *   失败时有单独的失败卡负责原因和重试。
+ * 空的错误行原来占着 18px 防跳动；卡片只剩一行后它就是底下那块空白，没有错误时不占位。
+ * 放在文件末尾：前面有 .bd-job-status-main { display: grid }，同优先级后写的赢。 */
+.bd-job-status-flow,
+.bd-job-status-main,
+.bd-job-status-error.is-empty {
+  display: none;
 }

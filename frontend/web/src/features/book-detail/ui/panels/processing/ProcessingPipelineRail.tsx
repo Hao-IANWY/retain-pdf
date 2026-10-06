@@ -109,6 +109,11 @@ export function ProcessingPipelineRail({
     translate: loading ? "读取中…" : translationStatus.label || "未翻译",
     render: "",
   };
+  // 任务在跑时，还没轮到的站写「等待中」。以前它直接拿整本书的状态，OCR 还在跑，
+  // 灰着的翻译站却标着「处理中」。
+  const anyActive = !loading && hasTranslationJob && model.steps.some((entry) => entry.state === "active");
+  const labelOf = (key: StageKey, state: string): string =>
+    anyActive && state === "pending" ? "等待中" : stationLabels[key];
   const metaOf = (key: StageKey): string => {
     if (loading) return "";
     if (key === "translate" && !hasTranslationJob) return translationDescription;
@@ -152,7 +157,7 @@ export function ProcessingPipelineRail({
                   <span className="book-detail-pipeline-label">{label}</span>
                   {capability ? (
                     <span className={`book-detail-status book-detail-pipeline-status is-${toneOf(step.state)}`}>
-                      {stationLabels[stage.key]}
+                      {labelOf(stage.key, step.state)}
                     </span>
                   ) : null}
                 </span>

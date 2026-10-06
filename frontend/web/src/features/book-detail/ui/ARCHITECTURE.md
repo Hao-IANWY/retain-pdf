@@ -65,7 +65,7 @@ GET  /api/v1/documents/:document_id/jobs
 - `useBookDetailOcr`：只管理 OCR 页码、提交状态和错误。
 - `useDocumentJobs`：首次读取文档任务历史，打开期间每 2 秒对账 document-scoped 列表，
   并订阅共享 `currentJobStore` 获取当前任务的即时状态。
-- `ProcessingJobSummary`：消费单个归一化任务摘要，不发送请求。
+- `ProcessingSummary`：「进度」页顶部摘要（状态、真实数字、没翻全的提醒），纯展示。
 
 OCR/翻译提交响应必须立即 `upsert` 到 optimistic map，避免首次文档任务查询尚未看到
 新任务时丢失状态；服务端列表出现同一 `job_id` 后立即删除临时项。最新任务严格按

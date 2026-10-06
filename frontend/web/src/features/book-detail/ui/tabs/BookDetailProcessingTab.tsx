@@ -7,26 +7,31 @@ import { PageSpecInput } from "../panels/PageSpecInput.js";
 import { JobFailureCard } from "../panels/processing/JobFailureCard.js";
 import { loadJobFailureDetail } from "../../domain/job-failure-detail.js";
 import type { JobFailureBrief } from "@/platform/contracts/library-payloads.js";
-import { ProcessingJobSummary } from "../panels/processing/ProcessingJobSummary.jsx";
 import { ProcessingSummary, type ProcessingSummaryTone } from "../panels/processing/ProcessingSummary.jsx";
 import { processingFacts } from "../../domain/translation-coverage.js";
 import { JobHistoryPanel, TranslationCoveragePanel } from "../panels/processing/TranslationCoveragePanel.js";
 import { btn } from "../panels/ui.jsx";
 import { documentJobPresentation, isDocumentJobActive } from "../use-document-jobs.js";
-import { countFromProgress, percentFromProgress } from "../../domain/progress-value.js";
+import {
+  countFromProgress,
+  percentFromProgress,
+  stageDetailWithoutPageCount,
+  unitLabelFromProgress,
+} from "../../domain/progress-value.js";
 import { LoaderCircle, Square } from "lucide-react";
 
-function progressOf(source: any): { current?: number; total?: number; percent: number | null } {
+function progressOf(source: any): { current?: number; total?: number; percent: number | null; unit: string } {
   const progress: any = source?.stage_snapshot?.progress || source?.progress || {};
   const percent = percentFromProgress(progress);
   const count = countFromProgress(progress);
-  return count ? { current: count.current, total: count.total, percent } : { percent };
+  const unit = unitLabelFromProgress(progress);
+  return count ? { current: count.current, total: count.total, percent, unit } : { percent, unit };
 }
 
 function progressTextOf(source: any): string | null {
-  const { current, total, percent } = progressOf(source);
+  const { current, total, percent, unit } = progressOf(source);
   const parts: string[] = [];
-  if (current !== undefined && total !== undefined) parts.push(`${current}/${total}`);
+  if (current !== undefined && total !== undefined) parts.push(unit ? `${current}/${total} ${unit}` : `${current}/${total}`);
   if (percent !== null) parts.push(`${Math.round(percent)}%`);
   return parts.length ? parts.join(" · ") : null;
 }
@@ -61,6 +66,14 @@ function summaryToneOf(ocr: any, translation: any, ocrTone: string, keptOriginBl
   return "idle";
 }
 
+/** 翻译任务现在跑到哪一站（OCR / 翻译 / 渲染），给实时说明找位置。认不出就算翻译站。 */
+function liveStageKey(item: any): "ocr" | "translate" | "render" {
+  const stage = `${item?.stage_snapshot?.display_stage || item?.stage_snapshot?.stage || item?.stage || ""}`.toLowerCase();
+  if (stage.startsWith("ocr")) return "ocr";
+  if (stage.startsWith("render")) return "render";
+  return "translate";
+}
+
 function ScanIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="14" height="14" aria-hidden="true">
@@ -85,9 +98,21 @@ export function BookDetailProcessingTab({ ocr, translation, loading = false, err
       : ocrStatus.tone === "failed"
         ? "失败"
         : "未执行";
-  const ocrShowDetail = ocrActive || ocrStatus.tone === "failed";
   const unifiedPercent = unifiedPercentOf(ocr, translation);
   const facts = processingFacts(coverage);
+  // 有任务在跑时，流水线每站只写「现在」的事：当前站写后端的实时说明（stage_detail），
+  // 其它站不写 —— 覆盖接口给的是上一次跑完的结果，跑新任务时摆出来会让人以为是这次的。
+  // 以前这句实时说明在单独一张卡里，和顶部的进度、下面状态卡的进度一起，同一件事说三遍。
+  const liveSource = ocrActive ? ocrJob : translation?.isActive ? translation?.item : null;
+  const liveDetail = liveSource
+    ? stageDetailWithoutPageCount(
+      `${(liveSource as any)?.stage_snapshot?.stage_detail || (liveSource as any)?.stage_detail || ""}`,
+      Boolean(progressOf(liveSource).total),
+    )
+    : "";
+  const stageMeta = liveSource
+    ? (ocrActive ? { ocr: liveDetail } : { [liveStageKey(translation?.item)]: liveDetail })
+    : facts.stageMeta;
 
   const translationItem = translation?.item || {};
   const translationJobId = `${translationItem.job_id || translationItem.active_job_id || ""}`.trim();
@@ -203,29 +228,19 @@ export function BookDetailProcessingTab({ ocr, translation, loading = false, err
           ocrStatus={{ ...ocrStatus, label: ocrStatusLabel }}
           translationStatus={translation.status}
           translationDescription={translationDescription}
-          stageMeta={facts.stageMeta}
+          stageMeta={stageMeta}
           translateWarning={facts.keptOriginBlocks > 0 ? `${facts.keptOriginBlocks} 块保留原文` : ""}
           loading={bootstrapping}
         />
 
-        {/* OCR 细化：只保留当前阶段的进度/错误；动作已并入翻译行动行。 */}
+        {/* OCR 段只剩契约占位和错误：进度在顶部，实时说明在流水线的 OCR 站下面。 */}
         <div className="book-detail-processing-segment" data-processing-region="ocr">
-          {ocrShowDetail ? (
-            <ProcessingJobSummary
-              job={ocrJob}
-              idleText="尚未执行 OCR"
-              id="book-detail-ocr-progress"
-              labels={{ active: "OCR 处理中", done: "OCR 完成", failed: "OCR 失败" }}
-              subject="OCR"
-            />
-          ) : (
-            <span
-              id="book-detail-ocr-progress"
-              className="sr-only"
-              data-job-status={ocrJob?.status || (bootstrapping ? "loading" : "idle")}
-              aria-hidden="true"
-            />
-          )}
+          <span
+            id="book-detail-ocr-progress"
+            className="sr-only"
+            data-job-status={ocrJob?.status || (bootstrapping ? "loading" : "idle")}
+            aria-hidden="true"
+          />
           {ocr?.error ? <p className="rounded-md border border-foreground/20 bg-muted/40 px-3 py-2 text-xs text-foreground" role="alert">{ocr.error}</p> : null}
         </div>
 

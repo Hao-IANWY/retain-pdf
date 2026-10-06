@@ -1,12 +1,5 @@
-/* 翻译段的摘要、选项行与动作行、阶段动作和状态卡容器。
- * （WorkflowPanel / TranslateForm / TranslationStageActions / ProcessingJobSummary） */
-
-.book-detail-processing-summary {
-  padding: 10px 12px;
-  border: 0;
-  border-radius: 16px;
-  background: var(--paper);
-}
+/* 翻译段的选项行与动作行、阶段动作和状态卡容器。
+ * （WorkflowPanel / TranslateForm / TranslationStageActions） */
 
 /* 唯一的动作区：选项（指定页码 / OCR 指定页码）+ 按钮。 */
 /* 选项在左、按钮在右，同一行；放不下时按钮整组换到下一行右对齐。 */
