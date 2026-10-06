@@ -61,7 +61,17 @@
 @import "../pages/home/upload-workflow.utilities.css";
 @import "../pages/home/job-dialogs.css";
 @import "../pages/home/job-dialogs.utilities.css";
-@import "../pages/home/credential-settings.css";
+/* 凭据 / 术语表：样式放在组件旁边（顺序与原 credential-settings.css 一致，普通规则的先后不能变）。 */
+@import "../pages/home/settings-dialogs.css";
+@import "../../features/credentials/ui/CredentialsWorkbench.css";
+@import "../../features/credentials/ui/AgentRuntimeSettingsCard.css";
+@import "../../features/credentials/ui/TranslationPanel.css";
+@import "../../features/credentials/ui/CredentialFormFields.css";
+@import "../../features/credentials/ui/CredentialCard.css";
+@import "../../features/glossaries/ui/GlossariesDialog.css";
+@import "../../features/glossaries/ui/GlossaryEditor.css";
+@import "../../features/credentials/ui/SecretInput.css";
+@import "../../features/credentials/ui/CredentialsWorkbenchInSettings.css";
 @import "../pages/home/credential-ocr.css";
 @import "../pages/home/status-card.css";
 /* 书籍详情按职责拆分：壳层 → 概览 → 处理 → 文件产物。 */

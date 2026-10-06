@@ -64,6 +64,12 @@ export function classesIn(css) {
   // 只看规则头（{ 之前），声明值里的小数（0.5）不算。
   for (const match of cleaned.matchAll(/([^{}]+)\{/g)) {
     const head = match[1].trim();
+    // Tailwind v4 的 `@utility 名字 { … }` 定义的就是类 `.名字`。
+    const utility = head.match(/^@utility\s+([A-Za-z_][\w-]*)/);
+    if (utility) {
+      classes.add(utility[1]);
+      continue;
+    }
     if (head.startsWith("@")) continue;
     for (const cls of head.matchAll(/\.(-?[A-Za-z_][\w-]*)/g)) classes.add(cls[1]);
   }
@@ -96,8 +102,9 @@ test("组件旁的样式只碰自己的类（@owns），引用别人的必须登
   assert.deepEqual(problems, []);
 });
 
-test("classesIn 只取选择器里的类名", () => {
+test("classesIn 只取选择器里的类名，@utility 的名字也算类", () => {
   const css = `/* .comment-class */ .a-b .c:hover, .d[data-x="1.5"] > .e { width: 0.5rem; background: url(x.png); }
-@media (max-width: 4px) { .f { margin: 0 } }`;
-  assert.deepEqual([...classesIn(css)].sort(), ["a-b", "c", "d", "e", "f"]);
+@media (max-width: 4px) { .f { margin: 0 } }
+@utility g-h { .i & { color: red } }`;
+  assert.deepEqual([...classesIn(css)].sort(), ["a-b", "c", "d", "e", "f", "g-h", "i"]);
 });
