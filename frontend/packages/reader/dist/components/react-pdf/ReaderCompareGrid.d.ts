@@ -2,7 +2,7 @@ import { type ReactElement } from "react";
 import type { ReactNode } from "react";
 import type { ProtectedPdfFile } from "../../pdf/useProtectedPdfFile.js";
 import type { PageRowHeights } from "../../pdf/usePageRowSync.js";
-import { type ReaderMetadata, type ReaderRegion, type ReaderRegionSelection } from "../../shared/data/reader-regions.js";
+import { type ReaderMetadata, type ReaderRegion } from "../../shared/data/reader-regions.js";
 import type { LiveTranslationState } from "../../shared/data/live-translation-state.js";
 import type { ReaderPaneComposition } from "../../ReaderAppReactPdf.js";
 export type ReaderCompareGridProps = {
@@ -30,7 +30,6 @@ export type ReaderCompareGridProps = {
     activeRegion?: ReaderRegion | null;
     regions?: ReaderRegion[];
     readerMetadata?: ReaderMetadata | null;
-    onSelectRegion?: (selection: ReaderRegionSelection) => void;
     markdownSplit?: boolean;
     assistantSplit?: boolean;
     liveTranslation?: LiveTranslationState;

@@ -244,7 +244,7 @@
  *
  * 只有 HUD 一直是这么做的；两条错误提示原来留在 left: 50%，中心正好落在分栏线
  * 上 —— 一半画在 PDF 上、一半画在面板上，而它们偏偏是最需要读清楚的两条文案。
- * 选区浮条走 TSX 里的夹取（ReaderSelectionToolbar），同一个道理。 */
+ */
 .reader-react-root.is-assistant-open .reader-react-hud,
 .reader-react-root.is-assistant-open .reader-react-error,
 .reader-react-root.is-assistant-open .reader-error-notice {

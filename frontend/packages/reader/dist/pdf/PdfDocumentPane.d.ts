@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { type ProtectedPdfFile } from "./useProtectedPdfFile.js";
 import type { PageRowHeights } from "./usePageRowSync.js";
 import { type ReaderPaneId } from "./reader-dom-contract.js";
-import { type ReaderMetadata, type ReaderRegion, type ReaderRegionSelection } from "../shared/data/reader-regions.js";
+import { type ReaderMetadata, type ReaderRegion } from "../shared/data/reader-regions.js";
 import type { LiveTranslationState } from "../shared/data/live-translation-state.js";
 type PdfDocumentPaneProps = {
     pane: ReaderPaneId;
@@ -29,7 +29,6 @@ type PdfDocumentPaneProps = {
     activeRegion?: ReaderRegion | null;
     regions?: ReaderRegion[];
     readerMetadata?: ReaderMetadata | null;
-    onSelectRegion?: (selection: ReaderRegionSelection) => void;
     /** 对照阅读时两栏共享的悬停块（见 PdfPageSlot）。 */
     hoveredRegionId?: string | null;
     onHoverRegion?: (itemId: string | null) => void;

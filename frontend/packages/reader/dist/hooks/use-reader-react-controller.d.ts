@@ -3,7 +3,7 @@ import type { PageRowHeights } from "../pdf/usePageRowSync.js";
 import type { ReaderMode, ReaderSessionState } from "./use-reader-session.js";
 import type { ProtectedPdfFile } from "../pdf/useProtectedPdfFile.js";
 import type { ReaderPaneModel } from "./use-reader-pane-model.js";
-import { type ReaderRegion, type ReaderSelection, type ReaderRegionSelection } from "../shared/data/reader-regions.js";
+import { type ReaderRegion } from "../shared/data/reader-regions.js";
 import type { LiveTranslationState } from "../shared/data/live-translation-state.js";
 export declare const CITATION_HIGHLIGHT_MS = 2000;
 /**
@@ -48,9 +48,6 @@ export type ReaderReactController = {
     jumpToAnchor: (target: ReaderAnchorTarget, pane?: "source" | "translated") => void;
     setModeKeepingPage: (next: ReaderMode) => void;
     showHud: boolean;
-    selection: ReaderSelection | null;
-    clearSelection: () => void;
-    selectRegion: (selection: ReaderRegionSelection) => void;
     download: ReaderSessionState["download"];
     /** stable local persistence scope for reading position/layout */
     viewStateKey: string;

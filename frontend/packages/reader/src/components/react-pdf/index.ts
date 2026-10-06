@@ -9,7 +9,6 @@ export { ReaderAssistantSplitResizeHandle } from "./ReaderAssistantSplitResizeHa
 export { ReaderMarkdownPanel } from "./ReaderMarkdownPanel.js";
 export { ReaderPanelShell } from "./ReaderPanelShell.js";
 export { ReaderReactBoot } from "./ReaderReactBoot.js";
-export { ReaderSelectionToolbar } from "./ReaderSelectionToolbar.js";
 export { ReaderShortcutsHelp } from "./ReaderShortcutsHelp.js";
 export { ReaderDownloadActions } from "./ReaderDownloadActions.js";
 export { ReaderZoomHud } from "./ReaderZoomHud.js";

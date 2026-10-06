@@ -5,7 +5,6 @@ import { useReaderSession } from "./use-reader-session.js";
 import { useReaderShell } from "./use-reader-shell.js";
 import { useReaderPaneModel } from "./use-reader-pane-model.js";
 import { useReaderZoom } from "./use-reader-zoom.js";
-import { useReaderTextSelection } from "./use-reader-text-selection.js";
 import { useReaderModeNavigation } from "./use-reader-mode-navigation.js";
 import { useCurrentPage } from "../pdf/useCurrentPage.js";
 import { usePageRowSync } from "../pdf/usePageRowSync.js";
@@ -21,8 +20,6 @@ import {
   findReaderRegionByCitation,
   regionBoxForPane,
   type ReaderRegion,
-  type ReaderSelection,
-  type ReaderRegionSelection,
 } from "../shared/data/reader-regions.js";
 import { readerViewStateScope } from "../shared/state/reader-view-state.js";
 import { useLiveTranslation } from "./use-live-translation.js";
@@ -94,9 +91,6 @@ export type ReaderReactController = {
   jumpToAnchor: (target: ReaderAnchorTarget, pane?: "source" | "translated") => void;
   setModeKeepingPage: (next: ReaderMode) => void;
   showHud: boolean;
-  selection: ReaderSelection | null;
-  clearSelection: () => void;
-  selectRegion: (selection: ReaderRegionSelection) => void;
   download: ReaderSessionState["download"];
   /** stable local persistence scope for reading position/layout */
   viewStateKey: string;
@@ -299,42 +293,13 @@ export function useReaderReactController(): ReaderReactController {
     beginModeSwitch,
   });
 
-  const [regionSelection, setRegionSelection] = useState<ReaderRegionSelection | null>(null);
-  const {
-    selection: textSelection,
-    clearSelection: clearTextSelection,
-  } = useReaderTextSelection(shellRef, !session.boot.loading && !session.boot.failed);
-
-  const clearSelection = useCallback(() => {
-    setRegionSelection(null);
-    clearTextSelection();
-  }, [clearTextSelection]);
-
-  const selectRegion = useCallback((next: ReaderRegionSelection) => {
-    clearTextSelection();
-    setRegionSelection(next);
-  }, [clearTextSelection]);
-
+  // 点块 / 拖选文字后的浮条（复制 / 问 AI）整个删了：复制交给悬停框，
+  // 拖选文字照旧是浏览器原生选区（Ctrl+C）。
   useEffect(() => {
-    if (textSelection) setRegionSelection(null);
-  }, [textSelection]);
-
-  useEffect(() => {
-    const shellNode = shellRef.current;
-    if (!shellNode) return;
-    const clearRegionSelection = () => setRegionSelection(null);
-    shellNode.addEventListener("scroll", clearRegionSelection, { passive: true });
-    return () => shellNode.removeEventListener("scroll", clearRegionSelection);
-  }, [shellEl, shellRef]);
-
-  const selection: ReaderSelection | null = textSelection || regionSelection;
-
-  useEffect(() => {
-    // Selection rectangles and citation highlights carry page/pane coordinates;
-    // they are invalid as soon as the displayed Reader content changes.
+    // Citation highlights carry page/pane coordinates; they are invalid as soon
+    // as the displayed Reader content changes.
     activateRegion(null);
-    clearSelection();
-  }, [readerContentKey, activateRegion, clearSelection]);
+  }, [readerContentKey, activateRegion]);
 
   const showHud = !session.boot.loading && !session.boot.failed;
 
@@ -364,13 +329,10 @@ export function useReaderReactController(): ReaderReactController {
     setModeKeepingPage,
     download: session.download,
     showHud,
-    selection,
-    clearSelection,
-    selectRegion,
     viewStateKey,
     liveTranslation,
     liveTranslationAvailable,
-  }), [session, shellMemo, panes, sessionFilesMemo, rowHeights, goToPage, activeRegion, jumpToAnchor, setModeKeepingPage, showHud, selection, clearSelection, selectRegion, userZoom, onZoomChange, viewStateKey, liveTranslation, liveTranslationAvailable]);
+  }), [session, shellMemo, panes, sessionFilesMemo, rowHeights, goToPage, activeRegion, jumpToAnchor, setModeKeepingPage, showHud, userZoom, onZoomChange, viewStateKey, liveTranslation, liveTranslationAvailable]);
 
   return useMemo(() => ({
     ...stablePart,

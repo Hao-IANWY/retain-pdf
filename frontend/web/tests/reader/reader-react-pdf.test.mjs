@@ -19,7 +19,6 @@ import {
   liveTranslationStatusCopy,
   ReaderWorkspaceTabs,
 } from "../../../../frontend/packages/reader/src/components/react-pdf/ReaderWorkspaceTabs.tsx";
-import { ReaderStructureSelectionLayer } from "../../../../frontend/packages/reader/src/pdf/ReaderStructureSelectionLayer.tsx";
 import {
   hitTestReaderTextHoverTarget,
   projectReaderTextHoverTargets,
@@ -34,37 +33,6 @@ test("page hover hit testing observes pointer movement in capture phase", () => 
   );
   assert.match(source, /onPointerMoveCapture=\{handlePointerMove\}/);
   assert.doesNotMatch(source, /\sonPointerMove=\{handlePointerMove\}/);
-});
-
-test("OCR structure selection layer exposes formula regions without covering text blocks", () => {
-  const makeHighlight = (itemId, regionType, bbox) => ({
-    itemId,
-    region: {
-      itemId,
-      source: { page: 1, bbox, unit: "pdf_point", origin: "top_left", text: "$$x^2$$" },
-      translated: { page: 1, bbox, unit: "pdf_point", origin: "top_left", text: "" },
-      markdown: "$$x^2$$",
-      regionType,
-      status: "source_only",
-      assetIds: [],
-      assetUrls: [],
-    },
-    box: { page: 1, bbox, unit: "pdf_point", origin: "top_left", text: "$$x^2$$" },
-    pageSize: { page: 1, width: 100, height: 200 },
-  });
-  const markup = renderToStaticMarkup(createElement(ReaderStructureSelectionLayer, {
-    pane: "source",
-    width: 200,
-    height: 400,
-    regions: [
-      makeHighlight("formula-1", "display_formula", [10, 20, 60, 50]),
-      makeHighlight("text-1", "text", [10, 60, 90, 90]),
-    ],
-  }));
-  assert.match(markup, /aria-label="PDF 结构选择层"/);
-  assert.match(markup, /data-reader-region-id="formula-1"/);
-  assert.match(markup, /data-reader-region-kind="formula"/);
-  assert.doesNotMatch(markup, /data-reader-region-id="text-1"/);
 });
 
 test("text hover uses passive projected hit testing without turning text into buttons", () => {

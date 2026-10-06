@@ -14,11 +14,6 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import {
-  clampSelectionToolbarLeft,
-  TOOLBAR_HALF,
-} from "../../../../frontend/packages/reader/src/components/react-pdf/ReaderSelectionToolbar.tsx";
-
 const READER_STYLES = fileURLToPath(
   new URL("../../../../frontend/packages/reader/styles/", import.meta.url),
 );
@@ -141,84 +136,3 @@ test("两条错误提示的宽度也收进 PDF 栏 —— 栏最窄 35vw，居�
   }
 });
 
-// ------------------------------------------------- 选区浮条（TSX 里的纯逻辑）
-
-test("选区浮条夹在 PDF 栏里，不是 window.innerWidth 里", () => {
-  // 选区在 PDF 栏最右边：按视口夹的话，工具条会被允许画到分栏线右边（面板上）。
-  // 半宽从实现里取：这条守的是「按栏夹还是按视口夹」，不是浮条到底多宽。
-  // 抄一份数字在这里，只会让「加了一个动作」变成改门禁。
-  const atRightEdge = clampSelectionToolbarLeft(COLUMN - 5, COLUMN);
-  assert.ok(
-    atRightEdge + TOOLBAR_HALF <= COLUMN,
-    `工具条右边缘 ${atRightEdge + TOOLBAR_HALF} 越过了 PDF 栏 ${COLUMN}`,
-  );
-  assert.equal(atRightEdge, COLUMN - 16 - TOOLBAR_HALF);
-
-  // 左边照旧留出 gutter。
-  assert.equal(clampSelectionToolbarLeft(0, COLUMN), 16 + TOOLBAR_HALF);
-  // 中间的选区不动。
-  assert.equal(clampSelectionToolbarLeft(300, COLUMN), 300);
-});
-
-test("栏比工具条还窄时取栏中心，不会被甩到栏外", () => {
-  // min > max，Math.min(Math.max(...)) 的先后顺序会赢出一个栏外的值。
-  const narrow = 200;
-  const left = clampSelectionToolbarLeft(190, narrow);
-  assert.equal(left, narrow / 2);
-  assert.ok(left > 0 && left < narrow, `${left} 落在 0..${narrow} 之外`);
-});
-
-test("浮条真的按量出来的 PDF 栏定位，不是按 window.innerWidth", async () => {
-  // 纯函数测对了还不够：调用点传错宽度的话，上面两条照样绿（真实发生过 ——
-  // 把 readerColumnWidth() 换成 window.innerWidth，clamp 的测试一条没红）。
-  const { JSDOM } = await import("jsdom");
-  const { act, createElement } = await import("react");
-  const { createRoot } = await import("react-dom/client");
-  const dom = new JSDOM(
-    "<!doctype html><html><body><div class='reader-react-scroll-shell'></div><div id='root'></div></body></html>",
-    { url: "http://localhost/reader.html", pretendToBeVisual: true },
-  );
-  const keys = ["window", "document", "Element", "HTMLElement", "Node", "Event", "MouseEvent", "MutationObserver", "navigator"];
-  const previous = Object.fromEntries(keys.map((k) => [k, globalThis[k]]));
-  for (const key of keys) {
-    Object.defineProperty(globalThis, key, { value: dom.window[key], writable: true, configurable: true });
-  }
-  globalThis.IS_REACT_ACT_ENVIRONMENT = true;
-  // jsdom 不排版，所以手动给滚动壳一个宽度：dock 开着时它只有 PDF 栏那么宽。
-  const shell = dom.window.document.querySelector(".reader-react-scroll-shell");
-  shell.getBoundingClientRect = () => ({ left: 0, right: COLUMN, width: COLUMN, top: 0, bottom: 800, height: 800 });
-  Object.defineProperty(dom.window, "innerWidth", { value: VIEWPORT, configurable: true });
-
-  try {
-    const { ReaderSelectionToolbar } = await import(
-      "../../../../frontend/packages/reader/src/components/react-pdf/ReaderSelectionToolbar.tsx"
-    );
-    const host = dom.window.document.getElementById("root");
-    const root = createRoot(host);
-    await act(async () => {
-      root.render(createElement(ReaderSelectionToolbar, {
-        selection: {
-          selectionType: "text",
-          quote: "一段被选中的正文",
-          page: 3,
-          pane: "source",
-          // 选区贴着 PDF 栏右缘。
-          rect: { left: COLUMN - 20, top: 300, width: 10, height: 14 },
-        },
-        onDismiss: () => {},
-      }));
-    });
-    const pop = host.querySelector(".reader-sel-pop");
-    assert.ok(pop, "浮条没渲染出来");
-    const left = Number.parseFloat(pop.style.left);
-    // 按视口夹的话这里会落在分栏线右边，糊在 AI 面板上。
-    assert.equal(left, COLUMN - 16 - TOOLBAR_HALF);
-    assert.ok(left + TOOLBAR_HALF < VIEWPORT - SPLIT + 1, "浮条右缘越过了分栏线");
-    await act(async () => { root.unmount(); });
-  } finally {
-    for (const [key, value] of Object.entries(previous)) {
-      Object.defineProperty(globalThis, key, { value, writable: true, configurable: true });
-    }
-    delete globalThis.IS_REACT_ACT_ENVIRONMENT;
-  }
-});

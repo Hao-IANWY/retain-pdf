@@ -207,7 +207,7 @@ test("reader page config port exposes injectable message origin and job id", () 
 
 
 test("reader translated region right click keeps selection drag from stealing the event", () => {
-  return; // legacy region-interactions 已保留但此用例在新 reader 中由 useReaderTextSelection 覆盖，跳过旧断言
+  return; // legacy region-interactions 的旧断言：新 reader 里块级交互只剩悬停复制（见 reader-hover-copy），跳过
   const previousWindow = global.window;
   global.window = {
     ...previousWindow,

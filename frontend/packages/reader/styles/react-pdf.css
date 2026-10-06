@@ -212,89 +212,12 @@
   animation: reader-region-focus 680ms ease-out both;
 }
 
-/* 独立 OCR 结构选择层：容器不拦截 PDF，只有结构命中框响应指针。 */
-.reader-structure-selection-layer {
-  position: absolute;
-  z-index: 6;
-  inset: 0 auto auto 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-}
-
-.reader-structure-selection-target {
-  position: absolute;
-  display: block;
-  min-width: 12px;
-  min-height: 12px;
-  padding: 0;
-  box-sizing: border-box;
-  border: 1.5px solid transparent;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--ink);
-  cursor: crosshair;
-  opacity: 0;
-  pointer-events: auto;
-  transition:
-    opacity 140ms ease,
-    border-color 140ms ease,
-    background 140ms ease,
-    box-shadow 140ms ease;
-}
-
-/* 鼠标悬停时由悬停层画红色虚线框（带编号和复制），这里不再叠一层深色边框；
-   键盘聚焦没有悬停层，保留自己的边框。 */
-.reader-structure-selection-target:hover {
-  opacity: 1;
-}
-
-.reader-structure-selection-target:focus-visible {
-  opacity: 1;
-  border-color: color-mix(in srgb, var(--ink) 78%, transparent);
-  background: color-mix(in srgb, var(--paper) 8%, transparent);
-  box-shadow:
-    0 0 0 3px color-mix(in srgb, var(--paper) 72%, transparent),
-    0 5px 18px color-mix(in srgb, var(--shadow-color) 16%, transparent);
-  outline: none;
-}
-
-.reader-react-pdf-page-slot:hover .reader-structure-selection-target:not(:hover) {
-  opacity: 0.42;
-  border-color: color-mix(in srgb, var(--ink) 48%, transparent);
-}
-
-.reader-react-pdf-page-slot:hover .reader-structure-selection-target:not(:hover) .reader-structure-selection-label {
-  opacity: 0;
-}
-
-.reader-structure-selection-label {
-  position: absolute;
-  top: 6px;
-  left: 6px;
-  display: inline-flex;
-  align-items: center;
-  min-height: 18px;
-  padding: 0 6px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--ink) 92%, transparent);
-  color: var(--paper);
-  font-size: 9px;
-  font-weight: 750;
-  line-height: 1;
-  white-space: nowrap;
-  box-shadow: 0 3px 9px color-mix(in srgb, var(--shadow-color) 14%, transparent);
-  pointer-events: none;
-  opacity: 0;
-  transform: translateY(-2px);
-  transition: opacity 120ms ease, transform 120ms ease;
-}
-
-/* 普通文字的悬停层：红色虚线框 + 右上角「复制」（对照时左右两栏同一块一起画）。
-   层本身不接事件，不阻断 textLayer 的拖选；只有复制按钮可点。 */
+/* 内容块悬停层：红色虚线框 + 框上方的翻译编号和「复制」（对照时左右两栏同一块一起画）。
+   这是阅读页上唯一的块级交互 —— 点块浮条、公式 / 表格点选层都删了。
+   层本身不接事件，不阻断 textLayer 的拖选；只有工具条可点。 */
 .reader-text-hover-layer {
   position: absolute;
-  /* 压在公式 / 表格选择层（z-index 6）之上：行间公式也能悬停复制，按钮不被它挡住。 */
+  /* 高于实时译文叠层和引用高亮（z-index 3）：工具条不能被它们挡住。 */
   z-index: 7;
   inset: 0 auto auto 0;
   width: 100%;
@@ -377,14 +300,7 @@
 @keyframes reader-text-hover-in {
   from { opacity: 0; }
   to { opacity: 1; }
-}
-
-.reader-structure-selection-target:focus-visible .reader-structure-selection-label {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-@keyframes reader-region-focus {
+}@keyframes reader-region-focus {
   from {
     opacity: 0;
     transform: scale(0.97);
@@ -552,7 +468,7 @@
  */
 .reader-ai-note-layer {
   position: absolute;
-  z-index: 7; /* 在结构选择层之上：记号很窄，被盖住就点不到 */
+  z-index: 7; /* 和悬停层同级：记号很窄，被别的层盖住就点不到 */
   inset: 0 auto auto 0;
   width: 100%;
   height: 100%;

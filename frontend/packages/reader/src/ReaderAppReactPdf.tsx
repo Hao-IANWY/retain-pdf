@@ -11,7 +11,6 @@ import {
   ReaderCompareGrid,
   ReaderZoomHud,
   ReaderDownloadActions,
-  ReaderSelectionToolbar,
 } from "./components/react-pdf/index.js";
 import type { ReaderAssistantPanel, ReaderWorkspaceMode } from "./components/react-pdf/index.js";
 import { useReaderAssistantPanel } from "./hooks/use-reader-assistant-panel.js";
@@ -21,8 +20,6 @@ import {
   loadReaderViewState,
   saveReaderViewState,
 } from "./shared/state/reader-view-state.js";
-import { readerSelectionPrompt } from "./shared/data/reader-regions.js";
-import type { ReaderSelection } from "./shared/data/reader-regions.js";
 import {
   ReaderProvider,
   type ReaderContextValue,
@@ -166,10 +163,6 @@ export function ReaderAppReactPdf() {
   const assistantPanel = assistant.panel;
   const setAssistantPanel = assistant.setPanel;
   const [assistantPdfPane, setAssistantPdfPane] = useState<"source" | "translated" | null>(null);
-  // 选区要送进终端的那段文字。token 每次自增，宿主据此判断「这是新的一次注入」
-  // —— 不能拿文本本身判重，连着两次选同一段也得送两次。
-  const [terminalPrefill, setTerminalPrefill] =
-    useState<{ text: string; token: number } | null>(null);
   // agent 产物在左边打开时，看的是哪个文件。null = 看 PDF。
   //
   // **不进 ReaderWorkspaceMode。** 那三个（源文件/对照/翻译文件）是
@@ -219,7 +212,6 @@ export function ReaderAppReactPdf() {
   // 的自动叠加 bug」直接矛盾，删掉才是那段注释说的行为。
   // 需要自动打开的那一处走 resolveLiveTranslationVisibleOnWorkspaceChange。
   useEffect(() => {
-    setTerminalPrefill(null);
     setBoardFile(null);
     setLiveTranslationVisible(false);
   }, [c.viewStateKey]);
@@ -272,7 +264,6 @@ export function ReaderAppReactPdf() {
   const closeAssistant = useCallback(() => {
     setAssistantPanel(null);
     setAssistantPdfPane(null);
-    setTerminalPrefill(null);
   }, []);
   const changeWorkspace = useCallback((next: ReaderWorkspaceMode) => {
     setAssistantPdfPane(null);
@@ -327,27 +318,12 @@ export function ReaderAppReactPdf() {
     // 空字符串在这里是有意义的信号：renderReaderTerminal 会改画一段说明，
     // 而不是一个开得起来却什么都做不了的空壳。
     sessionKey: session.jobId,
-    pendingInput: terminalPrefill,
+    // 以前「点块 → 浮条 → 问 AI」会把选区预填进终端；浮条整个删了（只留悬停复制），
+    // 阅读器这边没有要预填的了。宿主的注入能力保留，接口不动。
+    pendingInput: null,
     onOpenBoard: setBoardFile,
     onClose: closeAssistant,
-  }), [closeAssistant, session.documentId, session.jobId, terminalPrefill]);
-
-  /** 从选区问 AI —— 现在唯一的 AI 入口是终端里的 agent。
-   *
-   * 送进去但**不回车**：让 agent 直接跑一条由页面选区拼出来的命令太意外了，
-   * 用户得先看见自己要问什么。栏锁照旧（从译文栏选的就把译文栏锁住），否则
-   * 助手分栏会把你正看的那栏挤掉。
-   */
-  const askSelectedRegion = useCallback((selection: ReaderSelection) => {
-    const pdf = selection.pane === "translated" && !sourceViewOnly
-      ? "translated"
-      : "source";
-    const prompt = readerSelectionPrompt(selection);
-    setTerminalPrefill((prev) => ({ text: prompt, token: (prev?.token ?? 0) + 1 }));
-    setAssistantPanel("terminal");
-    setAssistantPdfPane(pdf);
-    c.clearSelection();
-  }, [c.clearSelection, sourceViewOnly]);
+  }), [closeAssistant, session.documentId, session.jobId]);
 
   // 外壳 Context：只装频繁下钻、且此前纯透传的值；currentPage/numPages 走 HUD
   // context，避免滚动带动整棵外壳重渲染。
@@ -369,7 +345,6 @@ export function ReaderAppReactPdf() {
     regions: session.regions,
     readerMetadata: session.readerMetadata,
     activeRegion: c.activeRegion,
-    onSelectRegion: c.selectRegion,
     sourceOnly: c.sourceOnly,
     sourceViewOnly,
     download: c.download,
@@ -385,7 +360,6 @@ export function ReaderAppReactPdf() {
     session.regions,
     session.readerMetadata,
     c.activeRegion,
-    c.selectRegion,
     c.sourceOnly,
     sourceViewOnly,
     c.download,
@@ -457,7 +431,6 @@ export function ReaderAppReactPdf() {
           ))}
           {markdownSlot.mounted ? <ReaderMarkdownPanel open={markdownSlot.open} jobId={session.jobId} sourceOnly={c.sourceOnly} side="right" onClose={closeAssistant} /> : null}
         </Suspense>
-        <ReaderSelectionToolbar selection={c.selection} onDismiss={c.clearSelection} onAskAi={askSelectedRegion} />
         <DownloadToastHost />
       </div>
     </ReaderProvider>

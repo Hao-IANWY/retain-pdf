@@ -22,27 +22,6 @@ export type ReaderRegion = {
 
 export type ReaderRegionKind = "formula" | "table" | "figure" | "text" | "region";
 
-export type ReaderRegionSelection = {
-  selectionType: "region";
-  region: ReaderRegion;
-  kind: ReaderRegionKind;
-  page: number;
-  pane: ReaderPaneId;
-  /** 视口坐标，用于浮条定位。 */
-  rect: ReaderRegionRect;
-};
-
-export type ReaderTextSelection = {
-  selectionType: "text";
-  quote: string;
-  page: number;
-  pane: ReaderPaneId;
-  /** 视口坐标，用于浮条定位。 */
-  rect: ReaderRegionRect;
-};
-
-export type ReaderSelection = ReaderRegionSelection | ReaderTextSelection;
-
 export type ReaderPageMetadata = {
   page: number;
   width: number;
@@ -442,31 +421,4 @@ export function projectReaderRegion(
   const bottom = Math.max(top, Math.min(renderedHeight, y1 / pageSize.height * renderedHeight));
   if (right <= left || bottom <= top) return null;
   return { left, top, width: right - left, height: bottom - top };
-}
-
-/** 选区送进终端 agent 时先变成的那句话。
- *
- * 阅读页现在只有一扇 AI 的门（终端里的 agent），「从选区问 AI」就是把选中的
- * 东西喂给它。两种选区形状要分开取文字：
- * - 文本选区有 quote
- * - 区域选区（公式 / 表格 / 图）的文字在 region 里，且**要取用户选的那一栏**
- *   —— 从译文栏选公式却把原文塞进去，问出来的是另一回事。
- *
- * 取不到文字时不编：返回空串，调用方就只开面板不注入。
- */
-export function readerSelectionPrompt(selection: ReaderSelection): string {
-  const where = `第 ${selection.page} 页`;
-  if (selection.selectionType === "text") {
-    const quote = selection.quote.trim();
-    return quote ? `关于${where}这段：「${quote}」` : "";
-  }
-  const box = selection.pane === "translated"
-    ? selection.region.translated
-    : selection.region.source;
-  const text = (box?.text || selection.region.markdown || "").trim();
-  const kindLabel: Record<ReaderRegionKind, string> = {
-    formula: "公式", table: "表格", figure: "图", text: "这段", region: "这块",
-  };
-  const what = kindLabel[selection.kind] ?? "这块";
-  return text ? `关于${where}的${what}：「${text}」` : "";
 }

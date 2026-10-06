@@ -43,7 +43,6 @@ import {
   resolveReaderRegionHighlight,
   type ReaderMetadata,
   type ReaderRegion,
-  type ReaderRegionSelection,
 } from "../shared/data/reader-regions.js";
 import type { LiveTranslationState } from "../shared/data/live-translation-state.js";
 
@@ -97,7 +96,6 @@ type PdfDocumentPaneProps = {
   activeRegion?: ReaderRegion | null;
   regions?: ReaderRegion[];
   readerMetadata?: ReaderMetadata | null;
-  onSelectRegion?: (selection: ReaderRegionSelection) => void;
   /** 对照阅读时两栏共享的悬停块（见 PdfPageSlot）。 */
   hoveredRegionId?: string | null;
   onHoverRegion?: (itemId: string | null) => void;
@@ -129,7 +127,6 @@ const PdfDocumentPaneInner = forwardRef<HTMLElement, PdfDocumentPaneProps>(
       activeRegion = null,
       regions = [],
       readerMetadata = null,
-      onSelectRegion,
       hoveredRegionId = null,
       onHoverRegion,
       liveTranslation,
@@ -451,7 +448,7 @@ const PdfDocumentPaneInner = forwardRef<HTMLElement, PdfDocumentPaneProps>(
       //
       // 原来 visible 参与 canWindow，于是「这一栏看不见」的效果是把窗口开到
       // 全书：500 页的书切一次模式，另一栏立刻挂载几百个 PdfPageSlot，各自带
-      // ReaderTextHoverLayer / ReaderStructureSelectionLayer 和一个 useMemo ——
+      // ReaderTextHoverLayer 和一个 useMemo ——
       // 而这一栏一个像素都不显示。canvas 确实没挂，但几百个组件的同步渲染是
       // 实打实的卡顿。
       //
@@ -539,7 +536,6 @@ const PdfDocumentPaneInner = forwardRef<HTMLElement, PdfDocumentPaneProps>(
                       sentinelRef={getSentinelRef(pageNumber)}
                       regionHighlight={regionHighlight?.box.page === pageNumber ? regionHighlight : null}
                       regionTargets={regionTargetsByPage.get(pageNumber)}
-                      onSelectRegion={onSelectRegion}
                       // 只交给含这一块的页：悬停一变，其它页的 props 不变，不重渲染。
                       hoveredRegionId={hoveredRegionId && hoveredPages.has(pageNumber) ? hoveredRegionId : null}
                       onHoverRegion={onHoverRegion}

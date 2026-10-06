@@ -12,7 +12,6 @@ import {
   isStructuredReaderRegion,
   type ReaderMetadata,
   type ReaderRegion,
-  type ReaderRegionSelection,
 } from "../../shared/data/reader-regions.js";
 import type { LiveTranslationState } from "../../shared/data/live-translation-state.js";
 import type { ReaderPaneComposition } from "../../ReaderAppReactPdf.js";
@@ -43,7 +42,6 @@ export type ReaderCompareGridProps = {
   activeRegion?: ReaderRegion | null;
   regions?: ReaderRegion[];
   readerMetadata?: ReaderMetadata | null;
-  onSelectRegion?: (selection: ReaderRegionSelection) => void;
   markdownSplit?: boolean;
   assistantSplit?: boolean;
   liveTranslation?: LiveTranslationState;
@@ -180,7 +178,6 @@ export function ReaderCompareGrid(props: ReaderCompareGridProps): ReactElement {
 
 
   const readerMetadata = props.readerMetadata ?? ctx?.readerMetadata;
-  const onSelectRegion = props.onSelectRegion ?? ctx?.onSelectRegion;
   // 悬停的内容块两栏共享：鼠标在哪栏，左右都画同一块的红框（各自复制本栏的文字）。
   const [hoveredRegionId, setHoveredRegionId] = useState<string | null>(null);
   const handleHoverRegion = useCallback((itemId: string | null) => setHoveredRegionId(itemId), []);
@@ -239,7 +236,6 @@ export function ReaderCompareGrid(props: ReaderCompareGridProps): ReactElement {
             activeRegion={activeRegion}
             regions={regions}
             readerMetadata={readerMetadata}
-            onSelectRegion={onSelectRegion}
             hoveredRegionId={hoveredRegionId}
             onHoverRegion={handleHoverRegion}
             // 流式译文直接叠加在源栏原文 PDF 上（overlayOnSource，用户主动触发）。
@@ -280,7 +276,6 @@ export function ReaderCompareGrid(props: ReaderCompareGridProps): ReactElement {
             activeRegion={activeRegion}
             regions={regions}
             readerMetadata={readerMetadata}
-            onSelectRegion={onSelectRegion}
             hoveredRegionId={hoveredRegionId}
             onHoverRegion={handleHoverRegion}
             // 译文 PDF 栏就是最终译文本身，绝不叠加流式画布。

@@ -9,7 +9,6 @@ import type { ReaderDownloadContext } from "../../hooks/use-reader-session.js";
 import type {
   ReaderMetadata,
   ReaderRegion,
-  ReaderRegionSelection,
 } from "../../shared/data/reader-regions.js";
 import type { ProtectedPdfFile } from "../../pdf/useProtectedPdfFile.js";
 import type { PageRowHeights } from "../../pdf/usePageRowSync.js";
@@ -37,7 +36,6 @@ export type ReaderContextValue = {
   regions: ReaderRegion[];
   readerMetadata: ReaderMetadata | null;
   activeRegion: ReaderRegion | null;
-  onSelectRegion: (selection: ReaderRegionSelection) => void;
   // 和 regions 走同一条路下去，因为它们用的是同一套 bbox 投影。
   // session
   /**

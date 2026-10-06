@@ -24,9 +24,7 @@ import {
   projectReaderRegion,
   readerRegionCopyText,
   type ReaderRegionHighlight,
-  type ReaderRegionSelection,
 } from "../shared/data/reader-regions.js";
-import { ReaderStructureSelectionLayer } from "./ReaderStructureSelectionLayer.js";
 import {
   copyReaderText,
   hitTestReaderTextHoverTarget,
@@ -61,7 +59,6 @@ type PdfPageSlotProps = {
   sentinelRef?: (el: HTMLDivElement | null) => void;
   regionHighlight?: ReaderRegionHighlight | null;
   regionTargets?: ReaderRegionHighlight[];
-  onSelectRegion?: (selection: ReaderRegionSelection) => void;
   /**
    * 对照阅读时左右两栏共享的悬停块（itemId）。给了 onHoverRegion 就由外面管，
    * 鼠标在哪栏，两栏都画同一块的框；没给（单栏）就用本页自己的状态。
@@ -86,7 +83,6 @@ function PdfPageSlotInner({
   sentinelRef,
   regionHighlight = null,
   regionTargets = [],
-  onSelectRegion,
   hoveredRegionId,
   onHoverRegion,
   liveTranslationLayout,
@@ -179,34 +175,6 @@ function PdfPageSlotInner({
     if (await copyReaderText(text)) setCopiedSignal((value) => value + 1);
   };
 
-  const handleTextRegionClick = (event: ReactMouseEvent<HTMLDivElement>) => {
-    if (!onSelectRegion) return;
-    if ((event.target as HTMLElement | null)?.closest?.(".reader-structure-selection-target")) return;
-    if ((event.target as HTMLElement | null)?.closest?.(`.${READER_TEXT_HOVER_COPY_CLASS}, .${READER_TEXT_HOVER_ID_CLASS}`)) return;
-    // 用户刚完成原生拖选时保留浏览器选区，不把它误判成整块点击。
-    if (`${window.getSelection()?.toString() || ""}`.trim()) return;
-    const hostRect = event.currentTarget.getBoundingClientRect();
-    const target = hitTestReaderTextHoverTarget(
-      textHoverTargets,
-      event.clientX - hostRect.left,
-      event.clientY - hostRect.top,
-    );
-    if (!target) return;
-    onSelectRegion({
-      selectionType: "region",
-      region: target.highlight.region,
-      kind: "text",
-      page: target.highlight.box.page,
-      pane: pane === "translated" ? "translated" : "source",
-      rect: {
-        left: hostRect.left + target.rect.left,
-        top: hostRect.top + target.rect.top,
-        width: target.rect.width,
-        height: target.rect.height,
-      },
-    });
-  };
-
   // notify pane of aspect so placeholder heights stay correct when windowed out.
   // onLoadSuccess is an async react-pdf callback, not render, so notifying the
   // parent directly is safe; the ref guard keeps StrictMode double-loads quiet.
@@ -231,7 +199,6 @@ function PdfPageSlotInner({
       // page boundary so source-PDF hover hit testing stays active without
       // placing an interactive overlay above the native text selection layer.
       onPointerMoveCapture={handlePointerMove}
-      onClick={handleTextRegionClick}
       onDoubleClick={handleTextRegionDoubleClick}
       onPointerLeave={() => setHoveredTextId(null)}
       style={{
@@ -297,13 +264,6 @@ function PdfPageSlotInner({
         target={active ? hoveredTextTarget : null}
         pane={pane === "translated" ? "translated" : "source"}
         copiedSignal={copiedSignal}
-      />
-      <ReaderStructureSelectionLayer
-        pane={pane === "translated" ? "translated" : "source"}
-        width={width}
-        height={naturalHeight}
-        regions={regionTargets}
-        onSelect={onSelectRegion}
       />
     </div>
   );

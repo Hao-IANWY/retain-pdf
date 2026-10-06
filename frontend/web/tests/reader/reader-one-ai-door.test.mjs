@@ -23,8 +23,6 @@ import {
 } from "../../../packages/reader/src/shared/types/reader-assistant-panels.ts";
 import { READER_HOST_PANELS }
   from "../../../packages/reader/src/components/react-pdf/reader-host-panels.ts";
-import { readerSelectionPrompt }
-  from "../../../packages/reader/src/shared/data/reader-regions.ts";
 import { stripComments } from "./helpers/reader-css.mjs";
 
 const read = (p) => readFileSync(fileURLToPath(new URL(p, import.meta.url)), "utf8");
@@ -35,17 +33,6 @@ test("dock 收到只剩 Markdown 和 AI", () => {
   // 批注也删了 —— 用户的原话是「批注部分我觉得也去掉，后续翻译什么的也全部走
   // ai agent」。它是 localStorage 存的，磁盘上量不到用量，按产品方向删。
   assert.deepEqual([...READER_ASSISTANT_PANEL_IDS], ["markdown", "terminal"]);
-});
-
-test("选区浮条上不再有批注入口 —— 面板没了按钮还在等于点了没反应", () => {
-  // 必须先剥注释。这个文件里「问 AI」在**三处注释**里出现（:13 文件头、:133、:187），
-  // 不剥的话正对照被注释满足 —— 把整个 onAskAi 分支删掉，1953 条全绿（子 agent 实测）。
-  const toolbar = code(read("../../../packages/reader/src/components/react-pdf/ReaderSelectionToolbar.tsx"));
-  assert.doesNotMatch(toolbar, /onAddNote/, "浮条还在往外发批注回调");
-  assert.doesNotMatch(toolbar, /添加批注/, "浮条上还有「添加批注」按钮");
-  // 正对照盯的是**渲染出来的那个按钮**，不是文件里有没有这个串。
-  assert.match(toolbar, /<span>问 AI<\/span>/, "浮条上「问 AI」那个按钮没了，上面两条没有判别力");
-  assert.match(toolbar, /onClick=\{\(\) => onAskAi\(selection\)\}/, "「问 AI」按钮没接上 onAskAi");
 });
 
 test("批注的样式和外壳样式分开了 —— 外壳是所有面板共用的，不能一起删", () => {
@@ -81,49 +68,24 @@ test("面板 id 仍是 terminal —— 改 id 会让所有存下来的面板恢�
 
 // ------------------------------------------------ 选区 → 终端（这是真行为测试）
 
-const rect = { top: 0, left: 0, width: 1, height: 1 };
-
-test("文本选区变成带页码的引用", () => {
-  assert.equal(
-    readerSelectionPrompt({ selectionType: "text", quote: "线搜索方法", page: 3, pane: "source", rect }),
-    "关于第 3 页这段：「线搜索方法」",
-  );
-});
-
-test("区域选区取的是用户选的那一栏 —— 从译文栏选公式不能塞原文进去", () => {
-  const region = {
-    itemId: "i1",
-    source: { page: 2, bbox: [0, 0, 1, 1], unit: "pdf_point", origin: "top_left", text: "x squared" },
-    translated: { page: 2, bbox: [0, 0, 1, 1], unit: "pdf_point", origin: "top_left", text: "x 的平方" },
-    markdown: "$x^2$", regionType: "formula", status: "ok", assetIds: [], assetUrls: [],
-  };
-  const base = { selectionType: "region", region, kind: "formula", page: 2, rect };
-  assert.equal(readerSelectionPrompt({ ...base, pane: "translated" }), "关于第 2 页的公式：「x 的平方」");
-  assert.equal(readerSelectionPrompt({ ...base, pane: "source" }), "关于第 2 页的公式：「x squared」");
-});
-
-test("取不到文字就返回空串，不编一句话出来", () => {
-  assert.equal(readerSelectionPrompt({ selectionType: "text", quote: "   ", page: 1, pane: "source", rect }), "");
-  const empty = {
-    itemId: "i2",
-    source: { page: 1, bbox: [0, 0, 1, 1], unit: "pdf_point", origin: "top_left", text: "" },
-    translated: { page: 1, bbox: [0, 0, 1, 1], unit: "pdf_point", origin: "top_left", text: "" },
-    markdown: "", regionType: "figure", status: "ok", assetIds: [], assetUrls: [],
-  };
-  assert.equal(
-    readerSelectionPrompt({ selectionType: "region", region: empty, kind: "figure", page: 1, pane: "source", rect }),
-    "",
-  );
-});
-
-test("选区问 AI 开的是终端，且用 token 而不是文本判重", () => {
-  // 连着两次选同一段，两次都该送进去。拿文本判重第二次会被静默吞掉。
-  assert.match(APP, /setAssistantPanel\("terminal"\)/, "选区问 AI 没开终端");
-  assert.match(APP, /token: \(prev\?\.token \?\? 0\) \+ 1/, "没用自增 token");
+test("阅读页不再有点块浮条：只留悬停红框和复制", () => {
+  // 用户原话：「只保留红色虚线和复制部分」，点块 / 拖选后弹出的「文字 · 原文/译文 · 页码 ·
+  // 复制 · 问 AI」浮条整个删掉。复制交给悬停框，拖选文字照旧是浏览器原生选区。
+  assert.doesNotMatch(APP, /ReaderSelectionToolbar/, "浮条还挂在阅读页上");
+  assert.doesNotMatch(APP, /onSelectRegion/, "点块选择还在往下传");
+  assert.match(APP, /pendingInput: null/, "阅读器这边已经没有要预填进终端的东西了");
+  for (const gone of [
+    "../../../packages/reader/src/components/react-pdf/ReaderSelectionToolbar.tsx",
+    "../../../packages/reader/src/pdf/ReaderStructureSelectionLayer.tsx",
+    "../../../packages/reader/src/hooks/use-reader-text-selection.ts",
+  ]) {
+    assert.throws(() => read(gone), /ENOENT/, `${gone} 应已删除`);
+  }
 });
 
 test("注入不替用户回车", () => {
-  // 由页面选区拼出来的一条命令直接开跑太意外了。
+  // 宿主的注入能力保留（阅读器现在不预填，但接口还在）：真有调用方时，
+  // 一条拼出来的命令直接开跑太意外了。
   const inject = TERMINAL.slice(TERMINAL.indexOf("sentTokenRef"), TERMINAL.indexOf("const themeId"));
   assert.match(inject, /sendToActive\(pendingInput\.text\)/, "宿主没把选区送进终端");
   assert.doesNotMatch(inject, /\\r|\\n/, "注入时带了回车，agent 会直接跑起来");
