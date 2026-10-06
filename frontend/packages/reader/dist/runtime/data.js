@@ -1,6 +1,6 @@
-import { r as J, l as C, h as $ } from "../markdown-payload-kK3ewW_I.js";
+import { r as C, l as J, h as $ } from "../markdown-payload-kK3ewW_I.js";
 import { d as T } from "../pdf-document-config-DOSsufI-.js";
-import { e as Re, f as we, a as me, b as he, i as _e, n as ke, c as Ue, p as ve, r as ge, d as Me, g as Ee, h as De, j as Le, k as Ae } from "../reader-regions-Dl_ljaDa.js";
+import { e as Re, f as we, a as me, b as he, i as _e, n as ke, c as Ue, p as ve, r as ge, d as Me, g as Ee, h as De, j as Le, k as Ae, l as Fe } from "../reader-regions-Bwkgm0OU.js";
 const G = "/api/v1", S = 250;
 function q(e, t) {
   return typeof globalThis.fetch == "function" ? globalThis.fetch(e, t) : Promise.reject(new Error(`fetchProtected not injected for ${e}`));
@@ -101,15 +101,15 @@ function I({
     return w(n);
   }
   async function H(n) {
-    const a = await C(
+    const a = await J(
       () => s(n, e),
       () => r(n, e)
     );
     if ($(a)) return a;
     try {
-      const i = await w(n), c = J(i, n);
+      const i = await w(n), c = C(i, n);
       if (!c) return a;
-      const d = await C(
+      const d = await J(
         () => s(c, e),
         () => r(c, e)
       );
@@ -123,7 +123,7 @@ function I({
     let a = await l(n, e).catch(() => null);
     if (a != null && a.rawUrl) return a;
     try {
-      const i = await w(n), c = J(i, n);
+      const i = await w(n), c = C(i, n);
       return c ? (a = await l(c, e).catch(() => null), a != null && a.rawUrl ? a : null) : a;
     } catch {
       return a;
@@ -280,13 +280,14 @@ export {
   Ue as normalizeReaderRegions,
   ve as projectReaderRegion,
   ge as readerRegionContent,
-  Me as readerRegionKind,
-  Ee as readerRegionKindForRegion,
-  De as readerSelectionPrompt,
-  Le as regionBoxForPane,
+  Me as readerRegionCopyText,
+  Ee as readerRegionKind,
+  De as readerRegionKindForRegion,
+  Le as readerSelectionPrompt,
+  Ae as regionBoxForPane,
   j as resolveReaderArtifactUrl,
   ce as resolveReaderJobId,
-  Ae as resolveReaderRegionHighlight,
+  Fe as resolveReaderRegionHighlight,
   de as resolveReaderSourcePdf,
   ie as resolveReaderTranslatedPdfUrl
 };

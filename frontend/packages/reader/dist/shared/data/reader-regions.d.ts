@@ -72,6 +72,13 @@ export declare function readerRegionKind(regionType: string): ReaderRegionKind;
 export declare function readerRegionKindForRegion(region: ReaderRegion): ReaderRegionKind;
 export declare function isStructuredReaderRegion(region: ReaderRegion): boolean;
 export declare function readerRegionContent(region: ReaderRegion, pane: ReaderPaneId): string;
+/**
+ * 悬停「复制」写进剪贴板的内容。
+ * - 译文栏没有译文（公式、保留原文的块）时退回原文 —— 右栏这时显示的就是原文；
+ * - 行间公式给 LaTeX（去掉 `$$` 包裹），和浮条里「复制 LaTeX」一致；
+ * - 正文里的行内公式本来就是 `$m$` 这种写法，原样保留。
+ */
+export declare function readerRegionCopyText(region: ReaderRegion, pane: ReaderPaneId): string;
 export declare function extractReaderFormulaLatex(value: string): string;
 export declare function normalizeReaderMetadata(payload: unknown): ReaderMetadata;
 export declare function findReaderRegion(regions: readonly ReaderRegion[], blockId: string | null | undefined): ReaderRegion | null;

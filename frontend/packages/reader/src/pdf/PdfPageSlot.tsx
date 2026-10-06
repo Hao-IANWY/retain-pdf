@@ -22,7 +22,7 @@ import {
 } from "./reader-dom-contract.js";
 import {
   projectReaderRegion,
-  readerRegionContent,
+  readerRegionCopyText,
   type ReaderRegionHighlight,
   type ReaderRegionSelection,
 } from "../shared/data/reader-regions.js";
@@ -32,6 +32,8 @@ import {
   hitTestReaderTextHoverTarget,
   projectReaderTextHoverTargets,
   READER_TEXT_HOVER_COPY_CLASS,
+  READER_TEXT_HOVER_ID_CLASS,
+  READER_TEXT_HOVER_TOOLS_CLASS,
   ReaderTextHoverLayer,
 } from "./ReaderTextHoverLayer.js";
 import { LiveTranslationOverlay } from "./LiveTranslationOverlay.js";
@@ -39,6 +41,8 @@ import type { ReaderLiveTranslationLayoutPage as LiveTranslationLayoutPage } fro
 import type { LiveTranslationPageState } from "../shared/data/live-translation-state.js";
 
 export const DEFAULT_ASPECT = 1.414;
+/** 框上方工具条（编号 / 复制）占的高度，见 .reader-text-hover-tools。 */
+const HOVER_TOOLS_BAND = 26;
 
 type PdfPageSlotProps = {
   pageNumber: number;
@@ -139,19 +143,29 @@ function PdfPageSlotInner({
       setHoveredTextId(null);
       return;
     }
+    // 鼠标在框上方的工具条（编号 / 复制）上：它在块外，按坐标命中会把框收掉，按钮就点不到了。
+    if ((event.target as HTMLElement | null)?.closest?.(`.${READER_TEXT_HOVER_TOOLS_CLASS}`)) return;
     const hostRect = event.currentTarget.getBoundingClientRect();
-    const target = hitTestReaderTextHoverTarget(
-      textHoverTargets,
-      event.clientX - hostRect.left,
-      event.clientY - hostRect.top,
-    );
+    const x = event.clientX - hostRect.left;
+    const y = event.clientY - hostRect.top;
+    // 工具条在框外上方。鼠标斜着往上走向按钮时会先经过上面别的块（比如页眉），
+    // 按坐标命中就换成那一块、按钮跟着没了。所以在当前框正上方这一条带里时保持不动。
+    const current = hoveredTextTarget?.rect;
+    if (
+      current
+      && x >= current.left - 4
+      && x <= current.left + current.width + 4
+      && y >= current.top - HOVER_TOOLS_BAND
+      && y <= current.top
+    ) return;
+    const target = hitTestReaderTextHoverTarget(textHoverTargets, x, y);
     setHoveredTextId(target?.itemId || null);
   };
 
   // 双击一个内容块：整块复制（左栏原文、右栏译文），框上的按钮显示「已复制」。
   // 浏览器默认的双击选词这时没有意义，顺手清掉。
   const handleTextRegionDoubleClick = async (event: ReactMouseEvent<HTMLDivElement>) => {
-    if ((event.target as HTMLElement | null)?.closest?.(`.${READER_TEXT_HOVER_COPY_CLASS}`)) return;
+    if ((event.target as HTMLElement | null)?.closest?.(`.${READER_TEXT_HOVER_COPY_CLASS}, .${READER_TEXT_HOVER_ID_CLASS}`)) return;
     const hostRect = event.currentTarget.getBoundingClientRect();
     const target = hitTestReaderTextHoverTarget(
       textHoverTargets,
@@ -159,7 +173,7 @@ function PdfPageSlotInner({
       event.clientY - hostRect.top,
     );
     if (!target) return;
-    const text = readerRegionContent(target.highlight.region, pane === "translated" ? "translated" : "source");
+    const text = readerRegionCopyText(target.highlight.region, pane === "translated" ? "translated" : "source");
     if (!text) return;
     window.getSelection()?.removeAllRanges();
     if (await copyReaderText(text)) setCopiedSignal((value) => value + 1);
@@ -168,7 +182,7 @@ function PdfPageSlotInner({
   const handleTextRegionClick = (event: ReactMouseEvent<HTMLDivElement>) => {
     if (!onSelectRegion) return;
     if ((event.target as HTMLElement | null)?.closest?.(".reader-structure-selection-target")) return;
-    if ((event.target as HTMLElement | null)?.closest?.(`.${READER_TEXT_HOVER_COPY_CLASS}`)) return;
+    if ((event.target as HTMLElement | null)?.closest?.(`.${READER_TEXT_HOVER_COPY_CLASS}, .${READER_TEXT_HOVER_ID_CLASS}`)) return;
     // 用户刚完成原生拖选时保留浏览器选区，不把它误判成整块点击。
     if (`${window.getSelection()?.toString() || ""}`.trim()) return;
     const hostRect = event.currentTarget.getBoundingClientRect();

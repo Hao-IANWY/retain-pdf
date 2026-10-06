@@ -12,7 +12,7 @@ import {
   projectReaderTextHoverTargets,
   ReaderTextHoverLayer,
 } from "../../../../frontend/packages/reader/src/pdf/ReaderTextHoverLayer.tsx";
-import { normalizeReaderRegions } from "../../../../frontend/packages/reader/src/shared/data/reader-regions.ts";
+import { normalizeReaderRegions, readerRegionCopyText } from "../../../../frontend/packages/reader/src/shared/data/reader-regions.ts";
 import { shouldEnableLiveTranslation } from "../../../../frontend/packages/reader/src/hooks/use-reader-react-controller.ts";
 
 const PAYLOAD = {
@@ -49,15 +49,18 @@ function target(pane) {
   return t;
 }
 
-test("悬停框带「复制」，左栏标原文、右栏标译文；没有可复制的文字就不给按钮", () => {
+test("悬停框带翻译编号和「复制」，左栏标原文、右栏标译文；没有可复制的文字就不给复制按钮", () => {
   const left = renderToStaticMarkup(createElement(ReaderTextHoverLayer, { target: target("source"), pane: "source" }));
   assert.match(left, /reader-text-hover-frame/);
   assert.match(left, /aria-label="复制这段原文"/);
+  assert.match(left, /aria-label="复制翻译编号 p001-b0003"/);
+  assert.match(left, />p001-b0003</);
   const right = renderToStaticMarkup(createElement(ReaderTextHoverLayer, { target: target("translated"), pane: "translated" }));
   assert.match(right, /aria-label="复制这段译文"/);
   const empty = target("source");
   empty.highlight.region = { ...empty.highlight.region, source: { ...empty.highlight.region.source, text: "" }, markdown: "" };
-  assert.doesNotMatch(renderToStaticMarkup(createElement(ReaderTextHoverLayer, { target: empty, pane: "source" })), /复制/);
+  // 编号照样给（排查时要用），只是没有「复制」内容按钮。
+  assert.doesNotMatch(renderToStaticMarkup(createElement(ReaderTextHoverLayer, { target: empty, pane: "source" })), /reader-text-hover-copy/);
 });
 
 test("红色虚线框用 danger 语义色", () => {
@@ -91,4 +94,48 @@ test("打开时就已成功且有最终译文的任务不跟实时译文", () =>
   }), false);
   const controller = readFileSync(new URL("../../../../frontend/packages/reader/src/hooks/use-reader-react-controller.ts", import.meta.url), "utf8");
   assert.match(controller, /enabled: liveTranslationTracked && \(liveTranslationAvailable \|\| sawRunningRef\.current\.running\)/);
+});
+
+// 行间公式：region_type 常是 unknown、保留原文（kept_origin），公式只在原文里，译文和 markdown 都空。
+const FORMULA = {
+  items: [{
+    item_id: "p002-b0003",
+    source: { page: 2, bbox: [60, 120, 160, 140], unit: "pdf_point", origin: "top_left", text: "$$ f=-k(l-l_{0})=-kx $$" },
+    translated: { page: 2, bbox: [60, 120, 160, 140], unit: "pdf_point", origin: "top_left", text: "" },
+    markdown: "",
+    region_type: "unknown",
+    status: "kept_origin",
+  }],
+};
+
+test("行间公式也能悬停：两栏都复制 LaTeX（去掉 $$）；译文栏没有译文时退回原文", () => {
+  const [formula] = normalizeReaderRegions(FORMULA);
+  assert.equal(readerRegionCopyText(formula, "source"), "f=-k(l-l_{0})=-kx");
+  assert.equal(readerRegionCopyText(formula, "translated"), "f=-k(l-l_{0})=-kx");
+  const [t] = projectReaderTextHoverTargets([{
+    itemId: formula.itemId, region: formula, box: formula.translated, pageSize: { page: 2, width: 200, height: 200 },
+  }], 200, 200);
+  assert.ok(t, "公式块是悬停目标（以前只有正文是）");
+  const markup = renderToStaticMarkup(createElement(ReaderTextHoverLayer, { target: t, pane: "translated" }));
+  assert.match(markup, /复制 LaTeX/);
+});
+
+test("正文里的行内公式原样保留 $…$", () => {
+  const [region] = normalizeReaderRegions({ items: [{
+    item_id: "p002-b0002",
+    source: { page: 2, bbox: [1, 1, 9, 9], unit: "pdf_point", origin: "top_left", text: "Suppose no force acts on $m$" },
+    translated: { page: 2, bbox: [1, 1, 9, 9], unit: "pdf_point", origin: "top_left", text: "设 $l_0$ 为平衡长度，位移 $x = l - l_0$" },
+    markdown: "", region_type: "paragraph", status: "translated",
+  }] });
+  assert.equal(readerRegionCopyText(region, "translated"), "设 $l_0$ 为平衡长度，位移 $x = l - l_0$");
+  assert.equal(readerRegionCopyText(region, "source"), "Suppose no force acts on $m$");
+});
+
+test("工具条在框外上方；鼠标在框正上方那条带里时保持当前框（斜着移向按钮不会换块）", () => {
+  const slot = readFileSync(new URL("../../../../frontend/packages/reader/src/pdf/PdfPageSlot.tsx", import.meta.url), "utf8");
+  assert.match(slot, /y >= current\.top - HOVER_TOOLS_BAND/);
+  assert.match(slot, /closest\?\.\(`\.\$\{READER_TEXT_HOVER_TOOLS_CLASS\}`\)\) return;/);
+  const css = readFileSync(new URL("../../../../frontend/packages/reader/styles/react-pdf.css", import.meta.url), "utf8");
+  assert.match(css, /\.reader-text-hover-tools\s*\{[^}]*bottom:\s*100%/);
+  assert.match(css, /\.reader-text-hover-layer\s*\{[^}]*z-index:\s*7/, "压在公式 / 表格选择层（6）之上");
 });

@@ -198,6 +198,18 @@ export function readerRegionContent(region: ReaderRegion, pane: ReaderPaneId): s
   return `${box.text || region.markdown || ""}`.trim();
 }
 
+/**
+ * 悬停「复制」写进剪贴板的内容。
+ * - 译文栏没有译文（公式、保留原文的块）时退回原文 —— 右栏这时显示的就是原文；
+ * - 行间公式给 LaTeX（去掉 `$$` 包裹），和浮条里「复制 LaTeX」一致；
+ * - 正文里的行内公式本来就是 `$m$` 这种写法，原样保留。
+ */
+export function readerRegionCopyText(region: ReaderRegion, pane: ReaderPaneId): string {
+  const content = readerRegionContent(region, pane)
+    || (pane === "translated" ? `${region.source.text || ""}`.trim() : "");
+  return readerRegionKindForRegion(region) === "formula" ? extractReaderFormulaLatex(content) : content;
+}
+
 export function extractReaderFormulaLatex(value: string): string {
   let result = `${value || ""}`.trim();
   if (!result) return "";

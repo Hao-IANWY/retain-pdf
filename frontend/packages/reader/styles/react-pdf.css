@@ -243,7 +243,12 @@
     box-shadow 140ms ease;
 }
 
-.reader-structure-selection-target:hover,
+/* 鼠标悬停时由悬停层画红色虚线框（带编号和复制），这里不再叠一层深色边框；
+   键盘聚焦没有悬停层，保留自己的边框。 */
+.reader-structure-selection-target:hover {
+  opacity: 1;
+}
+
 .reader-structure-selection-target:focus-visible {
   opacity: 1;
   border-color: color-mix(in srgb, var(--ink) 78%, transparent);
@@ -289,7 +294,8 @@
    层本身不接事件，不阻断 textLayer 的拖选；只有复制按钮可点。 */
 .reader-text-hover-layer {
   position: absolute;
-  z-index: 5;
+  /* 压在公式 / 表格选择层（z-index 6）之上：行间公式也能悬停复制，按钮不被它挡住。 */
+  z-index: 7;
   inset: 0 auto auto 0;
   width: 100%;
   height: 100%;
@@ -305,11 +311,20 @@
   animation: reader-text-hover-in 100ms ease-out both;
 }
 
-/* 贴在框的右上角外侧：不盖住正文第一行。 */
-.reader-text-hover-copy {
+/* 框外上方的一排小工具（编号 + 复制），横向排开、不盖住内容。 */
+.reader-text-hover-tools {
   position: absolute;
-  top: -11px;
-  right: -2px;
+  bottom: 100%;
+  left: -2px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  /* 底部留 3px 接住从框往上移的鼠标：中间有缝的话，指针一出块框就收了。 */
+  padding-bottom: 3px;
+  pointer-events: auto;
+}
+
+.reader-text-hover-copy {
   display: inline-flex;
   align-items: center;
   min-height: 20px;
@@ -327,6 +342,29 @@
   box-shadow: 0 2px 8px color-mix(in srgb, var(--ink) 10%, transparent);
 }
 
+.reader-text-hover-id {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 0 7px;
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
+  border-radius: 999px;
+  background: var(--paper);
+  color: color-mix(in srgb, var(--danger) 80%, var(--ink));
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10.5px;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.reader-text-hover-id[data-copy-state="copied"] {
+  border-color: color-mix(in srgb, var(--ok) 55%, transparent);
+  color: var(--ok);
+  font-family: inherit;
+}
+
 .reader-text-hover-copy:hover {
   background: color-mix(in srgb, var(--danger) 8%, var(--paper));
 }
@@ -341,7 +379,6 @@
   to { opacity: 1; }
 }
 
-.reader-structure-selection-target:hover .reader-structure-selection-label,
 .reader-structure-selection-target:focus-visible .reader-structure-selection-label {
   opacity: 1;
   transform: translateY(0);
