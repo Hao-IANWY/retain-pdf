@@ -8,7 +8,7 @@ from retainpdf_pipeline.foundation.config import fonts
 from retainpdf_pipeline.render.output.typst.source_builder import build_typst_book_overlay_source
 
 
-PREBUILT_SOURCE_RENDER_VERSION = "overlay_cover_fill_title_color_v15_typography_memory_off"
+PREBUILT_SOURCE_RENDER_VERSION = "overlay_cover_fill_title_color_v16_angstrom_unicode"
 PAGE_SIZE_TOLERANCE_PT = 0.5
 SOURCE_FINGERPRINT_PREFIX = "// overlay_source_fingerprint="
 
