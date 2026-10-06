@@ -125,3 +125,25 @@ test("document-jobs-model：upsert/merge/latest 组合保持任务身份与最�
   assert.equal(latest.job_id, "job-b");
   assert.equal(typeof DOCUMENT_JOBS_REFRESH_INTERVAL_MS, "number");
 });
+
+// 「重新渲染」以谁为底：最新的是一次已结束的重新渲染时，退回最新的翻译。
+// 实测：书里先重翻过一次（06:05），后来在更早那份译文上重新渲染（06:36）；之后每次点「重新
+// 渲染」都以 06:36 那个渲染任务为底，底子一直是最早那份译文，而「阅读」按「最新的翻译胜出」
+// 打开 06:05 那次 —— 重新渲染多少次，阅读页都看不到。
+test("selectRetryBaseJob：已结束的重新渲染退回最新的翻译，运行中的照旧", async () => {
+  const { selectRetryBaseJob } = await import("../../src/features/book-detail/domain/document-jobs-model.js");
+  const firstTranslation = { job_id: "j-0534", workflow: "book", status: "succeeded", created_at: "2026-10-06T12:34:28Z" };
+  const retranslation = { job_id: "j-0605", workflow: "book", status: "succeeded", created_at: "2026-10-06T13:05:36Z" };
+  const renderDone = { job_id: "j-0636", workflow: "render", status: "succeeded", created_at: "2026-10-06T13:36:25Z" };
+  const jobs = [renderDone, retranslation, firstTranslation];
+
+  assert.equal(selectRetryBaseJob(jobs, renderDone)?.job_id, "j-0605", "重新渲染应以最新的翻译为底");
+  assert.equal(selectRetryBaseJob(jobs, retranslation)?.job_id, "j-0605", "最新的本来就是翻译时不变");
+
+  const renderRunning = { ...renderDone, status: "running" };
+  assert.equal(selectRetryBaseJob([renderRunning, retranslation], renderRunning)?.job_id, "j-0636", "渲染还在跑时要返回它，按钮保持禁用");
+
+  const onlyRender = { job_id: "j-r", workflow: "render", status: "succeeded", created_at: "2026-10-06T13:36:25Z" };
+  assert.equal(selectRetryBaseJob([onlyRender], onlyRender)?.job_id, "j-r", "找不到翻译任务时退回原来的");
+  assert.equal(selectRetryBaseJob([], null), null);
+});

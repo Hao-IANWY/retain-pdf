@@ -63,6 +63,27 @@ export function selectLatestDocumentJob(
   return selected;
 }
 
+/**
+ * 「重新翻译 / 重新渲染」以哪个任务为底。
+ *
+ * 最新的翻译类任务如果是一次已经结束的重新渲染，就退回到最新的那次**翻译**：重新渲染出来的
+ * 任务译文还是它的源任务的，在它上面再重新渲染，底子一直是最早那份译文；而「阅读」按
+ * 「最新的翻译胜出」挑任务（后端 resolve_reading_target），于是重新渲染的结果永远输给后来
+ * 重翻的那次 —— 用户点了重新渲染、再点阅读，看到的还是旧的。
+ * 渲染任务还在跑时照旧返回它，好让按钮保持禁用、不会重复提交。
+ */
+export function selectRetryBaseJob(
+  jobs: DocumentJobSummary[] = [],
+  latestTranslation: DocumentJobSummary | null = null,
+): DocumentJobSummary | null {
+  if (!latestTranslation || workflowOf(latestTranslation) !== "render") return latestTranslation;
+  if (!isDocumentJobTerminal(latestTranslation)) return latestTranslation;
+  return selectLatestDocumentJob(
+    jobs,
+    (job) => workflowCategory(job) === "translation" && workflowOf(job) !== "render",
+  ) || latestTranslation;
+}
+
 /** currentJobStore -> documentJobs 共用的当前任务形状。 */
 export function runtimeDocumentJob(runtimeState: any): DocumentJobSummary | null {
   const snapshot = runtimeState?.snapshot && typeof runtimeState.snapshot === "object"

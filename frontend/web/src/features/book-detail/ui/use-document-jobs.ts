@@ -14,6 +14,7 @@ import {
   runtimeDocumentJob,
   selectLatestDocumentJob,
   selectNewlySucceededJobs,
+  selectRetryBaseJob,
   upsertDocumentJob,
   workflowCategory,
   workflowOf,
@@ -225,6 +226,7 @@ export function useDocumentJobs({
     ocrStatusJob: selectDocumentOcrStatusJob(effectiveJobs),
     reusableOcr: selectReusableOcrJob(effectiveJobs),
     latestTranslation,
+    retryBaseTranslation: selectRetryBaseJob(effectiveJobs, latestTranslation),
   }), [
     effectiveJobs,
     error,

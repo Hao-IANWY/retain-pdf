@@ -139,7 +139,8 @@ export function BookDetailDialog() {
       };
   const stageActionState = useBookDetailStageActions({
     open,
-    job: latestTranslation,
+    // 不是 latestTranslation：最新的是一次重新渲染时，以最新的翻译为底，见 selectRetryBaseJob。
+    job: documentJobs.retryBaseTranslation || latestTranslation,
     actions,
     onJobSubmitted: documentJobs.upsert,
     // OCR 完成可能发生在失败翻译任务之后；此时 translation job_id 不变，
