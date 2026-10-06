@@ -125,6 +125,45 @@ impl Db {
             .map_err(Into::into)
     }
 
+    /// 父任务已终态、自己却没收尾的 OCR 子任务：行还停在 queued/running，或者 attempt 还是
+    /// running。返回 `(子任务 id, 父任务状态)`。
+    ///
+    /// 子任务由父 driver 内联执行，lifecycle 只收尾父任务自己的 attempt；子任务的 attempt
+    /// 历史上从没人收尾。父任务都结束了，不会再有 driver 来推进它们（恢复查询也把
+    /// `{parent}-ocr` 排除在外），只能在启动时一次性落终态。
+    ///
+    /// 启动专用：父任务还在 queued/running 的子任务不碰 —— 它们会随父任务恢复。
+    pub fn list_unsettled_ocr_children(
+        &self,
+    ) -> Result<Vec<(String, crate::models::domain::JobStatusKind)>> {
+        let conn = self.connect()?;
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT child.job_id, parent.status_json
+            FROM jobs AS child
+            JOIN jobs AS parent ON child.job_id = parent.job_id || '-ocr'
+            WHERE parent.status_json IN ('"succeeded"', '"failed"', '"canceled"')
+              AND (
+                child.status_json IN ('"queued"', '"running"')
+                OR EXISTS (
+                    SELECT 1 FROM pipeline_attempts a
+                    WHERE a.job_id = child.job_id AND a.status = 'running'
+                )
+              )
+            ORDER BY child.job_id
+            "#,
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })?;
+        let mut children = Vec::new();
+        for row in rows {
+            let (child_id, parent_status) = row?;
+            children.push((child_id, serde_json::from_str(&parent_status)?));
+        }
+        Ok(children)
+    }
+
     pub fn running_pipeline_stage_state(&self, job_id: &str) -> Result<Option<PipelineStageState>> {
         let conn = self.connect()?;
         conn.query_row(

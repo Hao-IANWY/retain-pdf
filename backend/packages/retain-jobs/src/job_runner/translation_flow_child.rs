@@ -141,6 +141,8 @@ pub(super) fn create_ocr_child_job(
     if !updated {
         // 取消恰好卡在建子任务的这个窗口里。子任务行虽然已经落库，但调用方就此
         // 停下、不会去驱动它，也就不会产生 OCR 调用；下一次重试会原地覆盖它。
+        // 子任务行也要落终态：不然它永远停在 queued（恢复查询排除 `-ocr` 子任务）。
+        settle_unstarted_ocr_child(deps, ocr_child);
         anyhow::bail!("parent job became terminal while creating the OCR child job");
     }
     record_custom_runtime_event_with_resources(
@@ -155,6 +157,76 @@ pub(super) fn create_ocr_child_job(
     );
 
     Ok(ocr_child)
+}
+
+/// 父任务在建子任务的窗口里结束了：子任务没开跑，跟着取消。
+fn settle_unstarted_ocr_child(deps: &ProcessRuntimeDeps, mut ocr_child: JobRuntimeState) {
+    ocr_child.status = JobStatusKind::Canceled;
+    ocr_child.stage = Some("canceled".to_string());
+    ocr_child.stage_detail = Some("父任务已结束，OCR 子任务未启动".to_string());
+    ocr_child.updated_at = now_iso();
+    ocr_child.finished_at = Some(now_iso());
+    sync_runtime_state(&mut ocr_child);
+    if let Err(error) = cas_persist_job_with_resources(
+        deps.persist.db.as_ref(),
+        &deps.persist.data_root,
+        &deps.persist.output_root,
+        &ocr_child.snapshot(),
+        &["queued", "running"],
+    ) {
+        tracing::warn!("settle unstarted ocr child {} failed: {error}", ocr_child.job_id);
+    }
+}
+
+/// 子任务内联执行报错退出（不是「返回 Failed」，是 `Err`）：行还停在 running，按失败收尾。
+/// CAS：取消或别的写入者先落了终态就尊重它。
+pub(super) fn settle_ocr_child_after_error(
+    deps: &ProcessRuntimeDeps,
+    child_job_id: &str,
+    err: &anyhow::Error,
+) {
+    if let Ok(mut child) = deps.db.get_job(child_job_id) {
+        if matches!(child.status, JobStatusKind::Queued | JobStatusKind::Running) {
+            let detail = crate::job_runner::format_error_chain(err);
+            crate::job_runner::append_error_chain_log(&mut child, err);
+            child.status = JobStatusKind::Failed;
+            child.stage = Some("failed".to_string());
+            child.stage_detail = Some(detail.clone());
+            child.error = Some(detail);
+            child.updated_at = now_iso();
+            child.finished_at = Some(now_iso());
+            child.sync_runtime_state();
+            child.replace_failure_info(crate::job_failure::classify_job_failure(&child));
+            if let Err(error) = cas_persist_job_with_resources(
+                deps.persist.db.as_ref(),
+                &deps.persist.data_root,
+                &deps.persist.output_root,
+                &child,
+                &["queued", "running"],
+            ) {
+                tracing::warn!("settle ocr child {child_job_id} after error failed: {error}");
+            }
+        }
+    }
+    finish_ocr_child_attempt(deps, child_job_id);
+}
+
+/// 收尾 OCR 子任务自己的 pipeline attempt（以 DB 里的终态为准）。
+///
+/// 顶层 driver（lifecycle）只收尾它驱动的那个任务的 attempt；子任务由父 driver 内联执行，
+/// 它在 `begin_ocr_dispatch` / worker 启动时拿的 attempt 以前永远停在 running —— 子任务
+/// 跑着时重启，startup_recovery 见到 running attempt 就把它改回 queued，又被恢复查询排除，
+/// 永远卡住。行还没终态就不动（attempt 要和行的终态一起落）。
+pub(super) fn finish_ocr_child_attempt(deps: &ProcessRuntimeDeps, child_job_id: &str) {
+    let status = match deps.db.get_job(child_job_id).map(|job| job.status.clone()) {
+        Ok(JobStatusKind::Succeeded) => "succeeded",
+        Ok(JobStatusKind::Failed) => "failed",
+        Ok(JobStatusKind::Canceled) => "canceled",
+        Ok(JobStatusKind::Queued | JobStatusKind::Running) | Err(_) => return,
+    };
+    if let Err(error) = deps.db.finish_latest_pipeline_attempt(child_job_id, status) {
+        tracing::warn!("finish pipeline attempt for ocr child {child_job_id} failed: {error}");
+    }
 }
 
 #[cfg(test)]

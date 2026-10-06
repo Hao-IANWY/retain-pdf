@@ -165,7 +165,67 @@ pub fn reconcile_stale_running_jobs(config: &AppConfig, db: &Db) -> Result<usize
     if reconciled > 0 {
         warn!("runtime startup reconciliation recovered {reconciled} stale running job(s)");
     }
+    // 放在上面的循环之后：那一轮会把当时在跑的父任务判成 queued（随后恢复）或 failed，
+    // 判完再看哪些子任务的父任务已经终态。
+    settle_orphaned_ocr_children(config, db)?;
     Ok(reconciled)
+}
+
+/// 父任务已终态的 OCR 子任务一次性落终态，并收尾悬空的 pipeline attempt。
+///
+/// 历史上子任务的 attempt 从没人收尾（只有顶层 driver 收尾自己的），于是子任务行可能
+/// 已经 succeeded/failed 而 attempt 还 running；子任务跑着时重启，又会被上面的循环改回
+/// queued、被恢复查询排除，永远卡住；父任务在建子任务的窗口被取消，子任务行留在 queued。
+/// 父任务都结束了，不会再有人推进这些子任务：
+/// - 行还在 queued/running：父任务取消 → canceled，其余 → failed；
+/// - 然后按行的终态收尾 attempt（已经终态的行只收尾 attempt，状态不动）。
+fn settle_orphaned_ocr_children(config: &AppConfig, db: &Db) -> Result<usize> {
+    let children = db.list_unsettled_ocr_children()?;
+    for (child_id, parent_status) in &children {
+        let mut child = match db.get_job(child_id) {
+            Ok(child) => child,
+            Err(error) => {
+                warn!("runtime startup failed to load orphaned ocr child {child_id}: {error:#}");
+                continue;
+            }
+        };
+        if matches!(child.status, JobStatusKind::Queued | JobStatusKind::Running) {
+            let timestamp = now_iso();
+            let canceled = *parent_status == JobStatusKind::Canceled;
+            let detail = if canceled {
+                "父任务已取消，OCR 子任务随之取消（启动时收尾）"
+            } else {
+                "父任务已结束而 OCR 子任务未收尾（启动时收尾）"
+            };
+            child.status = if canceled {
+                JobStatusKind::Canceled
+            } else {
+                JobStatusKind::Failed
+            };
+            child.stage = Some(if canceled { "canceled" } else { "failed" }.to_string());
+            child.stage_detail = Some(detail.to_string());
+            child.error = (!canceled).then(|| detail.to_string());
+            child.pid = None;
+            child.updated_at = timestamp.clone();
+            child.finished_at = Some(timestamp);
+            child.append_log(&format!("WARN: {detail}"));
+            child.sync_runtime_state();
+            persist_job_with_resources(db, &config.data_root, &config.output_root, &child)?;
+        }
+        let status = match child.status {
+            JobStatusKind::Succeeded => "succeeded",
+            JobStatusKind::Canceled => "canceled",
+            _ => "failed",
+        };
+        db.finish_latest_pipeline_attempt(child_id, status)?;
+    }
+    if !children.is_empty() {
+        warn!(
+            "runtime startup settled {} orphaned OCR child job(s) whose parent already finished",
+            children.len()
+        );
+    }
+    Ok(children.len())
 }
 
 /// Re-drive queued jobs that never started a durable attempt.
@@ -310,5 +370,55 @@ mod tests {
         );
 
         let _ = fs::remove_dir_all(root);
+    }
+
+    fn save(db: &crate::db::Db, id: &str, status: crate::models::domain::JobStatusKind) {
+        let mut job = JobSnapshot::new(id.to_string(), CreateJobInput::default(), vec![]);
+        job.status = status;
+        db.save_job(&job).expect("save job");
+    }
+
+    /// 父任务已终态的 OCR 子任务，启动时必须落终态、收尾悬空 attempt。
+    ///
+    /// 数据库拷贝上的现状：pipeline_attempts 里 31 条 running 全是 `-ocr` 子任务（25 个行已
+    /// succeeded、6 个 failed），父任务全部终态 —— 子任务的 attempt 从没人收尾。
+    #[test]
+    fn startup_settles_ocr_children_whose_parent_already_finished() {
+        use crate::models::domain::JobStatusKind::*;
+        let deps = crate::job_runner::process_runner::tests::test_runtime_deps(1);
+        let db = deps.db.as_ref();
+        let running_attempt = |id: &str| db.has_running_pipeline_attempt(id).unwrap();
+
+        // 行已 succeeded、attempt 还 running（历史残留的主体）。
+        save(db, "p-done", Succeeded);
+        save(db, "p-done-ocr", Succeeded);
+        db.acquire_pipeline_attempt("p-done-ocr", "native-ocr:1:p-done-ocr", "ocr", 0).unwrap();
+        // 父任务失败，子任务跑到一半（重启前）：行 running、attempt running。
+        save(db, "p-failed", Failed);
+        save(db, "p-failed-ocr", Running);
+        db.acquire_pipeline_attempt("p-failed-ocr", "native-ocr:1:p-failed-ocr", "ocr", 0).unwrap();
+        // 父任务在建子任务的窗口里被取消：子任务行留在 queued、没有 attempt。
+        save(db, "p-canceled", Canceled);
+        save(db, "p-canceled-ocr", Queued);
+        // 父任务还会恢复：子任务不碰。
+        save(db, "p-queued", Queued);
+        save(db, "p-queued-ocr", Queued);
+        db.acquire_pipeline_attempt("p-queued-ocr", "native-ocr:1:p-queued-ocr", "ocr", 0).unwrap();
+        // 名字碰巧以 -ocr 结尾的独立任务：没有父任务，不碰。
+        save(db, "solo-ocr", Queued);
+
+        super::reconcile_stale_running_jobs(&deps.config, db).expect("startup recovery");
+
+        assert!(!running_attempt("p-done-ocr"), "已成功的子任务 attempt 仍是 running");
+        assert_eq!(db.get_job("p-done-ocr").unwrap().status, Succeeded, "已终态的子任务状态不该变");
+        assert_eq!(db.get_job("p-failed-ocr").unwrap().status, Failed);
+        assert!(!running_attempt("p-failed-ocr"));
+        assert_eq!(db.get_job("p-canceled-ocr").unwrap().status, Canceled);
+        assert!(running_attempt("p-queued-ocr"), "父任务还会恢复，子任务 attempt 不能动");
+        assert_eq!(db.get_job("p-queued-ocr").unwrap().status, Queued);
+        assert_eq!(db.get_job("solo-ocr").unwrap().status, Queued);
+
+        // 幂等：再启动一次什么都不剩。
+        assert!(db.list_unsettled_ocr_children().unwrap().is_empty());
     }
 }

@@ -172,4 +172,60 @@ fn canceled_parent_is_not_revived_when_creating_the_ocr_child() {
         ),
         "回写 artifacts.ocr_job_id 时把 canceled 覆盖成了 running"
     );
+    // 子任务行已经落库、但不会再有人驱动它：必须跟着落终态，不能永远停在 queued。
+    assert_eq!(
+        deps.db.get_job("job-parent-child-canceled-ocr").unwrap().status,
+        JobStatusKind::Canceled,
+        "父任务在建子任务的窗口里结束，子任务行留在了 queued"
+    );
+}
+
+/// 子任务由父 driver 内联执行，lifecycle 只收尾父任务的 attempt；子任务结束后它自己的
+/// attempt 也要收尾，否则重启时 startup_recovery 会把它当成「可恢复」改回 queued。
+#[test]
+fn finishing_an_ocr_child_closes_its_pipeline_attempt() {
+    let deps = crate::job_runner::process_runner::tests::test_runtime_deps(1);
+    let mut child = JobSnapshot::new("job-p-ocr".to_string(), CreateJobInput::default(), vec![]);
+    child.status = JobStatusKind::Running;
+    deps.db.save_job(&child).unwrap();
+    deps.db
+        .acquire_pipeline_attempt("job-p-ocr", "native-ocr:1:job-p-ocr", "ocr", 0)
+        .unwrap();
+
+    // 行还没终态：不动 attempt。
+    super::finish_ocr_child_attempt(&deps, "job-p-ocr");
+    assert!(deps.db.has_running_pipeline_attempt("job-p-ocr").unwrap());
+
+    child.status = JobStatusKind::Succeeded;
+    deps.db.save_job(&child).unwrap();
+    super::finish_ocr_child_attempt(&deps, "job-p-ocr");
+    assert!(!deps.db.has_running_pipeline_attempt("job-p-ocr").unwrap());
+}
+
+/// 子任务内联执行报错退出（Err，不是返回 Failed）：行和 attempt 都要按失败收尾。
+#[test]
+fn an_ocr_child_that_errors_out_is_settled_as_failed() {
+    let deps = crate::job_runner::process_runner::tests::test_runtime_deps(1);
+    let mut child = JobSnapshot::new("job-q-ocr".to_string(), CreateJobInput::default(), vec![]);
+    child.status = JobStatusKind::Running;
+    deps.db.save_job(&child).unwrap();
+    deps.db
+        .acquire_pipeline_attempt("job-q-ocr", "native-ocr:1:job-q-ocr", "ocr", 0)
+        .unwrap();
+
+    super::settle_ocr_child_after_error(&deps, "job-q-ocr", &anyhow::anyhow!("synthetic ocr failure"));
+
+    assert_eq!(deps.db.get_job("job-q-ocr").unwrap().status, JobStatusKind::Failed);
+    assert!(!deps.db.has_running_pipeline_attempt("job-q-ocr").unwrap());
+
+    // 已被取消的子任务：尊重先到的终态，只收尾 attempt。
+    let mut canceled = JobSnapshot::new("job-r-ocr".to_string(), CreateJobInput::default(), vec![]);
+    canceled.status = JobStatusKind::Canceled;
+    deps.db.save_job(&canceled).unwrap();
+    deps.db
+        .acquire_pipeline_attempt("job-r-ocr", "native-ocr:1:job-r-ocr", "ocr", 0)
+        .unwrap();
+    super::settle_ocr_child_after_error(&deps, "job-r-ocr", &anyhow::anyhow!("late error"));
+    assert_eq!(deps.db.get_job("job-r-ocr").unwrap().status, JobStatusKind::Canceled);
+    assert!(!deps.db.has_running_pipeline_attempt("job-r-ocr").unwrap());
 }

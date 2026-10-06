@@ -169,14 +169,22 @@ async fn run_job_with_ocr(
     let source = load_translation_upload_source(deps.db.as_ref(), &parent_job)?;
     mark_parent_ocr_submitting(&deps, &mut parent_job)?;
     let ocr_child = create_ocr_child_job(&deps, &mut parent_job, &parent_job_paths, &source)?;
+    let ocr_child_id = ocr_child.job_id.clone();
 
-    let ocr_finished = execute_ocr_job(
+    let ocr_finished = match execute_ocr_job(
         deps.clone(),
         ocr_child,
         Some(parent_job.job_id.clone()),
         Some(parent_job.job_id.clone()),
     )
-    .await?;
+    .await
+    {
+        Ok(job) => job,
+        Err(err) => {
+            translation_flow_child::settle_ocr_child_after_error(&deps, &ocr_child_id, &err);
+            return Err(err);
+        }
+    };
     // 子任务收尾也要走 CAS,否则会把 `save_ocr_job` 刚挡下的复活又放回去。
     //
     // `ocr_finished` 是 `execute_ocr_job` 返回的**内存**结果。取消若落在子任务
@@ -197,6 +205,8 @@ async fn run_job_with_ocr(
             deps.db.get_job(&ocr_finished.job_id)?.into_runtime()
         }
     };
+    // 子任务的 attempt 没有顶层 driver 收尾，这里跟着它的终态一起落。
+    translation_flow_child::finish_ocr_child_attempt(&deps, &ocr_child_id);
     sync_parent_with_ocr_child(&mut parent_job, &ocr_finished);
     record_ocr_child_finished(&deps, &parent_job, &ocr_finished);
 
@@ -241,7 +251,7 @@ mod ocr_child_persist_contract {
             .find("sync_parent_with_ocr_child(&mut parent_job, &ocr_finished);")
             .expect("OCR 收尾必须调用 sync_parent_with_ocr_child");
         let prev = source[..anchor]
-            .rfind("let ocr_finished = execute_ocr_job(")
+            .rfind("let ocr_finished = match execute_ocr_job(")
             .expect("这段之前必须是 execute_ocr_job");
         let window = &source[prev..anchor];
         assert!(
