@@ -3,6 +3,7 @@ from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
+import re
 import signal
 import threading
 import time
@@ -24,6 +25,17 @@ DOMAIN_CONTEXT_RAW_FILE_NAME = "domain-context.raw.txt"
 DOMAIN_CONTEXT_REQUEST_TIMEOUT_SECS = 60
 DOMAIN_CONTEXT_TOTAL_TIMEOUT_ENV = "RETAIN_TRANSLATION_DOMAIN_CONTEXT_TOTAL_TIMEOUT"
 DOMAIN_CONTEXT_TOTAL_TIMEOUT_SECS = 90
+# 旧解析器把单反斜杠 LaTeX 解成控制字符：\beta→\x08、\frac→\x0c、\theta/\tau→\t、
+# \rho→\r，\nu→公式里的换行。带这种痕迹的缓存（per-job 文件会被 Rust 续跑拷进新任务，
+# 共享缓存跨任务复用）一律视为损坏、不再命中，回落到重新识别。
+_ESCAPE_DAMAGE_RE = re.compile(r"[\x00-\x09\x0b-\x1f]|(?<=[$\{\(_^,])\n(?=[a-z])")
+
+
+def _domain_context_looks_escape_damaged(context: dict[str, str]) -> bool:
+    return any(
+        _ESCAPE_DAMAGE_RE.search(str(context.get(key, "") or ""))
+        for key in ("domain", "summary", "translation_guidance")
+    )
 
 
 class DomainContextTimeoutError(TimeoutError):
@@ -114,12 +126,15 @@ def load_cached_domain_context(output_dir: Path | None) -> dict[str, str] | None
         return None
     if not isinstance(payload, dict):
         return None
-    return {
+    result = {
         "domain": str(payload.get("domain", "")).strip(),
         "summary": str(payload.get("summary", "")).strip(),
         "translation_guidance": str(payload.get("translation_guidance", "")).strip(),
         "preview_text": str(payload.get("preview_text", "") or ""),
     }
+    if _domain_context_looks_escape_damaged(result):
+        return None
+    return result
 
 
 def _shared_domain_context_path(preview_text: str, *, model: str) -> Path:
@@ -150,6 +165,8 @@ def _load_shared_domain_context(preview_text: str, *, model: str) -> dict[str, s
         "preview_text": str(payload.get("preview_text", "") or ""),
     }
     if not (result["summary"] or result["translation_guidance"]):
+        return None
+    if _domain_context_looks_escape_damaged(result):
         return None
     return result
 

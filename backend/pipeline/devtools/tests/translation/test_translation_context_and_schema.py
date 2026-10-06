@@ -241,6 +241,30 @@ def test_domain_context_cache_round_trip() -> None:
         assert loaded == payload
 
 
+def test_domain_context_caches_reject_escape_damaged_guidance() -> None:
+    # 旧解析器把 \beta / \theta / \rho 解成退格 / 制表 / 回车的指引已经落进了
+    # per-job domain-context.json（还会被 Rust 续跑拷进新任务）和跨任务共享缓存；
+    # 这些坏缓存不能再被复用，要回落到重新识别。
+    damaged = {
+        "domain": "quantum chemistry",
+        "summary": "cached",
+        "translation_guidance": "函数（如 $\rho(\x08oldsymbol{r})$）、$\x08eta$、$\theta$ 保持原样。",
+        "preview_text": "preview",
+    }
+    clean = {**damaged, "translation_guidance": "函数（如 $\\rho(\\boldsymbol{r})$）保持原样。\n- 术语保留英文。"}
+    with tempfile.TemporaryDirectory() as tmp:
+        output_dir = Path(tmp)
+        domain_context.save_domain_context(output_dir, damaged)
+        assert domain_context.load_cached_domain_context(output_dir) is None
+        domain_context.save_domain_context(output_dir, clean)
+        assert domain_context.load_cached_domain_context(output_dir) == clean
+
+    domain_context._store_shared_domain_context("preview", model="m", context=damaged)
+    assert domain_context._load_shared_domain_context("preview", model="m") is None
+    domain_context._store_shared_domain_context("preview", model="m", context=clean)
+    assert domain_context._load_shared_domain_context("preview", model="m") == clean
+
+
 def test_domain_context_raw_response_round_trip() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         output_dir = Path(tmp)
