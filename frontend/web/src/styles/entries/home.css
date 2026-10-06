@@ -46,7 +46,11 @@
 @import "../core/download-toast.css";
 
 /* —— home-only（主页领域；勿再塞 reader/detail）—— */
+/* 原 components.utilities.css 按组件拆分（顺序与拆分前一致）。 */
 @import "../pages/home/components.utilities.css";
+@import "../../features/jobs/ui/StatusCardBase.css";
+@import "../../features/job-detail/ui/StatusPanel.css";
+@import "../../features/ingest/ui/InlineErrorBox.css";
 @import "../pages/home/translation-workflow.utilities.css";
 @import "../pages/home/collections.utilities.css";
 /* 原 status-detail-translation.utilities.css 按组件拆分（顺序与拆分前一致）。 */
