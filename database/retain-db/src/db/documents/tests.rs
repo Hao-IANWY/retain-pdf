@@ -674,6 +674,45 @@ fn startup_backfill_rebuilds_an_index_older_than_the_newest_successful_job() {
     assert!(db.search_blocks("旧的第二页", 10, None).unwrap().is_empty());
 }
 
+/// 更新的成功任务产物已经没了(job 目录被删):重建时它进不了索引,判定若还算它,那本书
+/// 每次启动都被判「过期」、重建一遍。判定和重建必须按同一条规则挑任务,第二次启动不能再重建。
+#[test]
+fn startup_backfill_does_not_keep_rebuilding_for_a_newer_job_whose_artifacts_are_gone() {
+    let fs = TestDbFs::new("fts-stale-missing-artifacts");
+    let db = fs.db();
+    db.init().expect("init");
+    let document_id = seed_document(&db, "up-1", b"stale index missing artifacts");
+    seed_fts_job(&db, &fs.data_root, &document_id, "job-whole", "2026-10-01T00:00:00", "job-whole",
+        &[1, 2], &[("one", "旧的第一页"), ("two", "旧的第二页")]);
+    db.rebuild_document_fts(&document_id).expect("initial index");
+    seed_fts_job(&db, &fs.data_root, &document_id, "job-gone", "2026-10-02T00:00:00", "job-gone",
+        &[2], &[("two", "新的第二页")]);
+    fs::remove_dir_all(fs.data_root.join("jobs").join("job-gone")).expect("drop artifacts");
+    db.set_document_active_job(&document_id, "job-gone", None).expect("active");
+
+    backfill::run(&db).expect("first startup");
+    assert_eq!(
+        db.search_blocks("旧的第二页", 10, None).unwrap().first().map(|hit| hit.job_id.clone()),
+        Some("job-whole".to_string()),
+        "索引应当仍由产物还在的旧任务提供"
+    );
+
+    // 哨兵行:第二次启动若再重建,它会被整本替换掉。
+    db.connect()
+        .unwrap()
+        .execute(
+            "INSERT INTO blocks_fts (document_id, job_id, page_idx, block_id, source_text, translated_text) \
+             VALUES (?1, 'job-whole', 0, 'p001-b9999', 'sentinel', '第二次启动的哨兵')",
+            params![document_id],
+        )
+        .unwrap();
+    backfill::run(&db).expect("second startup");
+    assert!(
+        !db.search_blocks("第二次启动的哨兵", 10, None).unwrap().is_empty(),
+        "产物已丢失的任务让这本书每次启动都被判过期、重建一遍"
+    );
+}
+
 /// 书卡停在失败任务上:有成功任务就按统一规则退回;指针已被接走或没有成功任务时不动。
 #[test]
 fn release_active_job_falls_back_only_when_the_card_still_points_at_the_job() {

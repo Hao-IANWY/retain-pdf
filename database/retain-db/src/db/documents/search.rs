@@ -304,6 +304,24 @@ pub fn fts_page_owners(candidates: &[FtsCandidate]) -> std::collections::BTreeMa
     owners.into_iter().map(|(page, (_, index))| (page, index)).collect()
 }
 
+/// 一个任务能不能给整本索引供稿：成功、且记录里的 OCR 文档还在盘上 —— 返回它的路径。
+///
+/// `build_document_fts` 按它挑候选；启动回填判断「索引是否过期」也按它挑（只做 `is_file`，
+/// 不读内容）。两边必须同一条规则：产物已被删掉的任务重建时进不了索引，若判定还算它，
+/// 那本书每次启动都会被判过期、重建一遍。
+pub(super) fn fts_normalized_document(
+    job: &crate::models::domain::JobSnapshot,
+    data_root: &Path,
+) -> Option<std::path::PathBuf> {
+    use crate::models::domain::JobStatusKind;
+    use crate::storage_paths::resolve_normalized_document;
+
+    if job.status != JobStatusKind::Succeeded {
+        return None;
+    }
+    resolve_normalized_document(job, data_root).filter(|path| path.is_file())
+}
+
 /// 整本书的索引行，按提供它们的任务分组：`(job_id, 行)`。
 ///
 /// 行里的 `page_idx` 仍是那个任务自己的本地页号 —— 搜索结果跳转时打开的就是那个任务的那
@@ -314,8 +332,8 @@ pub fn build_document_fts(
     jobs: &[crate::models::domain::JobSnapshot],
     data_root: &Path,
 ) -> Vec<(String, Vec<FtsBlockRow>)> {
-    use crate::models::domain::{JobStatusKind, WorkflowKind};
-    use crate::storage_paths::{resolve_data_path, resolve_normalized_document};
+    use crate::models::domain::WorkflowKind;
+    use crate::storage_paths::resolve_data_path;
 
     struct Loaded {
         rows: Vec<FtsBlockRow>,
@@ -323,13 +341,8 @@ pub fn build_document_fts(
     let mut candidates = Vec::new();
     let mut loaded = Vec::new();
     for job in jobs {
-        if job.status != JobStatusKind::Succeeded {
-            continue;
-        }
+        let Some(normalized) = fts_normalized_document(job, data_root) else { continue };
         let Some(artifacts) = job.artifacts.as_ref() else { continue };
-        let Some(normalized) = resolve_normalized_document(job, data_root).filter(|p| p.is_file()) else {
-            continue;
-        };
         let translated_dir = artifacts
             .translations_dir
             .as_deref()

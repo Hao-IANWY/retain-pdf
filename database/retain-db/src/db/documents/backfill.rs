@@ -4,6 +4,7 @@ use rusqlite::params;
 use crate::storage_paths::resolve_data_path;
 
 use super::crud::BEST_SUCCEEDED_JOB_SQL;
+use super::search::fts_normalized_document;
 use super::sha256_hex;
 use crate::db::Db;
 
@@ -60,16 +61,31 @@ fn cleanup_orphan_documents(db: &Db) -> Result<()> {
 }
 
 /// 启动时补全文索引:没有索引行的书,以及**索引过期**的书 —— 有成功的非 OCR 任务比
-/// 索引里最新的那个任务更新。
+/// 索引里最新的那个任务更新,**且它的产物还在**(重建真的会用到它)。
 ///
 /// 任务结束时 lifecycle 会重建索引,但老代码对没有 upload_id 的任务(重新渲染 / 重试 /
 /// 重跑)直接跳过,索引停在更早的任务上;原来这里只补「完全没索引」的书,过期的永不自愈。
-/// 判断只用一次 blocks_fts 扫描 + jobs 上的比较,稳态启动不读任何产物文件;只有判定过期的书
-/// 才真正重建。纯 OCR 任务不参与判定:它可能一页都不拥有(翻译优先),参与会让那本书
+/// 判断先用一次 blocks_fts 扫描 + jobs 上的比较选出候选任务,稳态启动候选为空、不碰文件;
+/// 有候选时只对它们做一次 `is_file`(规则与重建共用 `fts_normalized_document`,不读内容)。
+/// 产物已被删掉的更新任务重建时进不了索引 —— 不过滤它,那本书每次启动都会被判过期、
+/// 重建一遍。纯 OCR 任务不参与判定:它可能一页都不拥有(翻译优先),参与会让那本书
 /// 每次启动都重建。
 fn backfill_fts_indexes(db: &Db) -> Result<()> {
+    for document_id in fts_backfill_targets(db)? {
+        // 按这本书所有成功任务建索引，不只是 active_job：范围翻译之后前面翻过的页也要搜得到；
+        // 复用 OCR 的书原来按 job_root/ocr 找不到 OCR 文档、一行都建不出来，每次启动都重试。
+        if let Err(error) = db.rebuild_document_fts(&document_id) {
+            eprintln!("[library] fts backfill failed for {document_id}: {error}");
+        }
+    }
+    Ok(())
+}
+
+/// 启动回填要重建索引的书(规则见 `backfill_fts_indexes`)。
+fn fts_backfill_targets(db: &Db) -> Result<Vec<String>> {
     let conn = db.connect()?;
-    let pending: Vec<String> = {
+    // (document_id, 比索引新的成功任务 —— 没有索引行的书为 NULL)
+    let rows: Vec<(String, Option<String>)> = {
         let mut stmt = conn.prepare(
             r#"
             WITH indexed AS (
@@ -78,33 +94,41 @@ fn backfill_fts_indexes(db: &Db) -> Result<()> {
                 LEFT JOIN jobs j ON j.job_id = f.job_id
                 GROUP BY f.document_id
             )
-            SELECT d.document_id FROM documents d
+            SELECT d.document_id, NULL FROM documents d
             LEFT JOIN indexed i ON i.document_id = d.document_id
+            WHERE d.active_job_id IS NOT NULL AND i.document_id IS NULL
+            UNION ALL
+            SELECT d.document_id, j.job_id FROM documents d
+            JOIN indexed i ON i.document_id = d.document_id
+            JOIN jobs j ON j.document_id = d.document_id
             WHERE d.active_job_id IS NOT NULL
-              AND (
-                i.document_id IS NULL
-                OR EXISTS (
-                    SELECT 1 FROM jobs j
-                    WHERE j.document_id = d.document_id
-                      AND j.status_json = '"succeeded"'
-                      AND j.workflow <> '"ocr"'
-                      AND j.created_at > i.newest
-                )
-              )
+              AND j.status_json = '"succeeded"'
+              AND j.workflow <> '"ocr"'
+              AND j.created_at > i.newest
             "#,
         )?;
-        let rows = stmt.query_map([], |row| row.get(0))?;
+        let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?;
         rows.collect::<std::result::Result<Vec<_>, _>>()?
     };
     drop(conn);
-    for document_id in pending {
-        // 按这本书所有成功任务建索引，不只是 active_job：范围翻译之后前面翻过的页也要搜得到；
-        // 复用 OCR 的书原来按 job_root/ocr 找不到 OCR 文档、一行都建不出来，每次启动都重试。
-        if let Err(error) = db.rebuild_document_fts(&document_id) {
-            eprintln!("[library] fts backfill failed for {document_id}: {error}");
+    let mut targets: Vec<String> = Vec::new();
+    for (document_id, newer_job_id) in rows {
+        if targets.contains(&document_id) {
+            continue;
+        }
+        let usable = match newer_job_id {
+            None => true,
+            Some(job_id) => db
+                .get_job(&job_id)
+                .ok()
+                .and_then(|job| fts_normalized_document(&job, &db.data_root))
+                .is_some(),
+        };
+        if usable {
+            targets.push(document_id);
         }
     }
-    Ok(())
+    Ok(targets)
 }
 
 fn backfill_upload_hashes(db: &Db) -> Result<()> {
