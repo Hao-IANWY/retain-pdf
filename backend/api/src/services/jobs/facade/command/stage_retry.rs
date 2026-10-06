@@ -36,26 +36,35 @@ impl<'a> JobsFacade<'a> {
     /// 重试即链文档：主页卡片靠 documents.active_job_id 找运行中任务。
     /// 源任务的文档可经 jobs.document_id / upload 反查；找不到就跳过，
     /// 终态 lifecycle 仍会再次对账，绝不影响提交。
+    ///
+    /// 新任务自己的 jobs.document_id 也要写上：重新渲染的任务没有 upload_id，lifecycle 的
+    /// link_job_to_document 补不上它，于是它不在「这本书的任务」里 —— 阅读页的打开计划
+    /// （resolve_reading_target）看不见它，点「阅读」一直打开重新渲染之前的旧任务。
     fn link_retry_to_source_document(&self, source_job_id: &str, new_job_id: &str) {
-        match self.command.db.get_document_by_job_id(source_job_id) {
-            Ok(Some(doc)) => {
-                if let Err(error) =
-                    self.command
-                        .db
-                        .set_document_active_job(&doc.document_id, new_job_id, None)
-                {
+        let document_id = match self.command.db.document_id_for_job(source_job_id) {
+            Ok(Some(document_id)) => Some(document_id),
+            Ok(None) | Err(_) => match self.command.db.get_document_by_job_id(source_job_id) {
+                Ok(doc) => doc.map(|doc| doc.document_id),
+                Err(error) => {
                     tracing::warn!(
-                        "library: set active job for {} at retry failed: {error}",
-                        doc.document_id
+                        "library: resolve document for retry source {source_job_id} failed: {error}"
                     );
+                    None
                 }
-            }
-            Ok(None) => {}
-            Err(error) => {
-                tracing::warn!(
-                    "library: resolve document for retry source {source_job_id} failed: {error}"
-                );
-            }
+            },
+        };
+        let Some(document_id) = document_id else {
+            return;
+        };
+        if let Err(error) = self.command.db.set_job_document_id(new_job_id, &document_id) {
+            tracing::warn!("library: link retry job {new_job_id} to {document_id} failed: {error}");
+        }
+        if let Err(error) = self
+            .command
+            .db
+            .set_document_active_job(&document_id, new_job_id, None)
+        {
+            tracing::warn!("library: set active job for {document_id} at retry failed: {error}");
         }
     }
 

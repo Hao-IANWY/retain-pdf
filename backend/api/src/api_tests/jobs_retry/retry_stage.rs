@@ -658,6 +658,76 @@ async fn retry_stage_route_creates_render_job_by_default() {
     );
 }
 
+/// 重新渲染出来的任务要归到同一本书下。它没有 upload_id，lifecycle 补不上归属；不写的话
+/// 它不在 list_jobs_for_document 里，阅读页的打开计划看不见它，点「阅读」一直打开重新
+/// 渲染之前的旧任务（实测：连点两次重新渲染，阅读页始终停在旧任务上）。
+#[tokio::test]
+async fn retry_stage_render_jobs_inherit_the_source_document() {
+    let state = test_state("retry-stage-render-document");
+    let mut source_job = source_job_with_artifacts(
+        "job-retry-render-doc-source",
+        JobArtifacts {
+            source_pdf: Some("jobs/source/source/input.pdf".to_string()),
+            normalized_document_json: Some("jobs/source/ocr/document.v1.json".to_string()),
+            translations_dir: Some("jobs/source/translated".to_string()),
+            ..JobArtifacts::default()
+        },
+    );
+    source_job.status = JobStatusKind::Succeeded;
+    seed_translation_result_files(&state, &source_job);
+    state.db.save_job(&source_job).expect("save source job");
+    state
+        .db
+        .set_job_document_id("job-retry-render-doc-source", "doc-sha-render")
+        .expect("link source job");
+
+    let retry = |source: String| {
+        let state = state.clone();
+        async move {
+            let response = build_app(state)
+                .oneshot(
+                    Request::builder()
+                        .method("POST")
+                        .uri(format!("/api/v1/jobs/{source}/retry-stage"))
+                        .header("X-API-Key", "test-key")
+                        .header("Content-Type", "application/json")
+                        .body(Body::from(json!({ "stage": "render" }).to_string()))
+                        .expect("retry render request"),
+                )
+                .await
+                .expect("retry render response");
+            assert_eq!(response.status(), StatusCode::OK);
+            read_json(response).await["data"]["job_id"]
+                .as_str()
+                .expect("job id")
+                .to_string()
+        }
+    };
+    let first = retry("job-retry-render-doc-source".to_string()).await;
+    assert_eq!(
+        state.db.document_id_for_job(&first).expect("lookup"),
+        Some("doc-sha-render".to_string()),
+        "重新渲染的任务没归到源任务那本书下"
+    );
+
+    // 在重新渲染的结果上再重新渲染一次：源任务自己就是派生出来的，归属也要接得上。
+    let mut first_job = state.db.get_job(&first).expect("first retry job");
+    first_job.status = JobStatusKind::Succeeded;
+    first_job.artifacts = source_job.artifacts.clone();
+    state.db.save_job(&first_job).expect("finish first retry");
+    let second = retry(first.clone()).await;
+
+    let listed: Vec<String> = state
+        .db
+        .list_jobs_for_document("doc-sha-render", 50, 0)
+        .expect("list jobs")
+        .into_iter()
+        .map(|job| job.job_id.clone())
+        .collect();
+    assert!(listed.contains(&first), "第一次重新渲染不在这本书的任务里：{listed:?}");
+    assert!(listed.contains(&second), "第二次重新渲染不在这本书的任务里：{listed:?}");
+}
+
 #[tokio::test]
 async fn retry_stage_route_allows_in_place_render_when_requested() {
     let state = test_state("retry-stage-render-in-place");

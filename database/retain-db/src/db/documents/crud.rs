@@ -316,6 +316,20 @@ impl Db {
         Ok(Some(document_id))
     }
 
+    /// 直接给 job 写归属的 document。
+    ///
+    /// `link_job_to_document` 靠 job 的 upload_id 反查；从已有任务派生出来的任务（重新渲染
+    /// 只带 artifact_job_id，不带 upload_id）走不通，归属只能从源任务继承。没写归属的 job
+    /// 不在 `list_jobs_for_document` 里，阅读页就永远打不开它。
+    pub fn set_job_document_id(&self, job_id: &str, document_id: &str) -> Result<()> {
+        let conn = self.connect()?;
+        conn.execute(
+            "UPDATE jobs SET document_id = ?1 WHERE job_id = ?2",
+            params![document_id, job_id],
+        )?;
+        Ok(())
+    }
+
     /// 按 document_id(= content_hash) 找到最近一次上传记录，用于源 PDF / 封面 / 重译。
     pub fn find_upload_for_document(&self, document_id: &str) -> Result<Option<UploadRecord>> {
         let conn = self.connect()?;
