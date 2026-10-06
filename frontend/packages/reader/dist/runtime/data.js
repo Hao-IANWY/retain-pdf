@@ -1,6 +1,6 @@
 import { r as C, l as J, h as $ } from "../markdown-payload-kK3ewW_I.js";
 import { d as T } from "../pdf-document-config-DOSsufI-.js";
-import { e as Re, f as we, a as me, b as he, i as _e, n as ke, c as Ue, p as ve, r as ge, d as Me, g as Ee, h as De, j as Le, k as Ae } from "../reader-regions-mTcIqcg0.js";
+import { e as Re, f as we, a as me, b as he, i as _e, n as ke, c as Ue, p as ve, r as ge, d as Me, g as Ee, h as De, j as Le, k as Ae } from "../reader-regions-CXmxla3K.js";
 const G = "/api/v1", y = 250;
 function q(e, t) {
   return typeof globalThis.fetch == "function" ? globalThis.fetch(e, t) : Promise.reject(new Error(`fetchProtected not injected for ${e}`));

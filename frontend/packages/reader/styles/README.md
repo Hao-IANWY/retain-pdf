@@ -33,7 +33,7 @@ frontend/packages/reader/styles/
 ├── core/                   # Tailwind theme、氛围底与下载反馈
 ├── layout.css / chrome.css / content.css / react-pdf.css
 ├── assistant-dock.css / selection-pop.css / panel-shell.css
-├── float-markdown.css / float-ai*.css / hud.css / markdown.css
+├── float-markdown.css / float-ai*.css / hud.css / markdown.css / markdown-blocks.css
 └── dialog-shell.css / reader.utilities.css
 ```
 

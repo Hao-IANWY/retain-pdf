@@ -9,5 +9,5 @@ export type ReaderMarkdownPanelProps = {
     side?: "left" | "right";
     onClose: () => void;
 };
-export declare function ReaderMarkdownPanel({ open, jobId, sourceOnly, side, onClose, }: ReaderMarkdownPanelProps): import("react").JSX.Element;
+export declare function ReaderMarkdownPanel(props: ReaderMarkdownPanelProps): import("react").JSX.Element;
 //# sourceMappingURL=ReaderMarkdownPanel.d.ts.map

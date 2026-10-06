@@ -10,6 +10,7 @@ import type {
   ReaderMetadata,
   ReaderRegion,
 } from "../../shared/data/reader-regions.js";
+import type { RegionHoverStore } from "../../shared/state/region-hover-store.js";
 import type { ProtectedPdfFile } from "../../pdf/useProtectedPdfFile.js";
 import type { PageRowHeights } from "../../pdf/usePageRowSync.js";
 import type { ReaderAssistantPanel } from "./reader-assistant-types.js";
@@ -36,6 +37,10 @@ export type ReaderContextValue = {
   regions: ReaderRegion[];
   readerMetadata: ReaderMetadata | null;
   activeRegion: ReaderRegion | null;
+  /** 悬停块：两栏 PDF 和 Markdown 面板共享。没给（单测里直接渲染组件）时各管各的。 */
+  regionHover?: RegionHoverStore;
+  /** 滚到这一块所在的页并闪一下红框（和 AI 引用回跳同一条路）。 */
+  jumpToBlock?: (itemId: string) => void;
   // 和 regions 走同一条路下去，因为它们用的是同一套 bbox 投影。
   // session
   /**

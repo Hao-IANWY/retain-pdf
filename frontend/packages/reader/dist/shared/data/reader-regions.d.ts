@@ -15,6 +15,16 @@ export type ReaderRegion = {
     status: string;
     assetIds: string[];
     assetUrls: string[];
+    /** 页内阅读顺序（后端已按 (页, 顺序) 排好；老后端没有这几项）。 */
+    readingOrder?: number;
+    /** document.v1 的 sub_type，词表随 provider 不同（见 reader-blocks.ts）。 */
+    subType?: string;
+    /** title = 1，heading = 2；只在标题块上有。 */
+    headingLevel?: number;
+    /** 同一段被拆成几块（跨页 / 跨栏）时共享的组 id。 */
+    continuationGroupId?: string;
+    /** 组内成员各自那一截译文；translated.text 在组内每个成员上都是整段。 */
+    translatedBlockText?: string;
 };
 export type ReaderRegionKind = "formula" | "table" | "figure" | "text" | "region";
 export type ReaderPageMetadata = {

@@ -18,6 +18,16 @@ export type ReaderRegion = {
   status: string;
   assetIds: string[];
   assetUrls: string[];
+  /** 页内阅读顺序（后端已按 (页, 顺序) 排好；老后端没有这几项）。 */
+  readingOrder?: number;
+  /** document.v1 的 sub_type，词表随 provider 不同（见 reader-blocks.ts）。 */
+  subType?: string;
+  /** title = 1，heading = 2；只在标题块上有。 */
+  headingLevel?: number;
+  /** 同一段被拆成几块（跨页 / 跨栏）时共享的组 id。 */
+  continuationGroupId?: string;
+  /** 组内成员各自那一截译文；translated.text 在组内每个成员上都是整段。 */
+  translatedBlockText?: string;
 };
 
 export type ReaderRegionKind = "formula" | "table" | "figure" | "text" | "region";
@@ -94,6 +104,24 @@ function normalizeBox(value: unknown): ReaderRegionBox | null {
   };
 }
 
+// 两种拼写都认：第一次归一化读的是接口的 snake_case，第二次读的是自己产出的 camelCase。
+function optionalBlockFields(item: Record<string, unknown> | null): Partial<ReaderRegion> {
+  const out: Partial<ReaderRegion> = {};
+  const order = Number(item?.reading_order ?? item?.readingOrder);
+  if (item?.reading_order != null || item?.readingOrder != null) {
+    if (Number.isFinite(order)) out.readingOrder = order;
+  }
+  const level = Number(item?.heading_level ?? item?.headingLevel);
+  if (Number.isFinite(level) && level > 0) out.headingLevel = level;
+  const subType = `${item?.sub_type ?? item?.subType ?? ""}`.trim();
+  if (subType) out.subType = subType;
+  const group = `${item?.continuation_group_id ?? item?.continuationGroupId ?? ""}`.trim();
+  if (group) out.continuationGroupId = group;
+  const blockText = item?.translated_block_text ?? item?.translatedBlockText;
+  if (typeof blockText === "string" && blockText) out.translatedBlockText = blockText;
+  return out;
+}
+
 /**
  * 接口响应（`{ items: [...] }`，可带 `{ data }` 信封）→ ReaderRegion[]。
  *
@@ -125,6 +153,7 @@ export function normalizeReaderRegions(payload: unknown): ReaderRegion[] {
       assetUrls: (Array.isArray(item?.asset_urls) ? item.asset_urls : Array.isArray(item?.assetUrls) ? item.assetUrls : [])
         .map((value) => `${value || ""}`.trim())
         .filter(Boolean),
+      ...optionalBlockFields(item),
     });
   }
   return regions;

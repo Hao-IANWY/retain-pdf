@@ -35,6 +35,7 @@ import { ReaderHostPanelShell } from "./components/react-pdf/ReaderHostPanelShel
 import { READER_HOST_PANELS } from "./components/react-pdf/reader-host-panels.js";
 import { resolveLiveTranslationToggles } from "./shared/data/live-translation-state.js";
 import { renderReaderBoardSlot } from "./adapters.js";
+import { createRegionHoverStore } from "./shared/state/region-hover-store.js";
 
 /** 阅读视图可见台面的判别联合。 */
 export type ReaderPaneComposition = {
@@ -327,6 +328,8 @@ export function ReaderAppReactPdf() {
 
   // 外壳 Context：只装频繁下钻、且此前纯透传的值；currentPage/numPages 走 HUD
   // context，避免滚动带动整棵外壳重渲染。
+  const [regionHover] = useState(createRegionHoverStore);
+  const jumpToBlock = useCallback((itemId: string) => c.jumpToAnchor({ block_id: itemId }), [c.jumpToAnchor]);
   const readerContext = useMemo<ReaderContextValue>(() => ({
     bindShell: c.shell.bindShell,
     shellEl: c.shell.shellEl,
@@ -345,6 +348,8 @@ export function ReaderAppReactPdf() {
     regions: session.regions,
     readerMetadata: session.readerMetadata,
     activeRegion: c.activeRegion,
+    regionHover,
+    jumpToBlock,
     sourceOnly: c.sourceOnly,
     sourceViewOnly,
     download: c.download,
@@ -360,6 +365,8 @@ export function ReaderAppReactPdf() {
     session.regions,
     session.readerMetadata,
     c.activeRegion,
+    regionHover,
+    jumpToBlock,
     c.sourceOnly,
     sourceViewOnly,
     c.download,

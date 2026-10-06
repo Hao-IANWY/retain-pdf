@@ -1,4 +1,4 @@
-import { useCallback, useState, type ReactElement } from "react";
+import { useCallback, useState, useSyncExternalStore, type ReactElement } from "react";
 import type { ReactNode } from "react";
 import { PdfDocumentPane } from "../../pdf/PdfDocumentPane.js";
 import type { ProtectedPdfFile } from "../../pdf/useProtectedPdfFile.js";
@@ -16,6 +16,10 @@ import {
 import type { LiveTranslationState } from "../../shared/data/live-translation-state.js";
 import type { ReaderPaneComposition } from "../../ReaderAppReactPdf.js";
 import { useReaderContext } from "./reader-context.js";
+
+
+const noopSubscribe = () => () => {};
+const nullSnapshot = (): string | null => null;
 
 export type ReaderCompareGridProps = {
   mode?: string; // ReaderMode
@@ -179,8 +183,19 @@ export function ReaderCompareGrid(props: ReaderCompareGridProps): ReactElement {
 
   const readerMetadata = props.readerMetadata ?? ctx?.readerMetadata;
   // 悬停的内容块两栏共享：鼠标在哪栏，左右都画同一块的红框（各自复制本栏的文字）。
-  const [hoveredRegionId, setHoveredRegionId] = useState<string | null>(null);
-  const handleHoverRegion = useCallback((itemId: string | null) => setHoveredRegionId(itemId), []);
+  // 外壳给了共享 store 时 Markdown 面板也在同一个圈里（PDF 悬停 → 面板跟着高亮）。
+  const hoverStore = ctx?.regionHover ?? null;
+  const [localHoveredRegionId, setLocalHoveredRegionId] = useState<string | null>(null);
+  const sharedHoveredRegionId = useSyncExternalStore(
+    hoverStore ? hoverStore.subscribe : noopSubscribe,
+    hoverStore ? () => hoverStore.get().itemId : nullSnapshot,
+    hoverStore ? () => hoverStore.get().itemId : nullSnapshot,
+  );
+  const hoveredRegionId = hoverStore ? sharedHoveredRegionId : localHoveredRegionId;
+  const handleHoverRegion = useCallback((itemId: string | null) => {
+    if (hoverStore) hoverStore.set(itemId, "pdf");
+    else setLocalHoveredRegionId(itemId);
+  }, [hoverStore]);
 
   const presentation = resolveReaderGridPresentation({
     mode,
