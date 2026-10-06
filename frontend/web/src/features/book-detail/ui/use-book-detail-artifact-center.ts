@@ -205,12 +205,13 @@ export function useBookDetailArtifactCenter({
       // "打开什么都没有的文档"——Word 导出在打包环境里失败时就是这么表现的。
       const response = await fetchProtected(item.url);
       if (!response.ok) throw new Error(`下载失败，请稍后重试。(${response.status})`);
-      const target = await prepareDownloadTarget(item.filename || item.label);
-      if (target.kind === "aborted") return;
+      // 文件名以后端响应头为准（统一的「类型前缀_书名_后缀」），「另存为」对话框也预填它。
       const filename = fileNameFromDisposition(
         response.headers.get("content-disposition") || "",
         item.filename || item.label,
       );
+      const target = await prepareDownloadTarget(filename);
+      if (target.kind === "aborted") return;
       await saveResponseDownload(response, { target, filename, onProgress: undefined });
     } catch (cause) {
       setError(`${(cause as Error)?.message || "下载失败，请稍后重试。"}`);

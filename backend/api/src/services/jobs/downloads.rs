@@ -71,6 +71,9 @@ pub struct FileDownload {
     pub path: PathBuf,
     pub content_type: String,
     pub download_name: Option<String>,
+    /// 不强制下载（照常在浏览器里打开）但给个文件名：`inline; filename=…`。
+    /// 译文 PDF、Markdown 这类「查看」和「下载」共用一个端点的，用这个。
+    pub inline_name: Option<String>,
     pub job_id_header: Option<String>,
 }
 
@@ -84,8 +87,14 @@ impl FileDownload {
             path,
             content_type: content_type.into(),
             download_name,
+            inline_name: None,
             job_id_header: None,
         }
+    }
+
+    pub fn with_inline_name(mut self, name: impl Into<String>) -> Self {
+        self.inline_name = Some(name.into());
+        self
     }
 
     pub fn with_job_id_header(mut self, job_id: impl Into<String>) -> Self {

@@ -251,14 +251,20 @@ export async function downloadProtectedResponse({
     throw error;
   }
   const disposition = resp.headers.get("content-disposition") || "";
-  const filename = preferredName || fileNameFromDisposition(disposition, fallbackName);
+  // 后端给的文件名优先：所有下载的命名规则都在后端（services/download_names.rs，
+  // 「类型前缀_书名_后缀」）。以前前端的 preferredName 排在前面，于是同一个译文 PDF
+  // 从左栏下载叫 `…-translated.pdf`、从阅读器下载叫 `zh_….pdf`。前端自己的名字只在
+  // 响应没带文件名时兜底（旧后端）。
+  const filename = fileNameFromDisposition(disposition, "") || preferredName || fallbackName;
   // target 允许传一个函数:那样**要等响应确认成功之后**才去问保存位置。
   //
   // 提前创建 target 是有代价的:`showSaveFilePicker` 在用户点确定的那一刻就把文件
   // 建出来了（0 字节）。随后请求失败、抛异常，磁盘上就留下一个空文件——用户看到的
   // 不是错误提示，而是一份"打开什么都没有的文档"。Word 导出在打包环境里失败时就是
   // 这么表现的，排查了很久才发现根本没请求成功。
-  const resolvedTarget = typeof target === "function" ? await target() : target;
+  //
+  // 函数会收到最终文件名，「另存为」对话框里预填的就是它，和直接下载得到的名字一致。
+  const resolvedTarget = typeof target === "function" ? await target(filename) : target;
   if (resolvedTarget?.kind === "aborted") return "";
   await saveResponseDownload(resp, {
     target: resolvedTarget,

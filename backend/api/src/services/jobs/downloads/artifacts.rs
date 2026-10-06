@@ -9,6 +9,8 @@ use crate::storage_paths::{
 };
 
 use super::super::query::load_supported_job;
+use crate::services::download_names::{job_download_file_name, DownloadKind};
+use crate::storage_paths::ARTIFACT_KEY_MARKDOWN_RAW;
 use super::pdf::linearized_pdf_or_original;
 use super::{DownloadJobsDeps, FileDownload};
 
@@ -22,7 +24,11 @@ pub(super) fn bundle_download(
     }
     let zip_path = build_bundle_for_job(deps.db, deps.data_root, deps.downloads_dir, &job)?;
     Ok(
-        FileDownload::new(zip_path, "application/zip", Some(format!("{job_id}.zip")))
+        FileDownload::new(
+            zip_path,
+            "application/zip",
+            Some(job_download_file_name(deps.db, &job, DownloadKind::Bundle)),
+        )
             .with_job_id_header(job_id),
     )
 }
@@ -36,7 +42,8 @@ pub(super) fn registered_artifact_download(
     if artifact_key == ARTIFACT_KEY_MARKDOWN_BUNDLE_ZIP {
         let (item, path) =
             build_markdown_bundle_for_job(deps.db, deps.data_root, job, include_job_dir)?;
-        return Ok(FileDownload::new(path, item.content_type, item.file_name));
+        let name = job_download_file_name(deps.db, job, DownloadKind::MarkdownBundle);
+        return Ok(FileDownload::new(path, item.content_type, item.file_name.map(|_| name)));
     }
     let Some((item, path)) = resolve_registry_artifact(deps.db, deps.data_root, job, artifact_key)?
     else {
@@ -65,5 +72,20 @@ pub(super) fn registered_artifact_download(
     } else {
         path
     };
-    Ok(FileDownload::new(path, item.content_type, item.file_name))
+    // 给用户的几类文件统一命名（services::download_names）；原来是附件的还是附件、
+    // 原来 inline 的还是 inline，只换名字。排查用的文件保持原名。
+    let kind = match artifact_key {
+        ARTIFACT_KEY_SOURCE_PDF => Some(DownloadKind::Source),
+        ARTIFACT_KEY_TRANSLATED_PDF => Some(DownloadKind::Translated),
+        ARTIFACT_KEY_MARKDOWN_RAW => Some(DownloadKind::OcrMarkdown),
+        _ => None,
+    };
+    let Some(kind) = kind else {
+        return Ok(FileDownload::new(path, item.content_type, item.file_name));
+    };
+    let name = job_download_file_name(deps.db, job, kind);
+    Ok(match item.file_name {
+        Some(_) => FileDownload::new(path, item.content_type, Some(name)),
+        None => FileDownload::new(path, item.content_type, None).with_inline_name(name),
+    })
 }

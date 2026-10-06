@@ -120,6 +120,7 @@ pub(super) async fn file_download_response(
     download: FileDownload,
     headers: &HeaderMap,
 ) -> Result<Response, AppError> {
+    let attachment = download.download_name.is_some();
     let mut response = stream_file(
         download.path,
         &download.content_type,
@@ -127,6 +128,11 @@ pub(super) async fn file_download_response(
         Some(headers),
     )
     .await?;
+    if !attachment {
+        if let Some(name) = download.inline_name.as_deref() {
+            crate::routes::job_helpers::set_content_disposition(&mut response, "inline", name)?;
+        }
+    }
     if let Some(job_id) = download.job_id_header {
         response.headers_mut().insert(
             "X-Job-Id",

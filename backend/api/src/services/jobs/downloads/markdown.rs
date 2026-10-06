@@ -42,10 +42,12 @@ pub(super) fn markdown_raw_download(
     let job = load_supported_job(deps.db, deps.data_root, job_id)?;
     let markdown_path = resolve_markdown_path(&job, deps.data_root)
         .ok_or_else(|| AppError::not_found(format!("markdown not found: {job_id}")))?;
-    Ok(FileDownload::new(
-        markdown_path,
-        "text/markdown; charset=utf-8",
-        None,
+    Ok(FileDownload::new(markdown_path, "text/markdown; charset=utf-8", None).with_inline_name(
+        crate::services::download_names::job_download_file_name(
+            deps.db,
+            &job,
+            crate::services::download_names::DownloadKind::OcrMarkdown,
+        ),
     ))
 }
 

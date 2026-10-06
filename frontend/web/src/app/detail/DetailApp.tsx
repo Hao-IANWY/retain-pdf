@@ -259,7 +259,7 @@ export function DetailApp({
     const state = pageStateRef.current;
     const fallbackName = fallbackNameFactory(state.job?.job_id || "job");
     // 惰性:响应确认成功之后才问保存位置，否则请求失败会在磁盘上留下一个 0 字节文件。
-    const downloadTarget = () => prepareDownloadTarget(fallbackName);
+    const downloadTarget = (filename?: string) => prepareDownloadTarget(filename || fallbackName);
     try {
       showDownloadPreparing(fallbackName);
       await downloadProtectedResponse({

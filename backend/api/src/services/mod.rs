@@ -14,6 +14,7 @@ pub(crate) mod derived_artifacts;
 pub mod document_operation_api;
 pub mod document_operations;
 pub mod download_generation;
+pub(crate) mod download_names;
 pub(crate) mod fonts;
 pub(crate) mod glossaries;
 pub mod health_api;

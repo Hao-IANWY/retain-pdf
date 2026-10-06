@@ -62,11 +62,15 @@ pub fn document_source_pdf(
 ) -> Result<DocumentFileDownload, AppError> {
     let (document, upload) = require_document_upload(deps, document_id)?;
     let path = document_source_pdf_path(&upload);
-    let download_name = if document.source_filename.trim().is_empty() {
-        format!("{document_id}.pdf")
-    } else {
-        document.source_filename.clone()
-    };
+    // 和任务下载同一个命名规则：书名（文档标题）优先，其次原文件名，最后 document_id。
+    let title = [document.title.trim(), document.source_filename.trim(), document_id]
+        .into_iter()
+        .find(|value| !value.is_empty())
+        .unwrap_or(document_id);
+    let download_name = crate::services::download_names::download_file_name(
+        title,
+        crate::services::download_names::DownloadKind::Source,
+    );
     Ok(DocumentFileDownload {
         path,
         content_type: "application/pdf",

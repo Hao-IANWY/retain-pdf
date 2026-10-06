@@ -46,6 +46,10 @@ pub(super) fn layout_docx_download(
     Ok(FileDownload::new(
         output_docx,
         DOCX_CONTENT_TYPE,
-        Some(format!("{}-layout.docx", job.job_id)),
+        Some(crate::services::download_names::job_download_file_name(
+            deps.db,
+            &job,
+            crate::services::download_names::DownloadKind::Layout,
+        )),
     ))
 }

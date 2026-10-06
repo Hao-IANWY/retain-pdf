@@ -59,13 +59,41 @@ pub async fn stream_file(
         HeaderValue::from_static("Accept-Ranges, Content-Range, Content-Length, X-Job-Id"),
     );
     if let Some(name) = download_name {
-        let value = format!("attachment; filename=\"{name}\"");
-        response.headers_mut().insert(
-            header::CONTENT_DISPOSITION,
-            HeaderValue::from_str(&value).map_err(|e| AppError::internal(e.to_string()))?,
-        );
+        set_content_disposition(&mut response, "attachment", &name)?;
     }
     Ok(response)
+}
+
+/// 写 Content-Disposition，带 ASCII 兜底名和 RFC 5987 的 `filename*=UTF-8''…`。
+///
+/// 以前是 `filename="{name}"` 直接塞 UTF-8：头部按 latin-1 解读，中文书名在浏览器里成乱码。
+/// `kind` 是 `attachment`（强制下载）或 `inline`（照常在浏览器里打开，只是另存 / fetch
+/// 下载时有名字可用）。
+pub fn set_content_disposition(response: &mut Response, kind: &str, name: &str) -> Result<(), AppError> {
+    response.headers_mut().insert(
+        header::CONTENT_DISPOSITION,
+        HeaderValue::from_str(&content_disposition_value(kind, name))
+            .map_err(|e| AppError::internal(e.to_string()))?,
+    );
+    Ok(())
+}
+
+pub fn content_disposition_value(kind: &str, name: &str) -> String {
+    let fallback: String = name
+        .chars()
+        .map(|ch| if ch.is_ascii_graphic() || ch == ' ' { ch } else { '_' })
+        .map(|ch| if ch == '"' || ch == '\\' { '_' } else { ch })
+        .collect();
+    let mut encoded = String::new();
+    for byte in name.as_bytes() {
+        let ch = *byte as char;
+        if ch.is_ascii_alphanumeric() || "!#$&+-.^_`|~".contains(ch) {
+            encoded.push(ch);
+        } else {
+            encoded.push_str(&format!("%{byte:02X}"));
+        }
+    }
+    format!("{kind}; filename=\"{fallback}\"; filename*=UTF-8''{encoded}")
 }
 
 pub fn file_etag(path: &std::path::Path) -> Option<String> {
@@ -189,7 +217,7 @@ mod tests {
         assert_eq!(content_type, Some("text/plain"));
         assert_eq!(
             content_disposition,
-            Some("attachment; filename=\"result.txt\"")
+            Some("attachment; filename=\"result.txt\"; filename*=UTF-8''result.txt")
         );
 
         let body = to_bytes(response.into_body(), usize::MAX)
@@ -257,5 +285,17 @@ mod tests {
         assert!(etag.ends_with('"'));
         assert!(etag.contains("-"));
         std::fs::remove_file(path).ok();
+    }
+
+    #[test]
+    fn content_disposition_keeps_non_ascii_names_readable() {
+        assert_eq!(
+            super::content_disposition_value("attachment", "zh_共轭 卤素_translated.pdf"),
+            "attachment; filename=\"zh___ ___translated.pdf\"; filename*=UTF-8''zh_%E5%85%B1%E8%BD%AD%20%E5%8D%A4%E7%B4%A0_translated.pdf"
+        );
+        assert_eq!(
+            super::content_disposition_value("inline", "a \"b\".pdf"),
+            "inline; filename=\"a _b_.pdf\"; filename*=UTF-8''a%20%22b%22.pdf"
+        );
     }
 }

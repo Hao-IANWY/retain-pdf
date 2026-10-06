@@ -40,6 +40,10 @@ pub(super) fn side_by_side_pdf_download(
     Ok(FileDownload::new(
         path,
         "application/pdf",
-        Some(format!("{}-side-by-side.pdf", job.job_id)),
+        Some(crate::services::download_names::job_download_file_name(
+            deps.db,
+            &job,
+            crate::services::download_names::DownloadKind::SideBySide,
+        )),
     ))
 }

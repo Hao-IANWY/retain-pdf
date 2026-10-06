@@ -62,7 +62,7 @@ export function mountArtifactDownloadsFeature({
       nameResolver: downloadNameResolver,
     });
     // 惰性:响应确认成功之后才问保存位置（见 downloads.ts）。
-    const downloadTarget = () => prepareDownloadTarget(preferredName);
+    const downloadTarget = (filename?: string) => prepareDownloadTarget(filename || preferredName);
 
     try {
       viewPort.setLinkBusy(link, true, "下载中...");

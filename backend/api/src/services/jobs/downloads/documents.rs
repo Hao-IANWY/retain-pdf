@@ -95,7 +95,17 @@ pub(super) fn document_download(
     } else {
         path
     };
-    Ok(FileDownload::new(path, content_type, None))
+    let download = FileDownload::new(path, content_type, None);
+    // 译文 PDF 既用来在浏览器里看，也用来下载：保持 inline，只补上文件名。
+    Ok(if matches!(kind, DocumentDownloadKind::OutputPdf) {
+        download.with_inline_name(crate::services::download_names::job_download_file_name(
+            deps.db,
+            job,
+            crate::services::download_names::DownloadKind::Translated,
+        ))
+    } else {
+        download
+    })
 }
 
 #[cfg(test)]
