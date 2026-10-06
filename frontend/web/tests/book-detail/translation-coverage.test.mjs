@@ -71,7 +71,14 @@ test("翻译成功但全部被之后的翻译替换", () => {
 });
 
 test("时间和用时的格式", () => {
-  assert.equal(formatTime("2026-10-05T07:23:11Z", NOW), "10月5日 07:23");
+  // 带 Z 的是 UTC，显示要换成本地时间（以前截字符串，显示的是 UTC）。期望值按本机时区算，
+  // 测试在哪个时区跑都成立。
+  const local = new Date("2026-10-05T07:23:11Z");
+  const pad = (v) => `${v}`.padStart(2, "0");
+  assert.equal(
+    formatTime("2026-10-05T07:23:11Z", NOW),
+    `${local.getMonth() + 1}月${local.getDate()}日 ${pad(local.getHours())}:${pad(local.getMinutes())}`,
+  );
   assert.equal(formatTime("", NOW), "");
   assert.equal(formatDuration("2026-10-05T07:00:00", "2026-10-05T08:02:00"), "1 小时 2 分");
   assert.equal(formatDuration("2026-10-05T07:00:00", "2026-10-05T07:05:00"), "5 分");
@@ -131,4 +138,27 @@ test("摘要：没复用 OCR 时 OCR 站写页数和用时；没有覆盖数据�
   const view = { ...VIEW, jobs: [VIEW.jobs[2], VIEW.jobs[3]] };
   assert.equal(processingFacts(view, NOW).stageMeta.ocr, "全部 6 页 · 用时 1 小时 2 分");
   assert.deepEqual(processingFacts(null, NOW), { facts: [], keptOriginBlocks: 0, stageMeta: {} });
+});
+
+test("摘要不把「重新渲染」当翻译：用时、模型、复用 OCR 都取自真正的翻译任务", () => {
+  const view = {
+    page_count: 12, translated_pages: 12, contributing_jobs: 1,
+    segments: [{ first: 1, last: 12, job_id: "book" }],
+    jobs: [
+      { job_id: "render", workflow: "render", status: "succeeded", created_at: "2026-10-05T12:00:00", finished_at: "2026-10-05T12:00:40", model: "m", pages: [], supplied_pages: 0, ocr_reused: true },
+      { job_id: "book", workflow: "book", status: "succeeded", created_at: "2026-10-05T10:00:00", finished_at: "2026-10-05T10:05:00", model: "m", pages: Array.from({ length: 12 }, (_, i) => i + 1), supplied_pages: 12, ocr_reused: false },
+      { job_id: "book-ocr", workflow: "ocr", status: "succeeded", created_at: "2026-10-05T10:00:00", finished_at: "2026-10-05T10:02:00", model: "", pages: Array.from({ length: 12 }, (_, i) => i + 1), supplied_pages: 0, ocr_reused: false },
+    ],
+  };
+  const facts = processingFacts(view, NOW);
+  assert.ok(facts.facts.includes("用时 5 分"), "用时是翻译任务的 5 分钟，不是渲染的 40 秒");
+  assert.equal(facts.stageMeta.ocr, "全部 12 页 · 用时 2 分", "OCR 是那次整本任务自己做的，不是「复用已有 OCR」");
+});
+
+test("保留原文只算当前合并结果仍在用的页（后端 kept_origin_blocks_supplied）；旧后端退回整个任务", () => {
+  const job = (extra) => ({ job_id: "a", workflow: "book", status: "succeeded", created_at: "2026-10-05T10:00:00", finished_at: "2026-10-05T10:05:00", model: "m", pages: [1, 2, 3], supplied_pages: 1, ocr_reused: false, ...extra });
+  const view = (j) => ({ page_count: 3, translated_pages: 3, contributing_jobs: 1, segments: [], jobs: [j] });
+  // 任务 A 有 16 块保留原文，但重翻之后只剩 1 页还在用、那页上 0 块 → 不该再提醒。
+  assert.equal(processingFacts(view(job({ kept_origin_blocks: 16, kept_origin_blocks_supplied: 0 })), NOW).keptOriginBlocks, 0);
+  assert.equal(processingFacts(view(job({ kept_origin_blocks: 16 })), NOW).keptOriginBlocks, 16, "旧后端没有新字段");
 });

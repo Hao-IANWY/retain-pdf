@@ -83,14 +83,16 @@ export function coverageCells(view: TranslationCoverageView | null | undefined):
   return cells;
 }
 
-/** `2026-10-05T07:23:00` → `10月5日 07:23`（同一年不写年份）。 */
+/** `2026-10-06T02:32:50Z` → 本地时间的 `10月5日 19:32`（同一年不写年份）。
+ *  以前直接截字符串里的数字，丢了末尾的 Z，显示的是 UTC —— 和书卡上的本地日期差一天。 */
 export function formatTime(iso: string | null | undefined, now: Date = new Date()): string {
   const text = `${iso || ""}`.trim();
-  const match = text.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
-  if (!match) return text;
-  const [, year, month, day, hour, minute] = match;
-  const date = `${Number(month)}月${Number(day)}日 ${hour}:${minute}`;
-  return Number(year) === now.getFullYear() ? date : `${year}年${date}`;
+  const ms = Date.parse(text);
+  if (!text || !Number.isFinite(ms)) return text;
+  const date = new Date(ms);
+  const pad = (value: number) => `${value}`.padStart(2, "0");
+  const label = `${date.getMonth() + 1}月${date.getDate()}日 ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  return date.getFullYear() === now.getFullYear() ? label : `${date.getFullYear()}年${label}`;
 }
 
 /** 用时：「42 秒」「3 分 5 秒」「1 小时 2 分」。时间认不出返回空串。 */
@@ -157,11 +159,14 @@ function errorDetailOf(job: TranslationCoverageJob): string {
   return detail && detail !== `${job.failure_summary || ""}`.trim() ? detail : "";
 }
 
-const isTranslationJob = (job: TranslationCoverageJob) => job.workflow !== "ocr";
+/** 摘要里的「翻译」只认真正翻译的任务。重新渲染（render）任务也带 model、也复用 OCR，
+ *  算进来的话顶部写的是渲染的用时，OCR 站也会误写成「复用已有 OCR」。 */
+const isTranslationJob = (job: TranslationCoverageJob) =>
+  job.workflow === "book" || job.workflow === "translate" || job.workflow === "translation";
 
 /** 最近一次成功的翻译 / OCR（jobs 已是新到旧）。 */
-function latestSucceeded(view: TranslationCoverageView, translation: boolean) {
-  return view.jobs.find((job) => job.status === "succeeded" && isTranslationJob(job) === translation) || null;
+function latestSucceeded(view: TranslationCoverageView, matches: (job: TranslationCoverageJob) => boolean) {
+  return view.jobs.find((job) => job.status === "succeeded" && matches(job)) || null;
 }
 
 export type ProcessingFacts = {
@@ -180,11 +185,13 @@ export type ProcessingFacts = {
 export function processingFacts(view: TranslationCoverageView | null | undefined, now: Date = new Date()): ProcessingFacts {
   const empty: ProcessingFacts = { facts: [], keptOriginBlocks: 0, stageMeta: {} };
   if (!view) return empty;
+  // 只算当前合并结果里仍取自该任务的那些页上的块（后端按页算好了）；旧后端没有这个
+  // 字段时退回整个任务的数。
   const keptOriginBlocks = view.jobs
     .filter((job) => job.supplied_pages > 0)
-    .reduce((sum, job) => sum + Number(job.kept_origin_blocks || 0), 0);
-  const translation = latestSucceeded(view, true);
-  const ocr = latestSucceeded(view, false);
+    .reduce((sum, job) => sum + Number(job.kept_origin_blocks_supplied ?? job.kept_origin_blocks ?? 0), 0);
+  const translation = latestSucceeded(view, isTranslationJob);
+  const ocr = latestSucceeded(view, (job) => job.workflow === "ocr");
   const facts: string[] = [];
   if (view.page_count) {
     facts.push(view.translated_pages >= view.page_count

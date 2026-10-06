@@ -251,6 +251,8 @@ export type TranslationCoverageJob = {
   note?: string | null;
   /** 成功的翻译任务里保留原文的内容块数。 */
   kept_origin_blocks?: number;
+  /** 其中落在「当前合并结果仍取自这个任务」的页上的块数（分次范围翻译后不会偏大）。 */
+  kept_origin_blocks_supplied?: number;
   /** 失败原因一句话（中文）。只有失败任务有。 */
   failure_summary?: string | null;
   /** 原始错误第一行，展开看原因用。只有失败任务有。 */

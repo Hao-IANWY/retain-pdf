@@ -229,7 +229,8 @@ export function BookDetailProcessingTab({ ocr, translation, loading = false, err
           translationStatus={translation.status}
           translationDescription={translationDescription}
           stageMeta={stageMeta}
-          translateWarning={facts.keptOriginBlocks > 0 ? `${facts.keptOriginBlocks} 块保留原文` : ""}
+          // 有任务在跑时各站只说现在的事：上一次的「N 块保留原文」不挂（顶部提醒同理）。
+          translateWarning={!liveSource && facts.keptOriginBlocks > 0 ? `${facts.keptOriginBlocks} 块保留原文` : ""}
           loading={bootstrapping}
         />
 

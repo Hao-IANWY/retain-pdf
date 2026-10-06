@@ -6,7 +6,7 @@
 //! 「覆盖」和阅读入口用同一套规则（每页取最近翻译了它的那个任务），所以这里说「第 7 页
 //! 来自某次翻译」，阅读器打开时第 7 页就是那次翻译。
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use serde::Serialize;
@@ -50,6 +50,10 @@ pub struct CoverageJobView {
     /// 成功的翻译任务里保留原文（没翻出来）的内容块数，读 translation_diagnostics.json；
     /// 和写 note 的 completion_pipeline 同一个算法。读不到按 0。
     pub kept_origin_blocks: u32,
+    /// 上面那些块里，落在「当前合并结果仍取自这个任务」的页上的有几块。分次范围翻译后
+    /// 旧任务只剩几页还在用，按整个任务算会一直偏大（重翻了那几页提醒也不消）。
+    /// 诊断里没有逐块记录（旧任务）时退回 kept_origin_blocks。
+    pub kept_origin_blocks_supplied: u32,
     /// 失败原因的一句话（failure.summary，中文）。只有失败任务有。
     pub failure_summary: Option<String>,
     /// 原始错误的第一行（截到 160 字），给「展开看原因」用。只有失败任务有。
@@ -145,6 +149,58 @@ fn kept_origin_blocks(data_root: &Path, job_id: &str) -> u32 {
     kept.max(dead).min(u32::MAX as u64) as u32
 }
 
+fn kept_origin_total(data_root: &Path, job: &JobSnapshot) -> u32 {
+    if job.status == JobStatusKind::Succeeded && job.workflow != WorkflowKind::Ocr {
+        kept_origin_blocks(data_root, &job.job_id)
+    } else {
+        0
+    }
+}
+
+fn kept_origin_supplied(data_root: &Path, job: &JobSnapshot, pages: Option<&BTreeSet<u32>>) -> u32 {
+    let total = kept_origin_total(data_root, job);
+    let Some(pages) = pages else { return 0 };
+    if total == 0 {
+        return 0;
+    }
+    let ocr_pages = job.artifacts.as_ref().map(|a| a.ocr_page_numbers.clone()).unwrap_or_default();
+    match kept_origin_by_document_page(data_root, &job.job_id, &ocr_pages) {
+        Some(by_page) => by_page.iter().filter(|(page, _)| pages.contains(page)).map(|(_, count)| *count).sum(),
+        None => total,
+    }
+}
+
+/// translation_diagnostics.json 的 item_diagnostics：每块一条，`page_idx` 是这个任务 OCR 产物里的
+/// 本地页（0 起），映射回文档页用 `ocr_page_numbers`（见 retain_core::document_pages）；没有
+/// 映射就按「本地 = 文档 - 1」（全书任务）。没有逐块记录返回 None。
+fn kept_origin_by_document_page(data_root: &Path, job_id: &str, ocr_pages: &[u32]) -> Option<BTreeMap<u32, u32>> {
+    let path = data_root.join("jobs").join(job_id).join("artifacts").join("translation_diagnostics.json");
+    let text = std::fs::read_to_string(path).ok()?;
+    let value: serde_json::Value = serde_json::from_str(&text).ok()?;
+    let items = value.get("item_diagnostics")?.as_array()?;
+    let mut by_page: BTreeMap<u32, u32> = BTreeMap::new();
+    for item in items {
+        if item.get("final_status").and_then(serde_json::Value::as_str) != Some("kept_origin") {
+            continue;
+        }
+        let Some(local) = item.get("page_idx").and_then(serde_json::Value::as_u64) else { continue };
+        let page = ocr_pages.get(local as usize).copied().unwrap_or(local as u32 + 1);
+        *by_page.entry(page).or_default() += 1;
+    }
+    Some(by_page)
+}
+
+/// 原始错误里最有用的一行：Python traceback 的第一行永远是「Traceback (most recent call
+/// last):」，异常本身在最后一个非空行；其它错误（Rust 的「failed to … / Caused by: …」）
+/// 第一行就是摘要。
+fn error_headline(error: &str) -> Option<&str> {
+    let first = error.lines().map(str::trim).find(|line| !line.is_empty())?;
+    if first.starts_with("Traceback (most recent call last)") {
+        return error.lines().map(str::trim).filter(|line| !line.is_empty()).last();
+    }
+    Some(first)
+}
+
 /// 失败任务的一段文字：去空白、截到 160 字；非失败任务或空串返回 None。
 fn failed_text(job: &JobSnapshot, text: Option<&str>) -> Option<String> {
     if job.status != JobStatusKind::Failed {
@@ -169,9 +225,11 @@ pub(crate) fn translation_coverage(
     let ranked: Vec<_> = sources.iter().map(|source| source.ranked.clone()).collect();
     let plan = merge_plan(document_page_count, &ranked);
     let mut supplied: BTreeMap<&str, u32> = BTreeMap::new();
-    for source in &plan {
+    let mut supplied_pages: BTreeMap<&str, BTreeSet<u32>> = BTreeMap::new();
+    for (index, source) in plan.iter().enumerate() {
         if let PageSource::Job { job_id, .. } = source {
             *supplied.entry(job_id.as_str()).or_default() += 1;
+            supplied_pages.entry(job_id.as_str()).or_default().insert(index as u32 + 1);
         }
     }
     let translated_pages = supplied.values().sum();
@@ -197,15 +255,14 @@ pub(crate) fn translation_coverage(
             } else {
                 None
             },
-            kept_origin_blocks: if job.status == JobStatusKind::Succeeded
-                && job.workflow != WorkflowKind::Ocr
-            {
-                kept_origin_blocks(data_root, &job.job_id)
-            } else {
-                0
-            },
+            kept_origin_blocks: kept_origin_total(data_root, job),
+            kept_origin_blocks_supplied: kept_origin_supplied(
+                data_root,
+                job,
+                supplied_pages.get(job.job_id.as_str()),
+            ),
             failure_summary: failed_text(job, job.failure.as_ref().map(|f| f.summary.as_str())),
-            error_head: failed_text(job, job.error.as_deref().and_then(|e| e.lines().next())),
+            error_head: failed_text(job, job.error.as_deref().and_then(error_headline)),
         })
         .collect();
     Ok(TranslationCoverageView {
@@ -273,5 +330,37 @@ mod tests {
         assert_eq!(failed_text(&job, Some(&"长".repeat(300))).map(|t| t.chars().count()), Some(160));
         job.status = JobStatusKind::Succeeded;
         assert_eq!(failed_text(&job, Some("x")), None);
+    }
+
+    #[test]
+    fn error_headline_takes_the_exception_line_of_a_python_traceback() {
+        let traceback = "Traceback (most recent call last):\n  File \"x.py\", line 1, in <module>\n    run()\nRuntimeError: typst compile failed\n";
+        assert_eq!(error_headline(traceback), Some("RuntimeError: typst compile failed"));
+        assert_eq!(
+            error_headline("failed to upload file /a.pdf\nCaused by:\n- timeout"),
+            Some("failed to upload file /a.pdf")
+        );
+        assert_eq!(error_headline("  \n "), None);
+    }
+
+    #[test]
+    fn kept_origin_counts_only_pages_this_job_still_supplies() {
+        let root = std::env::temp_dir().join(format!("coverage-kept-pages-{}", fastrand::u64(..)));
+        let dir = root.join("jobs").join("j1").join("artifacts");
+        std::fs::create_dir_all(&dir).expect("dir");
+        // OCR 覆盖文档第 6-10 页（本地 0-4）；保留原文的块在本地 0、0、3 → 文档第 6、6、9 页。
+        std::fs::write(
+            dir.join("translation_diagnostics.json"),
+            r#"{"status_summary":{"kept_origin":3},"item_diagnostics":[
+                {"page_idx":0,"final_status":"kept_origin"},{"page_idx":0,"final_status":"kept_origin"},
+                {"page_idx":1,"final_status":"translated"},{"page_idx":3,"final_status":"kept_origin"}]}"#,
+        )
+        .expect("write");
+        let by_page = kept_origin_by_document_page(&root, "j1", &[6, 7, 8, 9, 10]).expect("items");
+        assert_eq!(by_page, BTreeMap::from([(6, 2), (9, 1)]));
+        let only_nine: BTreeSet<u32> = [9, 10].into_iter().collect();
+        assert_eq!(by_page.iter().filter(|(p, _)| only_nine.contains(p)).map(|(_, c)| *c).sum::<u32>(), 1);
+        assert_eq!(kept_origin_by_document_page(&root, "missing", &[]), None);
+        let _ = std::fs::remove_dir_all(&root);
     }
 }

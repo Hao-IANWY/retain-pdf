@@ -215,7 +215,10 @@ test("翻译任务跑在 OCR 阶段：进度只出现一次；OCR 站写实时�
     },
     status: { label: "处理中", tone: "active" },
   };
-  const { root, host } = await mountTab(dom, { loading: false, ocr: idleOcr, translation: running, coverage: COVERAGE });
+  const { root, host } = await mountTab(dom, {
+    loading: false, ocr: idleOcr, translation: running,
+    coverage: { ...COVERAGE, jobs: [{ ...COVERAGE.jobs[0], kept_origin_blocks: 16 }, COVERAGE.jobs[1]] },
+  });
   assert.equal(host.querySelector("[data-processing-unified-status]")?.textContent, "翻译中 · 32/48 页 · 67%");
   assert.equal(host.querySelectorAll(".book-detail-processing-progress").length, 1, "进度条只有顶部一条");
   assert.equal(
@@ -223,6 +226,7 @@ test("翻译任务跑在 OCR 阶段：进度只出现一次；OCR 站写实时�
     "OCR provider 已返回 done，bundle 尚未就绪，12s 后重试（第 2/8 次）",
   );
   assert.equal(host.querySelector("[data-stage-meta='translate']"), null, "跑新任务时不摆上一次的翻译结果");
+  assert.equal(host.querySelector("[data-stage-warning='translate']"), null, "跑新任务时也不挂上一次的「N 块保留原文」");
   const translateStage = host.querySelector("[data-stage-key='translate']");
   assert.equal(translateStage?.getAttribute("data-state"), "pending");
   assert.equal(translateStage?.querySelector(".book-detail-status")?.textContent, "等待中");
