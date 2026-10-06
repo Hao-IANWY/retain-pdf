@@ -138,6 +138,12 @@ jobs:
         # prepare:workspace rebuild (and its duplicate prepare:workspace run).
         run: npm --prefix frontend/web run typecheck --ignore-scripts
 
+      # tests/layout/* 用 playwright 起真浏览器（顶栏命中、agent 产物沙箱）。runner 上没有
+      # 浏览器，9 月 21 日起这 4 条一直以「Executable doesn't exist」失败。
+      - name: Install Playwright Chromium
+        working-directory: frontend/web
+        run: npx playwright install --with-deps chromium
+
       - name: Frontend Tests
         working-directory: frontend/web
         run: npm test
