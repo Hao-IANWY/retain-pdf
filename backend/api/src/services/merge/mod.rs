@@ -5,6 +5,7 @@
 //!
 //! 拿计划和产物路径去生成合并目录的是 `derived_artifacts::merged`。
 
+pub(crate) mod coverage;
 pub(crate) mod plan;
 pub(crate) mod reading;
 pub(crate) mod sources;

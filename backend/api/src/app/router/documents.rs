@@ -14,6 +14,10 @@ pub(super) fn routes() -> Router<AppState> {
                 .delete(library_data::delete_document_route),
         )
         .route(
+            "/api/v1/documents/:document_id/translation-coverage",
+            get(library_data::get_document_translation_coverage_route),
+        )
+        .route(
             "/api/v1/documents/:document_id/reading",
             get(library_data::get_document_reading_route),
         )

@@ -92,6 +92,26 @@ pub async fn get_document_reading_route(
     Ok(ok_json(view))
 }
 
+/// GET /api/v1/documents/:id/translation-coverage —— 翻译覆盖和任务记录（书籍详情「进度」）。
+///
+/// 只计算合并计划、不生成合并目录；读每个输出 PDF 的页数，放进阻塞线程。
+pub async fn get_document_translation_coverage_route(
+    State(state): State<AppState>,
+    ApiPath(document_id): ApiPath<String>,
+) -> Result<Json<ApiResponse<crate::services::merge::coverage::TranslationCoverageView>>, AppError> {
+    let deps = build_library_route_deps(&state);
+    let document = get_document(&deps.library, &document_id, "")?;
+    let page_count = document.page_count;
+    let db = state.db.clone();
+    let data_root = state.config.data_root.clone();
+    let view = tokio::task::spawn_blocking(move || {
+        crate::services::merge::coverage::translation_coverage(&db, &data_root, &document_id, page_count)
+    })
+    .await
+    .map_err(|_| AppError::internal("translation coverage task failed"))??;
+    Ok(ok_json(view))
+}
+
 /// GET /api/v1/documents/:id/source.pdf — 无翻译 job 也能读源文件。
 pub async fn download_document_source_pdf_route(
     State(state): State<AppState>,

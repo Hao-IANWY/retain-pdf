@@ -339,3 +339,38 @@ async fn an_unknown_merged_id_is_not_found() {
     let response = request(&app, "GET", &format!("/api/v1/jobs/{bogus}")).await;
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }
+
+#[tokio::test]
+async fn translation_coverage_reports_pages_per_job_without_building_a_merge() {
+    let state = state_with_real_pipeline("merged-reading-coverage");
+    let data_root = state.config.data_root.clone();
+    let document_id = seed_document(&state, &["SRC 1", "SRC 2", "SRC 3", "SRC 4"]);
+    seed_range_job(&state, &document_id, "job-whole", "2026-10-01T00:00:00", &[1, 2, 3], &["A1", "A2", "A3"]);
+    // 后来专门重翻第 3 页，并新翻第 4 页。
+    seed_range_job(&state, &document_id, "job-redo", "2026-10-02T00:00:00", &[3, 4], &["B3", "B4"]);
+    let app = build_app(state);
+
+    let response = request(&app, "GET", &format!("/api/v1/documents/{document_id}/translation-coverage")).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let view = read_json(response).await["data"].clone();
+    assert_eq!(view["page_count"], 4);
+    assert_eq!(view["translated_pages"], 4);
+    assert_eq!(view["contributing_jobs"], 2);
+    assert_eq!(
+        view["segments"],
+        json!([
+            { "first": 1, "last": 2, "job_id": "job-whole" },
+            { "first": 3, "last": 4, "job_id": "job-redo" },
+        ])
+    );
+    let jobs = view["jobs"].as_array().unwrap();
+    assert_eq!(jobs[0]["job_id"], "job-redo", "任务记录应新到旧");
+    assert_eq!(jobs[0]["pages"], json!([3, 4]));
+    assert_eq!(jobs[0]["supplied_pages"], 2);
+    assert_eq!(jobs[1]["job_id"], "job-whole");
+    assert_eq!(jobs[1]["pages"], json!([1, 2, 3]), "它翻过 3 页");
+    assert_eq!(jobs[1]["supplied_pages"], 2, "但第 3 页被后来的翻译盖掉了");
+
+    // 只计算、不生成：打开详情页不该触发一次合并。
+    assert!(!data_root.join("documents").join(&document_id).join("merged").exists(), "覆盖接口生成了合并目录");
+}
