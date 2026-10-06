@@ -34,14 +34,17 @@
     height: calc(100dvh - 20px);
   }
 
+  /* 左栏这一行按内容定高：原来固定 112px + overflow:hidden，按钮组被挤到第二行后整个
+   * 被裁掉，手机上没有任何阅读入口。上限 45dvh，超出时左栏自己滚，右栏 tabs 始终露出。 */
   .book-detail-shell-grid {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: 112px minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
   }
 
   .book-detail-shell-left {
+    max-height: 45dvh;
     padding: 12px 50px 12px 12px;
-    overflow: hidden;
+    overflow-y: auto;
     border-right: 0;
     border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
   }
@@ -61,7 +64,9 @@
     border-radius: 10px;
   }
 
+  /* 封面 | 书名身份占第一行，按钮组横跨两列单独一行（否则落进 64px 的封面列）。 */
   .book-detail-cover-buttons {
+    grid-column: 1 / -1;
     display: flex;
     flex-direction: row;
     flex-wrap: wrap;
