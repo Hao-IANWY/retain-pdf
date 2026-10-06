@@ -10,7 +10,8 @@ use crate::storage_paths::{
 };
 
 use super::value_extract::{
-    bbox_from_value, canonical_item_id, region_type_from_item, source_text_from_item, value_string,
+    bbox_from_value, canonical_item_id, heading_level_from_block, reading_order_from_item,
+    region_type_from_item, source_text_from_item, sub_type_from_item, value_string,
 };
 
 #[derive(Clone)]
@@ -22,6 +23,9 @@ pub(super) struct SourceRegion {
     pub(super) region_type: String,
     pub(super) asset_ids: Vec<String>,
     pub(super) asset_urls: Vec<String>,
+    pub(super) reading_order: Option<i64>,
+    pub(super) sub_type: Option<String>,
+    pub(super) heading_level: Option<i64>,
 }
 
 pub(super) fn has_translation_manifest(data_root: &Path, job: &JobSnapshot) -> bool {
@@ -150,7 +154,11 @@ pub(super) fn load_source_region_map(
                     )
                 })
                 .collect();
+            let sub_type = sub_type_from_item(block);
             let region = SourceRegion {
+                heading_level: heading_level_from_block(block, sub_type.as_deref()),
+                reading_order: reading_order_from_item(block, &block_id),
+                sub_type,
                 block_id: block_id.clone(),
                 page: page_idx + 1,
                 bbox,

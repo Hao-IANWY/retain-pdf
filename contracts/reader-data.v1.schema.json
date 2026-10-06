@@ -207,7 +207,12 @@
         "region_type": { "type": "string" },
         "status": { "type": "string" },
         "asset_ids": { "type": "array", "items": { "type": "string" } },
-        "asset_urls": { "type": "array", "items": { "type": "string" } }
+        "asset_urls": { "type": "array", "items": { "type": "string" } },
+        "reading_order": { "type": "integer", "description": "Page-local reading order. Items are emitted sorted by (source.page, reading_order), with source-only blocks interleaved." },
+        "sub_type": { "type": "string", "description": "Normalized document sub_type, e.g. body, heading, title, page_number, reference_entry, figure_caption, image_body, display_formula. Vocabulary depends on the OCR provider." },
+        "heading_level": { "type": "integer", "minimum": 1, "maximum": 6, "description": "Present only for title/heading blocks; 1 is the top level." },
+        "continuation_group_id": { "type": "string", "minLength": 1, "description": "Shared by the blocks of one paragraph that translation joined across blocks or pages." },
+        "translated_block_text": { "type": "string", "description": "Present with continuation_group_id: this block's own share of the translation, while translated.text carries the whole group." }
       }
     },
     "ReaderRegionsView": {

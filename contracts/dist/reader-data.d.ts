@@ -241,6 +241,26 @@ export interface ReaderRegionItem {
     status: string;
     asset_ids: string[];
     asset_urls: string[];
+    /**
+     * Page-local reading order. Items are emitted sorted by (source.page, reading_order), with source-only blocks interleaved.
+     */
+    reading_order?: number;
+    /**
+     * Normalized document sub_type, e.g. body, heading, title, page_number, reference_entry, figure_caption, image_body, display_formula. Vocabulary depends on the OCR provider.
+     */
+    sub_type?: string;
+    /**
+     * Present only for title/heading blocks; 1 is the top level.
+     */
+    heading_level?: number;
+    /**
+     * Shared by the blocks of one paragraph that translation joined across blocks or pages.
+     */
+    continuation_group_id?: string;
+    /**
+     * Present with continuation_group_id: this block's own share of the translation, while translated.text carries the whole group.
+     */
+    translated_block_text?: string;
 }
 /**
  * Reader regions use a one-based page number and a [x0,y0,x1,y1] bbox in top-left-origin PDF points. text may be null for non-text/image blocks.

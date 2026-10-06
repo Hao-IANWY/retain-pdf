@@ -16,8 +16,10 @@ use artifacts::{
 };
 pub(crate) use metadata::load_reader_metadata_view;
 use value_extract::{
-    bbox_from_value, canonical_item_id, markdown_from_item, region_type_from_item,
-    source_text_from_item, translated_text_from_item, translation_status_from_item, value_string,
+    bbox_from_value, block_translated_text_from_item, canonical_item_id,
+    continuation_group_from_item, markdown_from_item, reading_order_from_item,
+    region_type_from_item, source_text_from_item, sub_type_from_item, translated_text_from_item,
+    translation_status_from_item, value_string,
 };
 
 pub(crate) fn load_reader_regions_view(
@@ -26,9 +28,9 @@ pub(crate) fn load_reader_regions_view(
 ) -> Result<ReaderRegionsView, AppError> {
     let source_regions = load_source_region_map(data_root, job)?;
     if !has_translation_manifest(data_root, job) {
-        return Ok(ReaderRegionsView {
-            items: source_only_items(source_regions, &HashSet::new()),
-        });
+        let mut items = source_only_items(source_regions, &HashSet::new());
+        sort_in_reading_order(&mut items);
+        return Ok(ReaderRegionsView { items });
     }
     let mut items = Vec::new();
     let mut translated_source_block_ids = HashSet::new();
@@ -69,6 +71,26 @@ pub(crate) fn load_reader_regions_view(
                 .as_ref()
                 .map(|region| region.asset_urls.clone())
                 .unwrap_or_default();
+            let reading_order = source_region
+                .as_ref()
+                .and_then(|region| region.reading_order)
+                .or_else(|| reading_order_from_item(&item, &item_id));
+            let sub_type = source_region
+                .as_ref()
+                .and_then(|region| region.sub_type.clone())
+                .or_else(|| sub_type_from_item(&item));
+            let heading_level = source_region
+                .as_ref()
+                .and_then(|region| region.heading_level)
+                .or_else(|| match sub_type.as_deref() {
+                    Some("title") => Some(1),
+                    Some("heading") => Some(2),
+                    _ => None,
+                });
+            let continuation_group_id = continuation_group_from_item(&item);
+            let translated_block_text = continuation_group_id
+                .as_ref()
+                .and_then(|_| block_translated_text_from_item(&item));
             let source = source_region
                 .map(|region| ReaderRegionBoxView {
                     page: region.page,
@@ -99,6 +121,11 @@ pub(crate) fn load_reader_regions_view(
                 status,
                 asset_ids,
                 asset_urls,
+                reading_order,
+                sub_type,
+                heading_level,
+                continuation_group_id,
+                translated_block_text,
             });
         }
     }
@@ -106,7 +133,14 @@ pub(crate) fn load_reader_regions_view(
         source_regions,
         &translated_source_block_ids,
     ));
+    sort_in_reading_order(&mut items);
     Ok(ReaderRegionsView { items })
+}
+
+/// Interleaves translated and source-only blocks in document order. The sort
+/// is stable, so blocks without an order keep their position on the page.
+fn sort_in_reading_order(items: &mut [ReaderRegionItemView]) {
+    items.sort_by_key(|item| (item.source.page, item.reading_order.unwrap_or(i64::MAX)));
 }
 
 fn source_only_items(
@@ -143,7 +177,15 @@ fn source_only_items(
                 status: "source_only".to_string(),
                 asset_ids: region.asset_ids,
                 asset_urls: region.asset_urls,
+                reading_order: region.reading_order,
+                sub_type: region.sub_type,
+                heading_level: region.heading_level,
+                continuation_group_id: None,
+                translated_block_text: None,
             }
         })
         .collect()
 }
+
+#[cfg(test)]
+mod tests;

@@ -128,3 +128,49 @@ pub(super) fn translation_status_from_item(item: &Value) -> String {
         "pending".to_string()
     }
 }
+
+/// Page-local reading order. Falls back to the block number in the id so
+/// artifacts without explicit order still sort in provider order.
+pub(super) fn reading_order_from_item(item: &Value, item_id: &str) -> Option<i64> {
+    ["order", "reading_order"]
+        .iter()
+        .find_map(|key| item.get(*key).and_then(Value::as_i64))
+        .or_else(|| {
+            let (_, block) = item_id.split_once("-b")?;
+            block.parse::<i64>().ok()
+        })
+}
+
+pub(super) fn sub_type_from_item(item: &Value) -> Option<String> {
+    value_string_first(item, &["sub_type", "normalized_sub_type"])
+}
+
+pub(super) fn heading_level_from_block(block: &Value, sub_type: Option<&str>) -> Option<i64> {
+    let provider_level = block
+        .get("metadata")
+        .and_then(|metadata| metadata.get("raw_title_level"))
+        .and_then(Value::as_i64)
+        .filter(|level| (1..=6).contains(level));
+    match sub_type? {
+        "title" => Some(provider_level.unwrap_or(1)),
+        "heading" => Some(provider_level.unwrap_or(2)),
+        _ => None,
+    }
+}
+
+/// Only translation units that actually joined several blocks carry a group id;
+/// rejected candidates leave continuation_group empty.
+pub(super) fn continuation_group_from_item(item: &Value) -> Option<String> {
+    let members = item
+        .get("translation_unit_member_ids")
+        .and_then(Value::as_array)
+        .map_or(0, Vec::len);
+    if members < 2 {
+        return None;
+    }
+    value_string_first(item, &["continuation_group"])
+}
+
+pub(super) fn block_translated_text_from_item(item: &Value) -> Option<String> {
+    value_string_first(item, &["protected_translated_text", "translated_text"])
+}

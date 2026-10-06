@@ -103,6 +103,22 @@ pub struct ReaderRegionItemView {
     pub status: String,
     pub asset_ids: Vec<String>,
     pub asset_urls: Vec<String>,
+    /// Page-local reading order; items are emitted sorted by (source.page, reading_order).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reading_order: Option<i64>,
+    /// Normalized document sub_type (body, heading, title, page_number, ...).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sub_type: Option<String>,
+    /// Markdown heading depth for title/heading blocks; 1 is the top level.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub heading_level: Option<i64>,
+    /// Shared by the blocks of one paragraph that was split across blocks or pages.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub continuation_group_id: Option<String>,
+    /// Set with continuation_group_id: this block's own share of the translation,
+    /// while translated.text carries the whole group's text.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub translated_block_text: Option<String>,
 }
 
 #[derive(Debug, Serialize, Clone, PartialEq)]
