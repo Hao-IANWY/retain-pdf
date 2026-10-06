@@ -138,7 +138,8 @@ def test_typst_overlay_can_use_block_cover_fill_as_fallback() -> None:
 
     source = build_typst_overlay_source(200.0, 300.0, translated_items)
 
-    assert "rect(" not in source
-    assert "fill: rgb(255, 255, 255)" in source
+    # 底色是单独一块裁到 OCR 框里的矩形，文字 block 本身不再带 fill
+    assert "rect(width: 110.0pt, height: 42.0pt, fill: rgb(255, 255, 255)" in source
+    assert "pt, fill: rgb(255, 255, 255))[" not in source
 
 
