@@ -64,6 +64,18 @@
 @import "../../features/ask/ui/HomeAskComposer.css";
 @import "../../features/ask/ui/HomeAskResponsive.css";
 @import "../pages/home/app-settings.css";
+/* 主页外壳与书架：样式放在组件旁边；library-shell.css 里有普通规则必须最后（顺序与拆分前一致）。 */
+@import "../../features/reader/ui/SoftReaderHost.css";
+@import "../../app/home/shell/AppTopBar.css";
+@import "../../features/collections/ui/CollectionsView.css";
+@import "../pages/home/favorites.css";
+@import "../../ui/icons/EmptyState.css";
+@import "../../features/library/ui/page/RecentJobsLibrary.css";
+@import "../../features/library/ui/page/LibraryBatchToolbar.css";
+@import "../../app/home/shell/AppBottomBar.css";
+@import "../../features/app-update/ui/AppUpdateBanner.css";
+@import "../../features/library/ui/shell/BookCard.css";
+@import "../../app/home/shell/MockModeBanner.css";
 @import "../pages/home/library-shell.css";
 @import "../pages/home/library-search-island.css";
 @import "../pages/home/upload-workflow.css";

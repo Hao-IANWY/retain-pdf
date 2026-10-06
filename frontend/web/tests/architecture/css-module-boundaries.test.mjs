@@ -2,7 +2,7 @@
 //
 // 1. 单个样式文件不超过 MAX_LINES 行。现存超标的登记在 helpers/css-oversize-allowlist.json，
 //    只减不增：超过登记行数失败；降到上限以内必须从清单里删掉（不许留白名单）。
-// 2. 放在组件旁边的样式（src/features/** 与 src/ui/** 下的 .css）开头必须声明
+// 2. 放在组件旁边的样式（src/features/**、src/ui/**、src/app/** 下的 .css）开头必须声明
 //        @owns 前缀, 前缀…   这个文件负责的类名前缀
 //        @uses 类名, 类名…   （可选）确实要引用的别的组件的类
 //    文件里每个选择器用到的类名，只能是自己的前缀、is-/has-/data 状态类，或 @uses 登记的。
@@ -84,7 +84,7 @@ function header(css, tag) {
 const STATE_CLASS = /^(is|has)-/;
 
 test("组件旁的样式只碰自己的类（@owns），引用别人的必须登记 @uses", () => {
-  const colocated = allCss.filter((file) => file.startsWith("src/features/") || file.startsWith("src/ui/"));
+  const colocated = allCss.filter((file) => ["src/features/", "src/ui/", "src/app/"].some((root) => file.startsWith(root)));
   const problems = [];
   for (const file of colocated) {
     const css = readFileSync(join(ROOT, file), "utf8");
