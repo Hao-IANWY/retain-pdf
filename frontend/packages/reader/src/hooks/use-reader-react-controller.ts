@@ -149,10 +149,22 @@ export function useReaderReactController(): ReaderReactController {
     jobStatus: session.jobStatus,
     workflow: session.workflow,
   });
+  // 打开时就已经成功、且有最终译文 PDF 的任务，不跟实时译文：用不上，而且它会从头
+  // 重放全部事件、逐页取快照，追不上的页每页重试一串 409（48 页的书开着一直在打）。
+  // 本次会话里见过任务在跑的照旧跟到底 —— 运行中 → 成功切到最终 PDF 的那一下，
+  // 已经出来的实时页不能丢（见 shouldEnableLiveTranslation 的注释）。
+  const sawRunningRef = useRef({ jobId: "", running: false });
+  if (sawRunningRef.current.jobId !== session.jobId) {
+    sawRunningRef.current = { jobId: session.jobId, running: false };
+  }
+  const normalizedStatus = `${session.jobStatus || ""}`.trim().toLowerCase();
+  if (normalizedStatus && !["succeeded", "failed", "cancelled", "canceled"].includes(normalizedStatus)) {
+    sawRunningRef.current.running = true;
+  }
   const liveTranslation = useLiveTranslation({
     jobId: session.jobId,
     jobStatus: session.jobStatus,
-    enabled: liveTranslationTracked,
+    enabled: liveTranslationTracked && (liveTranslationAvailable || sawRunningRef.current.running),
   });
   const { shellRef, shellEl, shellWidth, bindShell } = useReaderShell();
   const viewStateKey = readerViewStateScope({

@@ -115,9 +115,17 @@ function normalizeBox(value: unknown): ReaderRegionBox | null {
   };
 }
 
+/**
+ * 接口响应（`{ items: [...] }`，可带 `{ data }` 信封）→ ReaderRegion[]。
+ *
+ * 必须幂等：宿主的 loadSessionSnapshot 已经归一化过一次，session-assets 又会再调一次。
+ * 以前这里只认 `{ items }`，第二次拿到的是数组，直接返回空 —— 阅读器里的内容块数恒为 0，
+ * 悬停红框、整块复制、点块浮条全部失效（接口明明返回了 875 块）。
+ */
 export function normalizeReaderRegions(payload: unknown): ReaderRegion[] {
-  const object = asObject(unwrapData(payload));
-  const items = Array.isArray(object?.items) ? object.items : [];
+  const unwrapped = unwrapData(payload);
+  const object = asObject(unwrapped);
+  const items = Array.isArray(unwrapped) ? unwrapped : Array.isArray(object?.items) ? object.items : [];
   const regions: ReaderRegion[] = [];
   for (const raw of items) {
     const item = asObject(raw);
@@ -132,10 +140,10 @@ export function normalizeReaderRegions(payload: unknown): ReaderRegion[] {
       markdown: `${item?.markdown || ""}`,
       regionType: `${item?.region_type || item?.regionType || ""}`,
       status: `${item?.status || ""}`,
-      assetIds: (Array.isArray(item?.asset_ids) ? item.asset_ids : [])
+      assetIds: (Array.isArray(item?.asset_ids) ? item.asset_ids : Array.isArray(item?.assetIds) ? item.assetIds : [])
         .map((value) => `${value || ""}`.trim())
         .filter(Boolean),
-      assetUrls: (Array.isArray(item?.asset_urls) ? item.asset_urls : [])
+      assetUrls: (Array.isArray(item?.asset_urls) ? item.asset_urls : Array.isArray(item?.assetUrls) ? item.assetUrls : [])
         .map((value) => `${value || ""}`.trim())
         .filter(Boolean),
     });

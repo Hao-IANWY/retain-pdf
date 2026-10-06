@@ -285,7 +285,8 @@
   transition: opacity 120ms ease, transform 120ms ease;
 }
 
-/* 普通文字的被动命中层：仅绘制悬停框，不阻断 textLayer 的拖选。 */
+/* 普通文字的悬停层：红色虚线框 + 右上角「复制」（对照时左右两栏同一块一起画）。
+   层本身不接事件，不阻断 textLayer 的拖选；只有复制按钮可点。 */
 .reader-text-hover-layer {
   position: absolute;
   z-index: 5;
@@ -298,28 +299,41 @@
 .reader-text-hover-frame {
   position: absolute;
   box-sizing: border-box;
-  border: 1px solid color-mix(in srgb, var(--ink) 46%, transparent);
-  border-radius: 5px;
-  background: color-mix(in srgb, var(--paper) 5%, transparent);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--paper) 62%, transparent);
+  border: 2px dashed color-mix(in srgb, var(--danger) 88%, transparent);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--danger) 4%, transparent);
   animation: reader-text-hover-in 100ms ease-out both;
 }
 
-.reader-text-hover-label {
+/* 贴在框的右上角外侧：不盖住正文第一行。 */
+.reader-text-hover-copy {
   position: absolute;
-  top: 5px;
-  left: 5px;
+  top: -11px;
+  right: -2px;
   display: inline-flex;
   align-items: center;
-  min-height: 17px;
-  padding: 0 6px;
+  min-height: 20px;
+  padding: 0 8px;
+  border: 1px solid color-mix(in srgb, var(--danger) 55%, transparent);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--ink) 86%, transparent);
-  color: var(--paper);
-  font-size: 9px;
-  font-weight: 720;
+  background: var(--paper);
+  color: var(--danger);
+  font-size: 11px;
+  font-weight: 650;
   line-height: 1;
   white-space: nowrap;
+  cursor: pointer;
+  pointer-events: auto;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--ink) 10%, transparent);
+}
+
+.reader-text-hover-copy:hover {
+  background: color-mix(in srgb, var(--danger) 8%, var(--paper));
+}
+
+.reader-text-hover-copy[data-copy-state="copied"] {
+  border-color: color-mix(in srgb, var(--ok) 55%, transparent);
+  color: var(--ok);
 }
 
 @keyframes reader-text-hover-in {

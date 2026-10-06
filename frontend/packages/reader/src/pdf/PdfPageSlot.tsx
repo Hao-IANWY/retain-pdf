@@ -20,11 +20,18 @@ import {
   READER_PDF_PAGE_PLACEHOLDER_CLASS,
   type ReaderPaneId,
 } from "./reader-dom-contract.js";
-import { projectReaderRegion, type ReaderRegionHighlight, type ReaderRegionSelection } from "../shared/data/reader-regions.js";
+import {
+  projectReaderRegion,
+  readerRegionContent,
+  type ReaderRegionHighlight,
+  type ReaderRegionSelection,
+} from "../shared/data/reader-regions.js";
 import { ReaderStructureSelectionLayer } from "./ReaderStructureSelectionLayer.js";
 import {
+  copyReaderText,
   hitTestReaderTextHoverTarget,
   projectReaderTextHoverTargets,
+  READER_TEXT_HOVER_COPY_CLASS,
   ReaderTextHoverLayer,
 } from "./ReaderTextHoverLayer.js";
 import { LiveTranslationOverlay } from "./LiveTranslationOverlay.js";
@@ -51,6 +58,12 @@ type PdfPageSlotProps = {
   regionHighlight?: ReaderRegionHighlight | null;
   regionTargets?: ReaderRegionHighlight[];
   onSelectRegion?: (selection: ReaderRegionSelection) => void;
+  /**
+   * 对照阅读时左右两栏共享的悬停块（itemId）。给了 onHoverRegion 就由外面管，
+   * 鼠标在哪栏，两栏都画同一块的框；没给（单栏）就用本页自己的状态。
+   */
+  hoveredRegionId?: string | null;
+  onHoverRegion?: (itemId: string | null) => void;
   liveTranslationLayout?: LiveTranslationLayoutPage;
   liveTranslationPage?: LiveTranslationPageState;
   showLiveTranslation?: boolean;
@@ -70,6 +83,8 @@ function PdfPageSlotInner({
   regionHighlight = null,
   regionTargets = [],
   onSelectRegion,
+  hoveredRegionId,
+  onHoverRegion,
   liveTranslationLayout,
   liveTranslationPage,
   showLiveTranslation = pane === "source",
@@ -102,7 +117,17 @@ function PdfPageSlotInner({
     () => projectReaderTextHoverTargets(regionTargets, width, naturalHeight),
     [naturalHeight, regionTargets, width],
   );
-  const [hoveredTextId, setHoveredTextId] = useState<string | null>(null);
+  const [localHoveredTextId, setLocalHoveredTextId] = useState<string | null>(null);
+  const controlled = typeof onHoverRegion === "function";
+  const hoveredTextId = controlled ? hoveredRegionId ?? null : localHoveredTextId;
+  const setHoveredTextId = (next: string | null) => {
+    if (controlled) {
+      if (next !== (hoveredRegionId ?? null)) onHoverRegion?.(next);
+    } else {
+      setLocalHoveredTextId((current) => (current === next ? current : next));
+    }
+  };
+  const [copiedSignal, setCopiedSignal] = useState(0);
   const hoveredTextTarget = useMemo(
     () => textHoverTargets.find((target) => target.itemId === hoveredTextId) || null,
     [hoveredTextId, textHoverTargets],
@@ -120,13 +145,30 @@ function PdfPageSlotInner({
       event.clientX - hostRect.left,
       event.clientY - hostRect.top,
     );
-    const nextId = target?.itemId || null;
-    setHoveredTextId((current) => current === nextId ? current : nextId);
+    setHoveredTextId(target?.itemId || null);
+  };
+
+  // 双击一个内容块：整块复制（左栏原文、右栏译文），框上的按钮显示「已复制」。
+  // 浏览器默认的双击选词这时没有意义，顺手清掉。
+  const handleTextRegionDoubleClick = async (event: ReactMouseEvent<HTMLDivElement>) => {
+    if ((event.target as HTMLElement | null)?.closest?.(`.${READER_TEXT_HOVER_COPY_CLASS}`)) return;
+    const hostRect = event.currentTarget.getBoundingClientRect();
+    const target = hitTestReaderTextHoverTarget(
+      textHoverTargets,
+      event.clientX - hostRect.left,
+      event.clientY - hostRect.top,
+    );
+    if (!target) return;
+    const text = readerRegionContent(target.highlight.region, pane === "translated" ? "translated" : "source");
+    if (!text) return;
+    window.getSelection()?.removeAllRanges();
+    if (await copyReaderText(text)) setCopiedSignal((value) => value + 1);
   };
 
   const handleTextRegionClick = (event: ReactMouseEvent<HTMLDivElement>) => {
     if (!onSelectRegion) return;
     if ((event.target as HTMLElement | null)?.closest?.(".reader-structure-selection-target")) return;
+    if ((event.target as HTMLElement | null)?.closest?.(`.${READER_TEXT_HOVER_COPY_CLASS}`)) return;
     // 用户刚完成原生拖选时保留浏览器选区，不把它误判成整块点击。
     if (`${window.getSelection()?.toString() || ""}`.trim()) return;
     const hostRect = event.currentTarget.getBoundingClientRect();
@@ -176,6 +218,7 @@ function PdfPageSlotInner({
       // placing an interactive overlay above the native text selection layer.
       onPointerMoveCapture={handlePointerMove}
       onClick={handleTextRegionClick}
+      onDoubleClick={handleTextRegionDoubleClick}
       onPointerLeave={() => setHoveredTextId(null)}
       style={{
         width,
@@ -236,7 +279,11 @@ function PdfPageSlotInner({
           height={naturalHeight}
         />
       ) : null}
-      <ReaderTextHoverLayer target={active ? hoveredTextTarget : null} />
+      <ReaderTextHoverLayer
+        target={active ? hoveredTextTarget : null}
+        pane={pane === "translated" ? "translated" : "source"}
+        copiedSignal={copiedSignal}
+      />
       <ReaderStructureSelectionLayer
         pane={pane === "translated" ? "translated" : "source"}
         width={width}

@@ -98,6 +98,9 @@ type PdfDocumentPaneProps = {
   regions?: ReaderRegion[];
   readerMetadata?: ReaderMetadata | null;
   onSelectRegion?: (selection: ReaderRegionSelection) => void;
+  /** 对照阅读时两栏共享的悬停块（见 PdfPageSlot）。 */
+  hoveredRegionId?: string | null;
+  onHoverRegion?: (itemId: string | null) => void;
   liveTranslation?: LiveTranslationState;
   /** Render live translation blocks in this pane, independent of source/translated identity. */
   showLiveTranslation?: boolean;
@@ -127,6 +130,8 @@ const PdfDocumentPaneInner = forwardRef<HTMLElement, PdfDocumentPaneProps>(
       regions = [],
       readerMetadata = null,
       onSelectRegion,
+      hoveredRegionId = null,
+      onHoverRegion,
       liveTranslation,
       showLiveTranslation = pane === "source",
       liveTranslationPendingLabel = "",
@@ -424,6 +429,15 @@ const PdfDocumentPaneInner = forwardRef<HTMLElement, PdfDocumentPaneProps>(
       }
       return map;
     }, [pane, readerMetadata, regions]);
+    // 悬停块在本栏落在哪几页（跨页的块会有两页）。
+    const hoveredPages = useMemo(() => {
+      const pages = new Set<number>();
+      if (!hoveredRegionId) return pages;
+      for (const [page, list] of regionTargetsByPage) {
+        if (list.some((highlight) => highlight.itemId === hoveredRegionId)) pages.add(page);
+      }
+      return pages;
+    }, [hoveredRegionId, regionTargetsByPage]);
 
     // 批注按 block_id 找到对应的 region，再按 pane 解析成 bbox —— 和 regions
     // 完全同一条路。一条批注因此在原文栏和译文栏各自定位：锚点是语义的
@@ -526,6 +540,9 @@ const PdfDocumentPaneInner = forwardRef<HTMLElement, PdfDocumentPaneProps>(
                       regionHighlight={regionHighlight?.box.page === pageNumber ? regionHighlight : null}
                       regionTargets={regionTargetsByPage.get(pageNumber)}
                       onSelectRegion={onSelectRegion}
+                      // 只交给含这一块的页：悬停一变，其它页的 props 不变，不重渲染。
+                      hoveredRegionId={hoveredRegionId && hoveredPages.has(pageNumber) ? hoveredRegionId : null}
+                      onHoverRegion={onHoverRegion}
                       liveTranslationLayout={liveTranslation?.layoutByPage.get(pageNumber - 1)}
                       liveTranslationPage={liveTranslation?.pagesByPage.get(pageNumber - 1)}
                       showLiveTranslation={showLiveTranslation}

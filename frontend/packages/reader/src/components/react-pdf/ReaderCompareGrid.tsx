@@ -1,4 +1,4 @@
-import type { ReactElement } from "react";
+import { useCallback, useState, type ReactElement } from "react";
 import type { ReactNode } from "react";
 import { PdfDocumentPane } from "../../pdf/PdfDocumentPane.js";
 import type { ProtectedPdfFile } from "../../pdf/useProtectedPdfFile.js";
@@ -181,6 +181,9 @@ export function ReaderCompareGrid(props: ReaderCompareGridProps): ReactElement {
 
   const readerMetadata = props.readerMetadata ?? ctx?.readerMetadata;
   const onSelectRegion = props.onSelectRegion ?? ctx?.onSelectRegion;
+  // 悬停的内容块两栏共享：鼠标在哪栏，左右都画同一块的红框（各自复制本栏的文字）。
+  const [hoveredRegionId, setHoveredRegionId] = useState<string | null>(null);
+  const handleHoverRegion = useCallback((itemId: string | null) => setHoveredRegionId(itemId), []);
 
   const presentation = resolveReaderGridPresentation({
     mode,
@@ -237,6 +240,8 @@ export function ReaderCompareGrid(props: ReaderCompareGridProps): ReactElement {
             regions={regions}
             readerMetadata={readerMetadata}
             onSelectRegion={onSelectRegion}
+            hoveredRegionId={hoveredRegionId}
+            onHoverRegion={handleHoverRegion}
             // 流式译文直接叠加在源栏原文 PDF 上（overlayOnSource，用户主动触发）。
             // 对照态不再消栏：右栏（最终译文 PDF）照常保留。叠加 badge 由
             // sourcePaneAction 组合透出，避免与「左右都是中文」混淆。
@@ -276,6 +281,8 @@ export function ReaderCompareGrid(props: ReaderCompareGridProps): ReactElement {
             regions={regions}
             readerMetadata={readerMetadata}
             onSelectRegion={onSelectRegion}
+            hoveredRegionId={hoveredRegionId}
+            onHoverRegion={handleHoverRegion}
             // 译文 PDF 栏就是最终译文本身，绝不叠加流式画布。
             liveTranslation={undefined}
             showLiveTranslation={false}

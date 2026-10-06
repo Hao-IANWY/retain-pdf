@@ -60,6 +60,13 @@ export type ReaderRegionRect = {
     width: number;
     height: number;
 };
+/**
+ * 接口响应（`{ items: [...] }`，可带 `{ data }` 信封）→ ReaderRegion[]。
+ *
+ * 必须幂等：宿主的 loadSessionSnapshot 已经归一化过一次，session-assets 又会再调一次。
+ * 以前这里只认 `{ items }`，第二次拿到的是数组，直接返回空 —— 阅读器里的内容块数恒为 0，
+ * 悬停红框、整块复制、点块浮条全部失效（接口明明返回了 875 块）。
+ */
 export declare function normalizeReaderRegions(payload: unknown): ReaderRegion[];
 export declare function readerRegionKind(regionType: string): ReaderRegionKind;
 export declare function readerRegionKindForRegion(region: ReaderRegion): ReaderRegionKind;
