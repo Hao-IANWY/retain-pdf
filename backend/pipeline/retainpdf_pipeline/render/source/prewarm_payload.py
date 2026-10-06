@@ -13,6 +13,8 @@ from retainpdf_pipeline.services.pipeline_shared.events import emit_stage_progre
 from retainpdf_pipeline.render.layout.payload.block_seed_metrics import collect_page_seed_metrics
 from retainpdf_pipeline.render.layout.payload.first_line_indent import MAX_INDENT_EM
 from retainpdf_pipeline.render.layout.payload.first_line_indent import detect_first_line_indent_pt_with_displaylist
+from retainpdf_pipeline.render.layout.payload.first_line_indent import detect_first_line_indent_pt_from_text_lines
+from retainpdf_pipeline.render.layout.payload.first_line_indent import page_text_line_boxes
 from retainpdf_pipeline.render.layout.payload.first_line_indent import is_first_line_indent_candidate
 from retainpdf_pipeline.render.layout.payload.render_item import get_render_first_line_indent_pt
 from retainpdf_pipeline.render.layout.payload.render_item import seed_render_fields
@@ -303,6 +305,7 @@ def collect_first_line_indent_lookup(
         stats.setdefault("pixmap_enabled", pixmap_enabled)
         stats.setdefault("pixmap_reason", str(policy.get("reason", "")))
         stats.setdefault("pixmap_disabled_candidates", 0)
+    text_lines: list[tuple[float, float, float, float]] | None = None
     for index, item in enumerate(items):
         item_id = str(item.get("item_id", "") or "")
         if not item_id:
@@ -322,6 +325,24 @@ def collect_first_line_indent_lookup(
             sink[item_id] = line_indent
             if stats is not None:
                 stats["line_hits"] = int(stats.get("line_hits", 0)) + 1
+            continue
+        # 可复制的 PDF：直接读文字层每行的起点。一页只取一次；读不到这一块（扫描件、
+        # 文字层没盖住）才往下走渲染灰度图那条贵的路。
+        if text_lines is None:
+            text_lines = page_text_line_boxes(source_doc[page_idx])
+        text_indent = detect_first_line_indent_pt_from_text_lines(
+            item,
+            text_lines,
+            font_size_pt=font_size_pt,
+            page_text_width_med=metrics.page_text_width_med,
+        )
+        if text_indent is not None:
+            if stats is not None:
+                stats["text_layer_checked"] = int(stats.get("text_layer_checked", 0)) + 1
+            if text_indent > 0:
+                sink[item_id] = text_indent
+                if stats is not None:
+                    stats["text_layer_hits"] = int(stats.get("text_layer_hits", 0)) + 1
             continue
         if stats is not None:
             stats["pixmap_candidates"] = int(stats.get("pixmap_candidates", 0)) + 1
