@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from retainpdf_pipeline.translate.core.item_reader import item_policy_translate
 from retainpdf_pipeline.translate.llm.result_payload import result_entry
 from retainpdf_pipeline.translate.llm.validation.placeholder_tokens import strip_placeholders
+from retainpdf_pipeline.translate.services.fast_path.fixed_translations import FIXED_TRANSLATION_REASON
+from retainpdf_pipeline.translate.services.fast_path.fixed_translations import fixed_translation_for
 from retainpdf_pipeline.translate.services.policy import should_fast_path_keep_origin
 
 
@@ -42,6 +44,21 @@ def _plan_item_view(item: dict) -> _PlanItemView:
 
 
 def _fast_path_keep_origin_result(item: dict, reason: str) -> dict[str, dict[str, str]]:
+    """不发模型请求的即时结果。名字沿用历史：除了保留原文，也承载字典直译（见 fixed_translations）。"""
+    if reason == FIXED_TRANSLATION_REASON:
+        fixed = fixed_translation_for(item)
+        if fixed:
+            payload = result_entry("translate", fixed)
+            payload["translation_diagnostics"] = {
+                "item_id": item.get("item_id", ""),
+                "page_idx": item.get("page_idx"),
+                "route_path": ["block_level", "fast_path_fixed_translation"],
+                "output_mode_path": [],
+                "fallback_to": "",
+                "degradation_reason": "",
+                "final_status": "translated",
+            }
+            return {str(item.get("item_id", "") or ""): payload}
     payload = result_entry("keep_origin", "")
     payload["translation_diagnostics"] = {
         "item_id": item.get("item_id", ""),
@@ -59,7 +76,12 @@ def _is_fast_path_keep_origin_item(item: dict) -> tuple[bool, str]:
     from retainpdf_pipeline.translate.core.execution_policy import is_standalone_number
     if is_standalone_number(item):
         return True, "skip_standalone_number"
-    return should_fast_path_keep_origin(item)
+    should_keep, reason = should_fast_path_keep_origin(item)
+    if should_keep:
+        return True, reason
+    if fixed_translation_for(item):
+        return True, FIXED_TRANSLATION_REASON
+    return False, ""
 
 
 __all__ = [

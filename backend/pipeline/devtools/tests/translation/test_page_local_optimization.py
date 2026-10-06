@@ -16,7 +16,7 @@ def test_only_explicit_number_forms_skip(text):
     assert is_standalone_number({"source_text": text})
 
 
-@pytest.mark.parametrize("text", ["Introduction", "LiTMP", "12 mg", "1.2", "1+2", "(a)", "结论", "", "123abc", "−1", "¹", "1,000"])
+@pytest.mark.parametrize("text", ["Introduction", "LiTMP", "12 mg", "1.2", "1+2", "(S1)", "a", "结论", "", "123abc", "−1", "¹", "1,000"])
 def test_scientific_or_ambiguous_content_does_not_skip(text):
     assert not is_standalone_number({"source_text": text})
 
@@ -28,9 +28,10 @@ def test_protected_or_group_member_does_not_skip(extra):
     assert not is_standalone_number({"source_text": "(1)", **extra})
 
 
-def test_strategy_is_opt_in_and_legacy_unchanged(monkeypatch):
+def test_strategy_is_opt_in_but_standalone_number_skip_is_default(monkeypatch):
+    # 纯编号块的快速通道已默认开启（见 test_standalone_fast_path.py），不再随 page_local_v1 开关。
     monkeypatch.setenv("RETAIN_TRANSLATION_OPTIMIZATION", "baseline")
-    assert not is_standalone_number({"source_text": "1"})
+    assert is_standalone_number({"source_text": "1"})
     monkeypatch.setenv("RETAIN_TRANSLATION_OPTIMIZATION", "bad")
     with pytest.raises(ValueError):
         strategy()
