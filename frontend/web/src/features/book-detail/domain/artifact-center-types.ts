@@ -94,6 +94,8 @@ export type ArtifactCenterSection = {
   description: string;
   items: ArtifactCenterItem[];
   jobs: ArtifactCenterJob[];
+  /** 文件页去重后用：这一组的文件和「翻译与阅读」里的相同，已在那里显示。 */
+  mergedIntoTranslation?: boolean;
 };
 
 export type ArtifactQuickDownloadId = "source" | "markdown" | "translated" | "comparison" | "word";
@@ -101,6 +103,8 @@ export type ArtifactQuickDownloads = Record<ArtifactQuickDownloadId, ArtifactCen
 
 export type BuildArtifactCenterInput = {
   documentId: string;
+  /** 书名（详情页显示的那个）：文件页列表据此写出下载文件名。没有就显示存储时的原名。 */
+  title?: string;
   source?: {
     filename?: string;
     url?: string;

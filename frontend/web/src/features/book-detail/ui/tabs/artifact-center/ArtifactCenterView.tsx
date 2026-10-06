@@ -205,9 +205,11 @@ export function ArtifactCenterView({
               </ul>
             ) : (
               <p className="book-detail-artifact-empty">
-                {layout.debug.length
-                  ? "这次任务没有可直接使用的文件，排查用的文件在下方「调试文件」里。"
-                  : "任务已记录，当前没有后端可下载产物。"}
+                {section.mergedIntoTranslation
+                  ? "OCR 产出的 Markdown、结构化文档等和下方「翻译与阅读」里的是同一批，已合并显示在那里。"
+                  : layout.debug.length
+                    ? "这次任务没有可直接使用的文件，排查用的文件在下方「调试文件」里。"
+                    : "任务已记录，当前没有后端可下载产物。"}
               </p>
             )}
           </section>
@@ -222,14 +224,14 @@ export function ArtifactCenterView({
             <small>{layout.debug.length} 个 · 事件日志、请求记录、OCR 原始数据和旧任务的文件，排查问题时才用得上</small>
           </summary>
           <ul className="book-detail-artifact-items">
-            {layout.debug.map(({ item, sectionLabel, superseded }) => (
+            {layout.debug.map(({ item, sectionLabel, superseded, duplicate }) => (
               <ArtifactRow
                 key={item.id}
                 item={item}
                 downloading={downloadingId === item.id}
                 onPreview={preview}
                 onDownload={onDownload}
-                context={superseded ? `${sectionLabel} · 旧版本` : sectionLabel}
+                context={superseded ? `${sectionLabel} · 旧版本` : duplicate ? `${sectionLabel} · 与「翻译与阅读」重复` : sectionLabel}
                 withAttempt
               />
             ))}

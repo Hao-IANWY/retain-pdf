@@ -154,6 +154,7 @@ export function BookDetailDialog() {
     active: open,
     documentId,
     refreshRevision: documentJobs.succeededRevision,
+    title: docState.doc?.title || item.title || "",
     source: {
       filename: docState.doc?.source_filename || item.source_filename || item.title,
       url: docState.doc?.source_pdf_url || item.source_pdf_url,

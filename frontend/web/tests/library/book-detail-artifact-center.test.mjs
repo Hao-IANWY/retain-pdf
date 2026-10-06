@@ -339,3 +339,29 @@ test("artifact center: 识别报告不被「结构化文档」吃掉", () => {
   const labels = sections.flatMap((section) => section.items.map((item) => item.label));
   assert.deepEqual(labels.filter((label) => label !== "原始 PDF"), ["识别报告"]);
 });
+
+test("artifact center: OCR 组和「翻译与阅读」都有的同名文件，以翻译组为准；只做了 OCR 的书 OCR 组照常摆", () => {
+  const jobs = [
+    { job_id: "tr", workflow: "book", status: "succeeded", attempt: 1, created_at: "2026-10-06T03:00:00Z", updated_at: "2026-10-06T03:05:00Z" },
+    { job_id: "tr-ocr", workflow: "ocr", status: "succeeded", attempt: 1, created_at: "2026-10-06T03:00:00Z", updated_at: "2026-10-06T03:02:00Z" },
+  ];
+  const md = (path) => ({ artifact_key: "markdown_raw", artifact_group: "markdown", ready: true, file_name: "full.md", resource_path: path });
+  const sections = buildArtifactCenterSections({
+    documentId: "doc-1",
+    source,
+    jobs,
+    manifests: { tr: { items: [md("/tr/md")] }, "tr-ocr": { items: [md("/ocr/md")] } },
+  });
+  const layout = layoutArtifactCenter(sections);
+  const visibleUrls = layout.sections.flatMap((section) => section.items.map((item) => item.url));
+  assert.ok(visibleUrls.includes("/tr/md"), "翻译组的 Markdown 留在明面上");
+  assert.ok(!visibleUrls.includes("/ocr/md"), "OCR 组的同名 Markdown 不再重复摆");
+  const dup = layout.debug.find((entry) => entry.item.url === "/ocr/md");
+  assert.equal(dup?.duplicate, true, "收进调试区，标成重复");
+  assert.equal(layout.sections.find((section) => section.id === "ocr")?.mergedIntoTranslation, true, "OCR 组被合并空了要能说明原因");
+
+  const ocrOnly = layoutArtifactCenter(buildArtifactCenterSections({
+    documentId: "doc-1", source, jobs: [jobs[1]], manifests: { "tr-ocr": { items: [md("/ocr/md")] } },
+  }));
+  assert.ok(ocrOnly.sections.find((section) => section.id === "ocr").items.some((item) => item.url === "/ocr/md"));
+});

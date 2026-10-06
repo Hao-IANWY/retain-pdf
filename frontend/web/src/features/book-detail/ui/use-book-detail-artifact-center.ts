@@ -72,12 +72,15 @@ export function useBookDetailArtifactCenter({
   active,
   documentId,
   refreshRevision = 0,
+  title = "",
   source,
   jobs,
 }: {
   active: boolean;
   documentId: string;
   refreshRevision?: number;
+  /** 书名：文件页列表据此写出下载文件名。 */
+  title?: string;
   source: {
     filename?: string;
     url?: string;
@@ -188,10 +191,11 @@ export function useBookDetailArtifactCenter({
 
   const sections = useMemo(() => buildArtifactCenterSections({
     documentId,
+    title,
     source,
     jobs,
     manifests,
-  }), [documentId, jobs, manifests, source]);
+  }), [documentId, title, jobs, manifests, source]);
 
   const download = useCallback(async (item: ArtifactCenterItem) => {
     if (!item.url || downloadingId) return;

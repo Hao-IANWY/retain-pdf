@@ -15,6 +15,8 @@ export type ArtifactDebugEntry = {
   sectionLabel: string;
   /** true：同类文件有更新的一份，这份是旧任务留下的。 */
   superseded: boolean;
+  /** 「翻译与阅读」里已经有同名文件，这份是 OCR 组里的重复。 */
+  duplicate?: boolean;
 };
 
 export type ArtifactCenterLayout = {
@@ -56,9 +58,24 @@ export function layoutArtifactCenter(sections: ArtifactCenterSection[] = []): Ar
     }
     return { ...section, items };
   });
+  // 跨组去重：OCR 组和「翻译与阅读」组常各有一份 Markdown、结构化文档、Markdown 任务包
+  // （分别来自 OCR 任务和翻译任务）。以「翻译与阅读」为准 —— 用户要的成品在那里；OCR 组里
+  // 同名的收进调试区。翻译组没有的（例如只做了 OCR 的书）OCR 组照常摆。
+  const translationLabels = new Set(
+    visible.find((section) => section.id === "translation")?.items.map((item) => item.label) || [],
+  );
+  const deduped = visible.map((section) => {
+    if (section.id !== "ocr" || !translationLabels.size) return section;
+    const items = section.items.filter((item) => {
+      if (!translationLabels.has(item.label)) return true;
+      debug.push({ item, sectionLabel: section.label, superseded: false, duplicate: true });
+      return false;
+    });
+    return { ...section, items, mergedIntoTranslation: section.items.length > 0 && items.length === 0 };
+  });
   return {
     // 只剩调试文件、又没有任务可说的分组（典型是「诊断与报告」）整组收起，不留一张空卡。
-    sections: visible.filter((section) => section.items.length > 0 || section.jobs.length > 0),
+    sections: deduped.filter((section) => section.items.length > 0 || section.jobs.length > 0),
     debug,
   };
 }
