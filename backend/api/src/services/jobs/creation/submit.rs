@@ -2,7 +2,7 @@ use crate::db::PipelineDispatchRecord;
 use crate::error::AppError;
 use crate::models::domain::JobSnapshot;
 use crate::models::request::CreateJobInput;
-use crate::services::job_launcher::start_job_execution;
+use crate::services::job_launcher::{link_new_job_to_document, start_job_execution};
 use serde_json::Value;
 
 use super::job_builders::{build_ocr_job_snapshot, build_translation_job_snapshot};
@@ -41,6 +41,9 @@ pub(crate) fn create_ocr_ambiguity_recovery_job(
             "OCR ambiguity was already resolved by another request",
         ));
     }
+    // 不经 start_job_execution（行由 create_ocr_recovery_job_state 原子建），归属在这里补；
+    // 它只带 upload_id，upload 没有 content_hash 时按发生歧义的源任务继承。
+    link_new_job_to_document(deps.launcher.db, &job, Some(&source_dispatch.job_id));
     deps.launcher.runtime.launch(job.job_id.clone());
     Ok(job)
 }

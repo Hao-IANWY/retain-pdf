@@ -218,3 +218,84 @@ async fn resume_route_reuses_rerun_submission_contract() {
     assert_eq!(resumed_job.workflow, crate::models::WorkflowKind::Render);
     assert_eq!(resumed_job.status, JobStatusKind::Queued);
 }
+
+/// 「继续」走的是 rerun_submission：没有可原地重渲染的产物时它新建一个任务，只带
+/// artifact_job_id（源任务）、不带 upload_id。这个新任务必须当场归到源任务那本书下 ——
+/// 以前只改了书卡指针、没写 jobs.document_id，于是 list_jobs_for_document / 阅读页的打开
+/// 计划 / 全文索引 / 删书级联都看不见它，要等重启回填才补上。
+#[tokio::test]
+async fn resume_jobs_created_from_a_checkpoint_inherit_the_source_document() {
+    let state = test_state("resume-new-job-document");
+    let document_id = "doc-sha-resume";
+    let upload = crate::models::UploadRecord {
+        upload_id: "upload-resume-doc".to_string(),
+        filename: "book.pdf".to_string(),
+        stored_path: "uploads/upload-resume-doc/book.pdf".to_string(),
+        bytes: 1,
+        page_count: 1,
+        uploaded_at: crate::models::now_iso(),
+        developer_mode: false,
+        content_hash: document_id.to_string(),
+    };
+    state.db.save_upload(&upload).expect("save upload");
+    state
+        .db
+        .upsert_document_from_upload(&upload)
+        .expect("seed document");
+
+    let mut source_job = source_job_with_artifacts(
+        "job-resume-doc-source",
+        JobArtifacts {
+            source_pdf: Some("jobs/source/source/input.pdf".to_string()),
+            normalized_document_json: Some("jobs/source/ocr/document.v1.json".to_string()),
+            ..JobArtifacts::default()
+        },
+    );
+    source_job.status = JobStatusKind::Failed;
+    super::common::seed_ocr_checkpoint_files(&state, &source_job);
+    state.db.save_job(&source_job).expect("save source job");
+    state
+        .db
+        .set_job_document_id("job-resume-doc-source", document_id)
+        .expect("link source job");
+
+    let response = build_app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/jobs/job-resume-doc-source/resume")
+                .header("X-API-Key", "test-key")
+                .body(Body::empty())
+                .expect("resume request"),
+        )
+        .await
+        .expect("resume response");
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let payload = read_json(response).await;
+    let resumed = payload["data"]["job_id"].as_str().expect("job id").to_string();
+    assert_ne!(resumed, "job-resume-doc-source", "这条路径应当新建任务");
+    assert_eq!(
+        state.db.document_id_for_job(&resumed).expect("lookup"),
+        Some(document_id.to_string()),
+        "继续出来的新任务没归到源任务那本书下"
+    );
+    let listed: Vec<String> = state
+        .db
+        .list_jobs_for_document(document_id, 50, 0)
+        .expect("list jobs")
+        .into_iter()
+        .map(|job| job.job_id.clone())
+        .collect();
+    assert!(listed.contains(&resumed), "新任务不在这本书的任务里：{listed:?}");
+    assert_eq!(
+        state
+            .db
+            .get_document(document_id)
+            .expect("document")
+            .active_job_id
+            .as_deref(),
+        Some(resumed.as_str()),
+        "书卡应当指向刚提交的任务"
+    );
+}

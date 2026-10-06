@@ -58,6 +58,11 @@ async fn ambiguous_ocr_requires_explicit_resolution_and_can_bind_existing_receip
     source_job.request_payload.ocr.provider = "mineru".to_string();
     source_job.request_payload.ocr.mineru_token = "mineru-test-token".to_string();
     state.db.save_job(&source_job).expect("save source job");
+    // upload 没有 content_hash，恢复任务又只带 upload_id：归属只能从源任务继承。
+    state
+        .db
+        .set_job_document_id(source_job_id, "doc-sha-ambiguous-ocr")
+        .expect("link source job");
     seed_ambiguous_ocr_dispatch(&state, source_job_id, "mineru", "apply_upload_url");
 
     let diagnostics = build_app(state.clone())
@@ -193,6 +198,11 @@ async fn ambiguous_ocr_requires_explicit_resolution_and_can_bind_existing_receip
         .expect("recovery dispatch")
         .expect("seeded dispatch");
     assert_eq!(receipt.status, "receipted");
+    assert_eq!(
+        state.db.document_id_for_job(recovery_job_id).expect("lookup"),
+        Some("doc-sha-ambiguous-ocr".to_string()),
+        "绑定已有回执建出来的恢复任务没归到源任务那本书下"
+    );
     assert_eq!(
         receipt
             .receipt

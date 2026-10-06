@@ -3,7 +3,7 @@ use crate::models::api::{
     AmbiguousRequestPolicy, RetryStageKind, RetryStageRequest, RetryStageSubmissionView,
     StageActionsView,
 };
-use crate::services::job_launcher::start_job_execution;
+use crate::services::job_launcher::{link_new_job_to_document, start_job_execution};
 use crate::services::jobs::stage_plan::stage_plan;
 use crate::services::jobs::translation_request_recovery::load_translation_request_recovery;
 
@@ -31,41 +31,6 @@ impl<'a> JobsFacade<'a> {
             &job,
             self.command.control.data_root,
         ))
-    }
-
-    /// 重试即链文档：主页卡片靠 documents.active_job_id 找运行中任务。
-    /// 源任务的文档可经 jobs.document_id / upload 反查；找不到就跳过，
-    /// 终态 lifecycle 仍会再次对账，绝不影响提交。
-    ///
-    /// 新任务自己的 jobs.document_id 也要写上：重新渲染的任务没有 upload_id，lifecycle 的
-    /// link_job_to_document 补不上它，于是它不在「这本书的任务」里 —— 阅读页的打开计划
-    /// （resolve_reading_target）看不见它，点「阅读」一直打开重新渲染之前的旧任务。
-    fn link_retry_to_source_document(&self, source_job_id: &str, new_job_id: &str) {
-        let document_id = match self.command.db.document_id_for_job(source_job_id) {
-            Ok(Some(document_id)) => Some(document_id),
-            Ok(None) | Err(_) => match self.command.db.get_document_by_job_id(source_job_id) {
-                Ok(doc) => doc.map(|doc| doc.document_id),
-                Err(error) => {
-                    tracing::warn!(
-                        "library: resolve document for retry source {source_job_id} failed: {error}"
-                    );
-                    None
-                }
-            },
-        };
-        let Some(document_id) = document_id else {
-            return;
-        };
-        if let Err(error) = self.command.db.set_job_document_id(new_job_id, &document_id) {
-            tracing::warn!("library: link retry job {new_job_id} to {document_id} failed: {error}");
-        }
-        if let Err(error) = self
-            .command
-            .db
-            .set_document_active_job(&document_id, new_job_id, None)
-        {
-            tracing::warn!("library: set active job for {document_id} at retry failed: {error}");
-        }
     }
 
     pub fn retry_stage_submission(
@@ -141,7 +106,6 @@ impl<'a> JobsFacade<'a> {
             job.request_payload.runtime.job_id = job.job_id.clone();
             job.sync_runtime_state();
             let job = start_job_execution(&self.command.submit.launcher, job)?;
-            self.link_retry_to_source_document(source_job_id, &job.job_id);
             return Ok(build_retry_stage_submission_view(
                 base_url,
                 source_job_id,
@@ -171,9 +135,16 @@ impl<'a> JobsFacade<'a> {
                 "accept_duplicate_risk",
                 None,
             )?,
-            None => create_translation_job(&self.command.submit, &request_input)?,
+            None => {
+                let job = create_translation_job(&self.command.submit, &request_input)?;
+                // OCR 重试只带 upload_id / source_url、不带 artifact_job_id：start_job_execution
+                // 按 upload 关联不上时，归属从源任务继承（同一个实现，只是多给一个来源）。
+                if request_input.source.artifact_job_id.trim().is_empty() {
+                    link_new_job_to_document(self.command.db, &job, Some(source_job_id));
+                }
+                job
+            }
         };
-        self.link_retry_to_source_document(source_job_id, &job.job_id);
         Ok(build_retry_stage_submission_view(
             base_url,
             source_job_id,
