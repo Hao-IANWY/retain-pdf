@@ -41,8 +41,18 @@ export declare function createReaderDataPort({ apiPrefix, loadJob, loadManifest,
     loadReaderPayload: (jobId: string, options?: {
         includeOptionalArtifacts?: boolean;
     }) => Promise<{
+        readerMetadata: any;
+        regionsPayload: {
+            items: any[];
+        };
+        readerErrors: {
+            regions: unknown;
+            metadata: unknown;
+        };
         jobPayload: unknown;
         manifestPayload: unknown;
+    }>;
+    loadReaderOptionalArtifacts: (jobId: string) => Promise<{
         readerMetadata: any;
         regionsPayload: {
             items: any[];
@@ -64,8 +74,18 @@ export declare const defaultReaderDataPort: Readonly<{
     loadReaderPayload: (jobId: string, options?: {
         includeOptionalArtifacts?: boolean;
     }) => Promise<{
+        readerMetadata: any;
+        regionsPayload: {
+            items: any[];
+        };
+        readerErrors: {
+            regions: unknown;
+            metadata: unknown;
+        };
         jobPayload: unknown;
         manifestPayload: unknown;
+    }>;
+    loadReaderOptionalArtifacts: (jobId: string) => Promise<{
         readerMetadata: any;
         regionsPayload: {
             items: any[];
