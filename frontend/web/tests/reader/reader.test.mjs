@@ -6,21 +6,12 @@ import { readFileSync } from "node:fs";
 import { createReaderDataPort } from "../../../../frontend/packages/reader/src/shared/data/data-port.ts";
 
 let readerDataPort;
-let readerInteractionFlow;
 let readerPdfDocument;
 let readerPageConfig;
 let readerPageState;
-let readerProgressPresenter;
 let readerResourceResolver;
-let readerRegionInteractions;
 let readerAiMarkdown;
 let readerAiConfig;
-let readerModeController;
-let readerChromeController;
-let readerView;
-let readerFavoritesStorage;
-let readerAiContext;
-let readerViewerMountFlow;
 let readerDialogRuntimePort;
 let readerDownloadResolve;
 
@@ -53,21 +44,12 @@ before(async () => {
   });
   async function tryImport(path) { try { return await import(path); } catch { return null; } }
   readerDataPort = await tryImport("../../src/features/reader/domain.js");
-  readerInteractionFlow = await tryImport("../../src/js/reader/interaction-flow.js") || { bindReaderInteractions: () => {}, createReaderInteractionFlow: () => ({}) };
   readerPdfDocument = readerDataPort;
   readerPageConfig = await tryImport("../../src/features/reader/domain.js");
   readerPageState = await tryImport("../../src/features/reader/domain.js");
-  readerProgressPresenter = await tryImport("../../src/js/reader/progress-presenter.js") || { createReaderProgressPresenter: () => ({}) };
   readerResourceResolver = readerDataPort;
-  readerRegionInteractions = await tryImport("../../src/js/reader/region-interactions.js") || { bindReaderRegionHover: () => {}, isReaderTranslatedRegionEvent: () => false, regionInteractions: {} };
   readerAiMarkdown = await tryImport("../../src/features/reader/domain.js");
   readerAiConfig = readerAiMarkdown;
-  readerModeController = await tryImport("../../src/js/reader/mode-controller.js") || { createReaderModeController: () => ({ currentMode: () => "compare", setMode: () => {} }) };
-  readerChromeController = await tryImport("../../src/js/reader/chrome-controller.js") || { createReaderChromeController: () => ({}) };
-  readerView = await tryImport("../../src/js/reader/view.js") || { setPageIndicator: () => {}, setReaderModeHud: () => {}, showReaderPaneEmpty: () => {}, showReaderPaneReady: () => {} };
-  readerFavoritesStorage = await tryImport("../../src/js/reader/favorites-storage.js") || { createReaderFavoritesStore: () => ({}) };
-  readerAiContext = readerAiMarkdown || { createReaderAiContext: () => ({}) };
-  readerViewerMountFlow = await tryImport("../../src/js/reader/viewer-mount-flow.js") || { mountReaderPdfPair: async () => ({ sourceReady: { key: "reader-pdf", pagesCount: 10, controller: { key: "reader-pdf" } }, translatedReady: null }) };
   readerDialogRuntimePort = await import("../../src/features/reader/domain.js");
   readerDownloadResolve = readerPageState;
 });
@@ -206,67 +188,10 @@ test("reader page config port exposes injectable message origin and job id", () 
 
 
 
-test("reader translated region right click keeps selection drag from stealing the event", () => {
-  return; // legacy region-interactions 的旧断言：新 reader 里块级交互只剩悬停复制（见 reader-hover-copy），跳过
-  const previousWindow = global.window;
-  global.window = {
-    ...previousWindow,
-    requestAnimationFrame(callback) {
-      callback();
-      return 1;
-    },
-  };
-  const listeners = {};
-  const canvas = {
-    getBoundingClientRect: () => ({ left: 0, top: 0, width: 200, height: 200 }),
-  };
-  const pageElement = {
-    getAttribute: (name) => name === "data-page-number" ? "1" : "",
-    getBoundingClientRect: () => ({ left: 0, top: 0, width: 200, height: 200 }),
-    querySelector: (selector) => selector === "canvas" ? canvas : null,
-  };
-  const viewerElement = {
-    dataset: {},
-    addEventListener(type, handler) {
-      listeners[type] = handler;
-    },
-    contains: (element) => element === pageElement,
-  };
-  const event = {
-    button: 2,
-    clientX: 70,
-    clientY: 70,
-    target: {
-      closest: (selector) => selector === ".page[data-page-number]" ? pageElement : null,
-    },
-    stopped: false,
-    stopPropagation() {
-      this.stopped = true;
-    },
-  };
-
-  readerRegionInteractions.bindReaderRegionHover({
-    regions: [{
-      item_id: "region-1",
-      source: { page: 1, bbox: [10, 10, 60, 60] },
-      translated: { page: 1, bbox: [50, 50, 90, 90] },
-    }],
-    sourceController: {
-      viewerElement: { querySelector: () => null },
-      pageViewports: new Map([[1, { width: 200, height: 200 }]]),
-    },
-    translatedController: {
-      viewerElement,
-      pageViewports: new Map([[1, { width: 200, height: 200 }]]),
-    },
-  });
-
-  assert.equal(readerRegionInteractions.isReaderTranslatedRegionEvent(event), true);
-  listeners.mousedown(event);
-  assert.equal(event.stopped, true);
-  global.window = previousWindow;
-});
-
+// 删：「reader translated region right click keeps selection drag from stealing the event」。
+// 用例第一行就是 `return;`（旧 src/js/reader/region-interactions 已删，新 reader 的块级
+// 交互只剩悬停复制，见 reader-hover-copy.test.mjs），后面的断言永远不执行；它依赖的
+// 那批 src/js/reader/* 动态 import 也只会拿到兜底空桩，一并删掉。
 
 test("reader download actions resolve artifact urls and disabled reasons", () => {
   const manifest = {
