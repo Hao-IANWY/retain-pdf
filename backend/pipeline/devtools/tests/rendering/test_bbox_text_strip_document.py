@@ -195,32 +195,99 @@ def test_text_strip_hit_test_ignores_tiny_edge_intersections() -> None:
 
 
 def test_bbox_text_strip_preserves_explicit_protected_source_blocks() -> None:
-    job = Path("data/jobs/20260607133703-aa37db")
-    source_pdf = next((job / "source").glob("*.pdf"), None)
-    translated_path = job / "translated/page-009-deepseek.json"
-    normalized_path = job / "ocr/normalized/document.v1.json"
-    if source_pdf is None or not translated_path.exists() or not normalized_path.exists():
-        pytest.skip("sample job is not available")
+    """document.v1 里 `policy.translate=false` 的文本块，源文字不能被抠掉。
 
+    原型是真实 job 20260607133703-aa37db 第 9 页：「The Supporting Information is
+    available free of charge at」这行夹在译文块的 bbox 里，没有保护就会被一起剥掉。
+    这条以前直接读本机 data/jobs 下那本书，CI 和别的机器上永远 skip；这里按同样的
+    形状现造：第 2 页（非首页，顺带钉住页码映射）一行要翻译的正文 + 一行
+    translate=false 的说明文字，译文 bbox 把两行都罩住。
+
+    同时跑一遍「不给 protected_pages」作对照——对照里那行也被剥掉，才说明保留下来
+    确实是保护在起作用，而不是 bbox 恰好没罩住它。
+    """
     from retainpdf_pipeline.render.source_cleanup.protected_blocks import protected_pages_from_document_path
 
+    protected_line = "The Supporting Information is available free of charge at"
     with tempfile.TemporaryDirectory() as tmp:
-        output_pdf = Path(tmp) / "stripped.pdf"
-        translated_items = json.loads(translated_path.read_text(encoding="utf-8"))
-        result = build_bbox_text_stripped_pdf_copy(
-            source_pdf_path=source_pdf,
-            output_pdf_path=output_pdf,
-            translated_pages={8: translated_items},
-            protected_pages=protected_pages_from_document_path(normalized_path),
-        )
+        root = Path(tmp)
+        source_pdf = root / "source.pdf"
+        doc = fitz.open()
+        doc.new_page(width=400, height=300)
+        page = doc.new_page(width=400, height=300)
+        page.insert_text((30, 60), "translated body text", fontsize=11)
+        page.insert_text((30, 90), protected_line, fontsize=9)
+        doc.save(source_pdf)
+        doc.close()
 
-        assert result.changed is True
-        stripped = fitz.open(output_pdf)
-        try:
-            text = stripped[8].get_text()
-        finally:
-            stripped.close()
-        assert "The Supporting Information is available free of charge at" in text
+        normalized_path = root / "document.v1.json"
+        normalized_path.write_text(
+            json.dumps(
+                {
+                    "schema": "normalized_document_v1",
+                    "schema_version": "1.1",
+                    "document_id": "protected-source-blocks",
+                    "page_count": 2,
+                    "pages": [
+                        {"page_index": 0, "page": 1, "width": 400, "height": 300, "blocks": []},
+                        {
+                            "page_index": 1,
+                            "page": 2,
+                            "width": 400,
+                            "height": 300,
+                            "blocks": [
+                                {
+                                    "block_id": "p002-b001",
+                                    "type": "text",
+                                    "bbox": [25.0, 45.0, 380.0, 65.0],
+                                    "content": {"kind": "text", "text": "translated body text"},
+                                    "policy": {"translate": True},
+                                },
+                                {
+                                    "block_id": "p002-b002",
+                                    "type": "text",
+                                    "bbox": [25.0, 78.0, 380.0, 95.0],
+                                    "content": {"kind": "text", "text": protected_line},
+                                    "policy": {"translate": False},
+                                },
+                            ],
+                        },
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        translated_items = [
+            {
+                "block_kind": "text",
+                "bbox": [20.0, 40.0, 390.0, 100.0],
+                "protected_translated_text": "译文",
+            }
+        ]
+
+        def strip(output_pdf: Path, protected_pages: dict) -> tuple[bool, str]:
+            result = build_bbox_text_stripped_pdf_copy(
+                source_pdf_path=source_pdf,
+                output_pdf_path=output_pdf,
+                translated_pages={1: translated_items},
+                protected_pages=protected_pages,
+            )
+            stripped = fitz.open(output_pdf)
+            try:
+                return result.changed, stripped[1].get_text()
+            finally:
+                stripped.close()
+
+        protected_pages = protected_pages_from_document_path(normalized_path)
+        assert [item["item_id"] for item in protected_pages.get(1, [])] == ["p002-b002"]
+
+        changed, text = strip(root / "stripped.pdf", protected_pages)
+        assert changed is True
+        assert protected_line in text
+        assert "translated body text" not in text
+
+        _changed, unprotected_text = strip(root / "unprotected.pdf", {})
+        assert protected_line not in unprotected_text, "对照组也保留了这行，说明 bbox 没罩住它，这条测不到保护"
 
 
 def test_bbox_text_strip_removes_text_inside_bbox_without_redaction_bloat() -> None:
