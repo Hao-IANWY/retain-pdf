@@ -15,6 +15,7 @@ use crate::db::Db;
 use crate::error::AppError;
 use crate::models::domain::{JobSnapshot, JobStatusKind, WorkflowKind};
 use crate::services::document_pages::translated_document_pages;
+use crate::services::jobs::stage_view::terminal_completion_note;
 
 use super::plan::{merge_plan, PageSource};
 use super::reading::document_merge_sources;
@@ -43,6 +44,16 @@ pub struct CoverageJobView {
     pub supplied_pages: u32,
     /// 复用了别的任务的 OCR。
     pub ocr_reused: bool,
+    /// 成功但有额外说明（目前就是「N 个内容块保留原文未翻译」）。没有就是 None ——
+    /// 和任务列表的 completion_note 同一个来源，前端凭有没有决定要不要提示。
+    pub note: Option<String>,
+    /// 成功的翻译任务里保留原文（没翻出来）的内容块数，读 translation_diagnostics.json；
+    /// 和写 note 的 completion_pipeline 同一个算法。读不到按 0。
+    pub kept_origin_blocks: u32,
+    /// 失败原因的一句话（failure.summary，中文）。只有失败任务有。
+    pub failure_summary: Option<String>,
+    /// 原始错误的第一行（截到 160 字），给「展开看原因」用。只有失败任务有。
+    pub error_head: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -119,6 +130,33 @@ fn parse_spec(spec: &str, document_page_count: u32) -> Vec<u32> {
     pages
 }
 
+/// 保留原文的块数：`status_summary.kept_origin` 与 `dead_letter_count` 取大 ——
+/// 和 retain-jobs completion_pipeline 写「N 个内容块保留原文」用的是同一个数。
+fn kept_origin_blocks(data_root: &Path, job_id: &str) -> u32 {
+    let path = data_root.join("jobs").join(job_id).join("artifacts").join("translation_diagnostics.json");
+    let Ok(text) = std::fs::read_to_string(path) else { return 0 };
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(&text) else { return 0 };
+    let kept = value
+        .get("status_summary")
+        .and_then(|summary| summary.get("kept_origin"))
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(0);
+    let dead = value.get("dead_letter_count").and_then(serde_json::Value::as_u64).unwrap_or(0);
+    kept.max(dead).min(u32::MAX as u64) as u32
+}
+
+/// 失败任务的一段文字：去空白、截到 160 字；非失败任务或空串返回 None。
+fn failed_text(job: &JobSnapshot, text: Option<&str>) -> Option<String> {
+    if job.status != JobStatusKind::Failed {
+        return None;
+    }
+    let text = text?.trim();
+    if text.is_empty() {
+        return None;
+    }
+    Some(text.chars().take(160).collect())
+}
+
 pub(crate) fn translation_coverage(
     db: &Db,
     data_root: &Path,
@@ -154,6 +192,20 @@ pub(crate) fn translation_coverage(
             pages: job_pages(job, document_page_count),
             supplied_pages: supplied.get(job.job_id.as_str()).copied().unwrap_or(0),
             ocr_reused: !job.request_payload.source.artifact_job_id.trim().is_empty(),
+            note: if job.status == JobStatusKind::Succeeded {
+                terminal_completion_note(job)
+            } else {
+                None
+            },
+            kept_origin_blocks: if job.status == JobStatusKind::Succeeded
+                && job.workflow != WorkflowKind::Ocr
+            {
+                kept_origin_blocks(data_root, &job.job_id)
+            } else {
+                0
+            },
+            failure_summary: failed_text(job, job.failure.as_ref().map(|f| f.summary.as_str())),
+            error_head: failed_text(job, job.error.as_deref().and_then(|e| e.lines().next())),
         })
         .collect();
     Ok(TranslationCoverageView {
@@ -195,5 +247,31 @@ mod tests {
         assert_eq!(parse_spec("all", 2), vec![1, 2]);
         assert_eq!(parse_spec("8-12", 10), vec![8, 9, 10], "超出页数的截掉");
         assert_eq!(parse_spec("5-3, x, 2", 10), vec![2], "颠倒的和认不出的跳过");
+    }
+
+    #[test]
+    fn kept_origin_blocks_reads_the_same_numbers_as_the_completion_warning() {
+        let root = std::env::temp_dir().join(format!("coverage-kept-{}", fastrand::u64(..)));
+        let dir = root.join("jobs").join("j1").join("artifacts");
+        std::fs::create_dir_all(&dir).expect("dir");
+        std::fs::write(
+            dir.join("translation_diagnostics.json"),
+            r#"{"status_summary":{"kept_origin":16},"dead_letter_count":3}"#,
+        )
+        .expect("write");
+        assert_eq!(kept_origin_blocks(&root, "j1"), 16);
+        assert_eq!(kept_origin_blocks(&root, "missing"), 0, "没有诊断文件按 0");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn failure_text_only_for_failed_jobs_and_is_trimmed() {
+        let mut job = JobSnapshot::new("j".to_string(), crate::models::domain::CreateJobInput::default(), vec![]);
+        job.status = JobStatusKind::Failed;
+        assert_eq!(failed_text(&job, Some("  外部服务请求超时 ")), Some("外部服务请求超时".into()));
+        assert_eq!(failed_text(&job, Some("   ")), None);
+        assert_eq!(failed_text(&job, Some(&"长".repeat(300))).map(|t| t.chars().count()), Some(160));
+        job.status = JobStatusKind::Succeeded;
+        assert_eq!(failed_text(&job, Some("x")), None);
     }
 }
