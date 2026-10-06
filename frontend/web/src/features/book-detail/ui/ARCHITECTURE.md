@@ -8,9 +8,9 @@ OCR、翻译、Agent 操作和文件产物都应挂在文档下面，并保持�
 ```text
 BookDetailDialog                  数据与动作组合层
 ├─ BookDetailShell               Dialog、关闭行为、左右槽位
-├─ CoverActionsPanel             封面、文档身份、阅读状态与当前可用阅读动作
+├─ CoverActionsPanel             封面、文档身份（书名 / 作者只在这里展示）与当前可用阅读动作
 └─ BookDetailRightTabs           三个主 Tab；导航固定、面板独立滚动
-   ├─ BookDetailOverviewTab      标题、元数据、阅读状态、合集和文档管理
+   ├─ BookDetailOverviewTab      信息区（元数据 / 合集 / 阅读状态）、最近活动、危险操作
    ├─ BookDetailProcessingTab    OCR 与翻译两个独立处理能力
    ├─ BookDetailArtifactsTab     源 PDF 与任务产物
 ```
@@ -26,7 +26,7 @@ BookDetailDialog                  数据与动作组合层
 4. 切换 Tab 不得取消共享 runtime 订阅，也不得丢失处理表单状态。
 5. 任务成功后只更新当前文档对应的书架卡，禁止插入重复文档。
 6. 文件产物统一进入 `BookDetailArtifactsTab`，不散落在“更多”或状态卡中。
-7. 删除文档仍由管理 Tab 发起，并保留收藏引用与运行任务保护。
+7. 删除文档由概览底部的危险操作区发起，并保留收藏引用与运行任务保护。
 8. 空闲、完成和失败态使用紧凑摘要；只有运行中任务展开阶段进度，失败摘要直接进入诊断 Tab。
 9. 右栏仅保留“概览 / 处理 / 文件”三个主 Tab；低频管理能力归入概览，不新增顶级 Tab。
 10. Tab 导航固定，活动面板独立滚动；窄屏不得因完整封面导致右栏不可达。

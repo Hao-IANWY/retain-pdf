@@ -20,8 +20,10 @@ import {
   BookDetailOverviewTab,
   BookDetailProcessingTab,
   BookDetailArtifactsTab,
-  BookDetailManageTab,
 } from "./tabs/index.js";
+import { ReadingStatusPanel } from "./panels/more/ReadingStatusPanel.jsx";
+import { CollectionsPanel } from "./panels/more/CollectionsPanel.jsx";
+import { DeleteFooterPanel } from "./panels/more/DeleteFooterPanel.jsx";
 import { useTranslationCoverage } from "./use-translation-coverage.js";
 import { useBookDetailLiveItem } from "./use-book-detail-live-item.js";
 import { useBookDetailDocument } from "./use-book-detail-document.js";
@@ -215,33 +217,37 @@ export function BookDetailDialog() {
               pageCount={docState.pageCount}
               bytes={docState.doc?.bytes}
               addedAt={docState.doc?.added_at}
-              memberCollections={docState.memberCollections}
               editing={docState.editing}
               titleText={docState.titleText}
-              authors={docState.authors}
-              year={docState.doc?.year}
-              displayTitle={docState.doc?.title || docState.titleText}
               busy={docState.busy}
+              error={docState.error}
               ocrStatus={overviewOcrStatus}
               translationStatus={translationStatus}
               jobs={documentJobs.jobs}
               onOpenProcessing={() => selectTab("processing")}
-              onOpenArtifacts={() => selectTab("artifacts")}
               onStartEdit={docState.startEdit}
               onCancelEdit={() => docState.setEditing(false)}
               onSave={docState.handleSaveEdit}
               onTitleChange={docState.setTitleText}
-              management={(
-                <BookDetailManageTab
-                  readingStatus={docState.readingStatus}
+              readingSlot={(
+                <ReadingStatusPanel
+                  value={docState.readingStatus}
                   busy={docState.busy}
-                  onReadingStatusChange={docState.handleReadingStatus}
+                  onChange={docState.handleReadingStatus}
+                />
+              )}
+              collectionsSlot={(
+                <CollectionsPanel
                   collections={docState.collections}
                   collectionsBusy={docState.collectionsBusy}
-                  onToggleCollection={docState.toggleCollection}
-                  error={docState.error}
+                  onToggle={docState.toggleCollection}
+                />
+              )}
+              dangerSlot={(
+                <DeleteFooterPanel
+                  busy={docState.busy}
                   onDelete={docState.handleDelete}
-                  deleteTitle={docState.doc?.title || docState.titleText || item.title}
+                  title={docState.doc?.title || docState.titleText || item.title}
                 />
               )}
             />

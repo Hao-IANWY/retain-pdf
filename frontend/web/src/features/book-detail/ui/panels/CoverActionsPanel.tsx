@@ -1,10 +1,10 @@
 // 左栏：封面 + 文档身份 + 对照/原版主操作 + 阅读状态。
-// 元信息摘要（页数/大小/入库/合集）已迁到右栏简介 Tab 的信息网格
-// （BookDetailOverviewTab）——左栏纯粹化，右栏不再空旷。
+// 元信息摘要（页数/大小/入库/合集）在右栏概览的信息区（BookDetailOverviewTab）；
+// 书名 / 作者只在这里展示一次，概览不再重复。
 
 import { btn, IconCompare, IconEye } from "./ui.jsx";
 import { BookCardProcessingOverlay } from "@/features/library/index.js";
-import { BookMarked, Check, Copy, Hash, UserRound } from "lucide-react";
+import { Check, Copy, Hash, UserRound } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
 /**
@@ -84,10 +84,8 @@ export function CoverActionsPanel({
         {processing ? <BookCardProcessingOverlay /> : null}
       </div>
       <div className="book-detail-cover-identity">
-        <h3 title={title}>
-          <BookMarked aria-hidden="true" />
-          <span>{title || "未命名文档"}</span>
-        </h3>
+        {/* 书名前不放图标：h3 是 -webkit-box 两行截断，图标会被挤成单独一行，孤零零悬在书名上方。 */}
+        <h3 title={title}>{title || "未命名文档"}</h3>
         <p title={`${authorText}${year ? ` · ${year}` : ""}`}>
           <UserRound aria-hidden="true" />
           <span>{authorText}{year ? ` · ${year}` : ""}</span>

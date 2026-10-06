@@ -99,12 +99,19 @@ test("馆藏卡打开书籍详情:元数据 + 阅读状态切换 + 翻译/读原
   assert.equal(byId("book-detail-tab-translate"), null, "不再用翻译命名整个处理区");
   assert.equal(byId("book-detail-tab-more"), null, "移除含糊的更多 Tab");
   assert.equal(byId("book-detail-tab-manage"), null, "管理能力并入简介，不再占用顶级 Tab");
-  assert.ok(dlg.querySelector(".book-detail-overview-hero"), "概览使用文档叙事主视觉");
-  assert.match(dlg.querySelector(".book-detail-overview-page-count")?.textContent || "", /88\s*页文档/, "主视觉突出页数");
-  assert.ok(byId("book-detail-overview-process-btn"), "概览可直接进入处理");
-  assert.ok(byId("book-detail-overview-files-btn"), "概览可直接进入文件中心");
-  assert.ok(byId("book-detail-overview-process-btn").querySelector("svg"), "处理入口使用图标");
-  assert.ok(byId("book-detail-overview-files-btn").querySelector("svg"), "文件入口使用图标");
+  // 概览是一块紧凑信息区：页数 / 大小 / 入库 / 翻译一行；不再有重复页签的大卡和「文件」跳转。
+  const facts = dlg.querySelector(".book-detail-overview-facts");
+  assert.ok(facts, "概览有紧凑信息区");
+  assert.match(facts.textContent || "", /88\s*页/, "信息区展示页数");
+  assert.equal(dlg.querySelector(".book-detail-overview-hero"), null, "不再有只写页数的大卡");
+  assert.equal(byId("book-detail-overview-files-btn"), null, "「文件」已是页签，概览不再重复入口");
+  assert.ok(byId("book-detail-overview-process-btn"), "翻译状态可点进「进度」页");
+  // 书名 / 作者只在左栏出现，概览不重复
+  assert.equal(byId("book-detail-panel-overview").querySelector(".book-detail-title"), null, "概览不重复书名");
+  assert.doesNotMatch(byId("book-detail-panel-overview").textContent || "", /未知作者/, "概览不重复作者");
+  // 删除在底部单独的危险操作区，不和阅读状态挤在一起
+  assert.ok(dlg.querySelector('.book-detail-overview-danger #book-detail-delete-btn'), "删除在危险操作区");
+  assert.equal(dlg.querySelector('[data-book-detail-section="management"] #book-detail-delete-btn'), null, "删除不在信息区");
   assert.match(
     dlg.querySelector(".book-detail-cover-identity")?.textContent || "",
     /Group Theory Lecture Notes.*未知作者/,
@@ -116,8 +123,8 @@ test("馆藏卡打开书籍详情:元数据 + 阅读状态切换 + 翻译/读原
   }
   assert.equal(byId("book-detail-download-source-btn").disabled, false, "原始 PDF 可直接下载");
   assert.equal(byId("book-detail-download-markdown-btn").disabled, true, "未生成 Markdown 时入口置灰");
-  // 标题默认是只读大标题(不是常驻输入框),编辑才出现输入框
-  await waitFor(() => dlg.querySelector(".book-detail-title")?.textContent?.trim(), "标题就位");
+  // 标题默认只读(在左栏),点「编辑信息」才出现输入框
+  await waitFor(() => dlg.querySelector(".book-detail-cover-identity h3")?.textContent?.trim(), "标题就位");
   assert.equal(byId("book-detail-title-input"), null, "默认只读,无标题输入框");
   assert.ok(
     dlg.querySelector('[data-processing-capability="translation"] .book-detail-status')?.textContent.includes("未翻译"),
