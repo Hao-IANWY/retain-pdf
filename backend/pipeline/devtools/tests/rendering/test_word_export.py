@@ -475,8 +475,14 @@ def test_the_fallback_line_height_is_the_measured_ratio_not_one_plus_leading(
         source_pdf_path=single_pdf(tiny_job_without_render / "source"),
         translated_pages=translated_pages(tiny_job_without_render),
     )
-    leading = {b.block_id: b.leading_em for b in layout[0].blocks if b.leading_em > 0}
-    assert leading, "夹具里没有带行距值的块"
+    # 只看 `1 + leading_em` 和实测比值分得开的块。标题 / 作者行这类块排得紧，leading_em
+    # 只有 0.28~0.29，`1 + leading_em` 本来就落在 1.289 附近甚至更小——在这些块上
+    # 「比折算值小」不成立，也分辨不出用的是哪条公式（夹具换成首页是大标题的书就红了）。
+    leading = {
+        b.block_id: b.leading_em for b in layout[0].blocks
+        if b.leading_em > 0 and 1.0 + b.leading_em > LINE_STEP_RATIO + 0.05
+    }
+    assert leading, "夹具这一页没有行距明显大于实测比值的块，这条分辨不出对错"
 
     _spec, blocks = _spec_blocks(tiny_job_without_render)
     checked = 0
