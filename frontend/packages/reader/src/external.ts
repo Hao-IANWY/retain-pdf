@@ -62,6 +62,7 @@ export const defaultReaderDataPort: ReaderDataPort = {
     readDataPort().loadMarkdownRange(rawUrl, start, endInclusive, etag, signal),
   loadJobPayload: (jobId) => readDataPort().loadJobPayload(jobId),
   loadReaderPayload: (jobId, options) => readDataPort().loadReaderPayload(jobId, options),
+  loadReaderOptionalArtifacts: (jobId) => readDataPort().loadReaderOptionalArtifacts(jobId),
   get liveTranslation() { return readDataPort().liveTranslation; },
 };
 export const defaultReaderPageConfigPort: ReaderPageConfigPort = {
@@ -84,6 +85,8 @@ export const readerSessionDataPort = (): ReaderSessionDataPort => {
   if (!data) throw new Error("Reader adapter missing: defaultReaderDataPort (call setReaderAdapters)");
   return {
     loadReaderPayload: data.loadReaderPayload,
+    // 旧宿主 / 测试替身可能没有这个方法：缺了就是 undefined，session 照旧一并加载。
+    loadReaderOptionalArtifacts: data.loadReaderOptionalArtifacts,
     loadJobPayload: data.loadJobPayload,
     fetchDocumentByJobId: (...args) => requireAdapter("fetchDocumentByJobId")(...args),
     fetchProtected: data.fetchProtected,

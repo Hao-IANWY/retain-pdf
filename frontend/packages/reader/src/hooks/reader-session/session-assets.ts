@@ -283,12 +283,24 @@ export function useSessionAssets(options: {
       // 历史翻译任务会因为 document.active_version_id 而失去对照阅读。
       // Reader 当前会话内完成 Agent 提交时，refreshCommittedDocument
       // 会显式设置 committedDocumentSource，并切换到新的文档源版本。
+      // committedSource 分支会丢弃 regions/metadata（旧页序已失效），
+      // 直接跳过这两个可选请求，避免无效网络往返。
+      const wantOptional = !committedSource;
+      // 宿主能单独给可选产物时，snapshot 只取 job / manifest，regions / metadata
+      // 并行另取：PDF 地址只依赖前者，下载不必排在 regions（可达数百 KB）后面。
+      // loadReaderOptionalArtifacts 永不 reject（失败降级进 readerErrors）。
+      const splitOptional = Boolean(
+        wantOptional && dataPort.loadSessionSnapshot && dataPort.loadReaderOptionalArtifacts,
+      );
+      const optionalPromise = splitOptional
+        ? dataPort.loadReaderOptionalArtifacts!(sessionJobId)
+        : null;
       const snapshot = await dataPort.loadSessionSnapshot?.({
         jobId: sessionJobId,
         documentId: routeDocumentId,
         routeDocumentId,
         committedSource,
-        includeOptionalArtifacts: !committedSource,
+        includeOptionalArtifacts: wantOptional && !splitOptional,
       });
       const payload = snapshot ? {
         jobPayload: snapshot.sourcePayload,
@@ -297,19 +309,22 @@ export function useSessionAssets(options: {
         regionsPayload: snapshot.regions,
         readerErrors: snapshot.readerErrors,
       } : await dataPort.loadReaderPayload(sessionJobId, {
-        // committedSource 分支会丢弃 regions/metadata（旧页序已失效），
-        // 直接跳过这两个可选请求，避免无效网络往返。
-        includeOptionalArtifacts: !committedSource,
+        includeOptionalArtifacts: wantOptional,
       });
       if (fence.isInactive()) return;
       let linkedDocument: LinkedDocumentRecord | null = null;
       if (jobId && !routeDocumentId) {
-        try {
-          linkedDocument = await dataPort.fetchDocumentByJobId(API_PREFIX, sessionJobId) as LinkedDocumentRecord | null;
-        } catch {
-          // Standalone/package consumers may not provide document lookup.
+        if (snapshot && snapshot.linkedDocument !== undefined) {
+          // 宿主在 snapshot 里已经查过（和 job / manifest 并行），不再串行查第二遍。
+          linkedDocument = snapshot.linkedDocument;
+        } else {
+          try {
+            linkedDocument = await dataPort.fetchDocumentByJobId(API_PREFIX, sessionJobId) as LinkedDocumentRecord | null;
+          } catch {
+            // Standalone/package consumers may not provide document lookup.
+          }
+          if (fence.isInactive()) return;
         }
-        if (fence.isInactive()) return;
       }
       const payloadDocumentId = resolveJobDocumentId(payload.jobPayload)
         || `${linkedDocument?.document_id || ""}`.trim();
@@ -367,26 +382,37 @@ export function useSessionAssets(options: {
         manifestPayload: (payload.manifestPayload as Record<string, unknown>) || null,
         sessionIdentity,
       });
-      setRegions(committedSource ? [] : normalizeReaderRegions(payload.regionsPayload));
-      setReaderMetadata(committedSource
-        ? { source: null, translated: null }
-        : normalizeReaderMetadata(payload.readerMetadata));
-      setReaderErrors(committedSource
-        ? NO_OPTIONAL_ARTIFACT_ERRORS
-        : payload.readerErrors ?? NO_OPTIONAL_ARTIFACT_ERRORS);
-
-      if (!sourceFinal && !translatedFinal) {
-        failBoot(READER_PROGRESS_COPY.failed, READER_PROGRESS_COPY.failed);
-        return;
-      }
-
-      // 先下完所有 PDF，再允许界面挂载 Document
-      const result = await downloadJobPdfs({
+      // 拆开加载可选产物时，PDF 下载先发出去，再等 regions / metadata —— 两者并行。
+      // 下载的失败要等发布完可选产物后在下面的 await 里照旧抛出；先挂一个空
+      // catch，免得等 regions 的这段时间里被当成未处理的 rejection。
+      const startDownloads = () => downloadJobPdfs({
         sourceFinal: sourceFinal || "",
         translatedFinal,
         fence,
         setBoot,
       });
+      const hasPdf = Boolean(sourceFinal || translatedFinal);
+      const earlyDownload = optionalPromise && hasPdf ? startDownloads() : null;
+      earlyDownload?.catch(() => {});
+      const optional = optionalPromise ? await optionalPromise : payload;
+      // 被关闭 / 换会话：已发出的下载会被同一个 abort 掐掉，它的 rejection 已被上面吞掉。
+      if (fence.isInactive()) return;
+
+      setRegions(committedSource ? [] : normalizeReaderRegions(optional.regionsPayload));
+      setReaderMetadata(committedSource
+        ? { source: null, translated: null }
+        : normalizeReaderMetadata(optional.readerMetadata));
+      setReaderErrors(committedSource
+        ? NO_OPTIONAL_ARTIFACT_ERRORS
+        : optional.readerErrors ?? NO_OPTIONAL_ARTIFACT_ERRORS);
+
+      if (!hasPdf) {
+        failBoot(READER_PROGRESS_COPY.failed, READER_PROGRESS_COPY.failed);
+        return;
+      }
+
+      // 先下完所有 PDF，再允许界面挂载 Document
+      const result = await (earlyDownload ?? startDownloads());
       if (result.status === "inactive") return;
       if (result.status === "incomplete") {
         failBoot("PDF 下载失败，请重试", "PDF 下载失败");

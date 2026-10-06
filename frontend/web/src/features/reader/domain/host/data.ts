@@ -186,13 +186,17 @@ function snapshotWorkflow(payload: unknown): string { return normalizedString(as
 
 export const sessionDataPort: ReaderSessionDataPort = {
   loadSessionSnapshot: async (input): Promise<ReaderSessionSnapshot> => {
-    const payload = await defaultReaderDataPort.loadReaderPayload(input.jobId, {
-      includeOptionalArtifacts: input.includeOptionalArtifacts !== false,
-    });
-    const jobRecord = asRecord(payload.jobPayload);
-    const linked = input.jobId && !input.routeDocumentId
-      ? await fetchDocumentByJobId(API_PREFIX, input.jobId).catch(() => null)
-      : null;
+    // documents 查询只依赖 jobId，和 job / manifest（/ regions）并行发出。原来排在
+    // loadReaderPayload 之后串行等，而 session 又会再查一遍 —— 见 linkedDocument。
+    const linkedPromise = input.jobId && !input.routeDocumentId
+      ? fetchDocumentByJobId(API_PREFIX, input.jobId).catch(() => null)
+      : Promise.resolve(null);
+    const [payload, linked] = await Promise.all([
+      defaultReaderDataPort.loadReaderPayload(input.jobId, {
+        includeOptionalArtifacts: input.includeOptionalArtifacts !== false,
+      }),
+      linkedPromise,
+    ]);
     const payloadDocumentId = resolveSnapshotDocumentId(payload.jobPayload);
     const documentId = input.documentId || input.routeDocumentId || payloadDocumentId || normalizedString(linked?.document_id);
     const activeJobId = normalizedString(linked?.active_job_id);
@@ -225,9 +229,13 @@ export const sessionDataPort: ReaderSessionDataPort = {
       regions: normalizeReaderRegions(payload.regionsPayload),
       readerMetadata: normalizeReaderMetadata(payload.readerMetadata),
       readerErrors: payload.readerErrors,
+      // 只有真查过（job 链路、没有 route document）才带回；否则 undefined，
+      // 让 session 按自己的条件决定要不要查。
+      ...(input.jobId && !input.routeDocumentId ? { linkedDocument: linked ?? null } : {}),
     };
   },
   loadReaderPayload: (jobId, options) => defaultReaderDataPort.loadReaderPayload(jobId, options),
+  loadReaderOptionalArtifacts: (jobId) => defaultReaderDataPort.loadReaderOptionalArtifacts(jobId),
   loadJobPayload: (jobId) => defaultReaderDataPort.loadJobPayload(jobId),
   fetchDocumentByJobId: async (apiPrefix, jobId) => fetchDocumentByJobId(apiPrefix, jobId),
   fetchProtected: (input, init) => fetchProtected(input, init),

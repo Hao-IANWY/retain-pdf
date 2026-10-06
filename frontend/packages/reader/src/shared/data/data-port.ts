@@ -134,6 +134,24 @@ export function createReaderDataPort({
     return request;
   }
 
+  // regions/metadata are optional overlays: a failure must not be fatal, but
+  // it must be recorded rather than silently normalized into empty data.
+  // 单独暴露：PDF 地址只依赖 job / manifest，session 可以让 PDF 下载和它并行。
+  async function loadReaderOptionalArtifacts(jobId: string) {
+    const [regionsResult, metadataResult] = await Promise.all([
+      settleOptional(() => (loadRegions as any)(jobId, apiPrefix), { items: [] }),
+      settleOptional(() => (loadMetadata as any)(jobId, apiPrefix), null),
+    ]);
+    return {
+      readerMetadata: metadataResult.value,
+      regionsPayload: regionsResult.value,
+      readerErrors: {
+        regions: regionsResult.error,
+        metadata: metadataResult.error,
+      },
+    };
+  }
+
   async function loadReaderPayload(
     jobId: string,
     options: { includeOptionalArtifacts?: boolean } = {},
@@ -159,23 +177,15 @@ export function createReaderDataPort({
         readerErrors: { regions: null, metadata: null },
       };
     }
-    // regions/metadata are optional overlays: a failure must not be fatal, but
-    // it must be recorded rather than silently normalized into empty data.
-    const [jobPayload, manifestPayload, regionsResult, metadataResult] = await Promise.all([
+    const [jobPayload, manifestPayload, optional] = await Promise.all([
       jobPromise,
       manifestPromise,
-      settleOptional(() => (loadRegions as any)(jobId, apiPrefix), { items: [] }),
-      settleOptional(() => (loadMetadata as any)(jobId, apiPrefix), null),
+      loadReaderOptionalArtifacts(jobId),
     ]);
     return {
       jobPayload,
       manifestPayload,
-      readerMetadata: metadataResult.value,
-      regionsPayload: regionsResult.value,
-      readerErrors: {
-        regions: regionsResult.error,
-        metadata: metadataResult.error,
-      },
+      ...optional,
     };
   }
 
@@ -241,6 +251,7 @@ export function createReaderDataPort({
     loadMarkdownRange,
     loadJobPayload,
     loadReaderPayload,
+    loadReaderOptionalArtifacts,
     liveTranslation,
   });
 }
