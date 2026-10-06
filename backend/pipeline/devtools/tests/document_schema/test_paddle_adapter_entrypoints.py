@@ -5,7 +5,6 @@ from pathlib import Path
 
 
 REPO_SCRIPTS_ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(REPO_SCRIPTS_ROOT))
 
 from retainpdf_pipeline.ocr.document_schema import adapt_path_to_document_v1_with_report
 from retainpdf_pipeline.ocr.document_schema.provider_adapters.paddle import looks_like_paddle_layout

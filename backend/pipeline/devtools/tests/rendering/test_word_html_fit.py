@@ -14,13 +14,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-import sys
 
 import pytest
 
 PIPELINE_ROOT = Path(__file__).resolve().parents[3]
-if str(PIPELINE_ROOT) not in sys.path:
-    sys.path.insert(0, str(PIPELINE_ROOT))
 
 pytest.importorskip("fitz", reason="PyMuPDF 未安装")
 

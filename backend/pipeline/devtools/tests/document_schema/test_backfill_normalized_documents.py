@@ -3,14 +3,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import sqlite3
-import sys
 from types import SimpleNamespace
 
 import pytest
-
-
-PIPELINE_ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(PIPELINE_ROOT))
 
 
 from devtools import backfill_normalized_documents as backfill

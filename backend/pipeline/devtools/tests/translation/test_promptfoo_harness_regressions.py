@@ -3,10 +3,6 @@ import tempfile
 from pathlib import Path
 
 
-REPO_SCRIPTS_ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(REPO_SCRIPTS_ROOT))
-
-
 import devtools.promptfoo.provider as promptfoo_provider
 import devtools.promptfoo.tests as promptfoo_tests
 from retainpdf_pipeline.translate.services.policy.payload_rules.legacy_policy_mutations import apply_ref_text_skip

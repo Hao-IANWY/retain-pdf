@@ -4,12 +4,6 @@ from __future__ import annotations
 
 from importlib import import_module
 import sys
-from pathlib import Path
-
-
-REPO_SCRIPTS_ROOT = Path(__file__).resolve().parents[3]
-if str(REPO_SCRIPTS_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_SCRIPTS_ROOT))
 
 
 def _load_continuation_modules():

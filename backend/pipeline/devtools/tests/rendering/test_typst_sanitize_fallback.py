@@ -1,4 +1,3 @@
-import sys
 import tempfile
 from pathlib import Path
 from unittest import mock
@@ -7,10 +6,6 @@ import re
 import fitz
 import pytest
 from PIL import Image
-
-
-REPO_SCRIPTS_ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(REPO_SCRIPTS_ROOT))
 
 
 from retainpdf_pipeline.render.source.background.stage import build_clean_background_pdf

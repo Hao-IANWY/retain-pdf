@@ -1,10 +1,6 @@
-import sys
-from pathlib import Path
 
 import pytest
 
-REPO_SCRIPTS_ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(REPO_SCRIPTS_ROOT))
 
 from retainpdf_pipeline.render.layout.inline_content.fallback.latex_normalizer import normalize_formula_for_latex_math
 from retainpdf_pipeline.render.layout.inline_content.fallback.png_renderer import compile_formula_png

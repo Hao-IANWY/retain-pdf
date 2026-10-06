@@ -1,12 +1,8 @@
-import sys
 import tempfile
 from pathlib import Path
 from unittest import mock
 
 import fitz
-
-REPO_SCRIPTS_ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(REPO_SCRIPTS_ROOT))
 
 
 from retainpdf_pipeline.render.render_inputs import resolve_render_inputs

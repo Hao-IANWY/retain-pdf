@@ -23,12 +23,10 @@ docstring 自己写着）。一个数干两件事，动它就会掉一件。
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from retainpdf_pipeline.translate.workflow.checkpoint.contract import (  # noqa: E402
     assert_checkpoint_committable,

@@ -1,13 +1,8 @@
 from __future__ import annotations
 
-import sys
 import tempfile
 import time
 from pathlib import Path
-
-
-REPO_SCRIPTS_ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(REPO_SCRIPTS_ROOT))
 
 
 from retainpdf_pipeline.translate.services.continuation import review as continuation_review

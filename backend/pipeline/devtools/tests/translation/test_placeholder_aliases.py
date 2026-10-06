@@ -1,12 +1,6 @@
 from importlib import import_module
 import sys
 import unittest
-from pathlib import Path
-
-
-REPO_SCRIPTS_ROOT = Path(__file__).resolve().parents[3]
-if str(REPO_SCRIPTS_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_SCRIPTS_ROOT))
 
 
 def load_placeholder_guard():

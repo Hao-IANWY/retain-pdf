@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sys
 import tempfile
 import json
 from pathlib import Path
@@ -10,10 +9,6 @@ import fitz
 import pikepdf
 import pytest
 from pikepdf import Name
-
-
-REPO_SCRIPTS_ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(REPO_SCRIPTS_ROOT))
 
 
 from retainpdf_pipeline.render.source.preparation.redact_restore_formula import build_redact_restore_formula_pdf_copy

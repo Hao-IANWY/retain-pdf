@@ -30,15 +30,12 @@ import dataclasses
 import json
 import re
 import shutil
-import sys
 from pathlib import Path
 
 import pytest
 
 DEVTOOLS_ROOT = Path(__file__).resolve().parents[1]
 PIPELINE_ROOT = DEVTOOLS_ROOT.parent
-if str(PIPELINE_ROOT) not in sys.path:
-    sys.path.insert(0, str(PIPELINE_ROOT))
 
 from devtools import check_stage_specs_contract  # noqa: E402
 from retainpdf_pipeline.foundation.shared.stage_specs import (  # noqa: E402

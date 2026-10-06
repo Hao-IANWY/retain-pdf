@@ -1,12 +1,7 @@
 import copy
 import json
-import sys
 import tempfile
 from pathlib import Path
-
-
-REPO_SCRIPTS_ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(REPO_SCRIPTS_ROOT))
 
 
 from devtools.translation_repair_runner import TRANSLATION_REPAIR_PLAN_SCHEMA

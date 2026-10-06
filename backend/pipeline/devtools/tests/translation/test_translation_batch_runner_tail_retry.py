@@ -1,11 +1,7 @@
 from __future__ import annotations
 
-import sys
 import time
-from pathlib import Path
 
-REPO_SCRIPTS_ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(REPO_SCRIPTS_ROOT))
 
 from retainpdf_pipeline.translate.llm.shared.control_context import (
     build_translation_control_context,

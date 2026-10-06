@@ -2,16 +2,11 @@ from __future__ import annotations
 
 import json
 import subprocess
-import sys
 from pathlib import Path
 from types import SimpleNamespace
 
 import fitz
 import pytest
-
-
-PIPELINE_ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(PIPELINE_ROOT))
 
 
 from retainpdf_pipeline.ocr.ocr_provider import paddle_cli

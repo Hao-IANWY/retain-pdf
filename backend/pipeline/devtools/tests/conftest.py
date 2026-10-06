@@ -2,10 +2,24 @@ from __future__ import annotations
 
 import os
 import shutil
+import sys
 import tempfile
 from pathlib import Path
 
 import pytest
+
+# ---------------------------------------------------------------------------
+# 把 backend/pipeline 放上 sys.path，全套测试只在这里做一次。
+#
+# `retainpdf_pipeline` 是 editable 安装的，本来就能 import；但 editable finder
+# 只认这一个包，`devtools.*`（架构检查、promptfoo、测试自己的 support 模块）
+# 不在里面。以前是两百来个测试文件各自在开头抄一遍 `sys.path.insert`，这里收拢
+# 之后测试文件直接 `from devtools... import` 即可。conftest 一定先于测试模块
+# 加载，所以单独跑某一个文件也照样生效。
+# ---------------------------------------------------------------------------
+PIPELINE_ROOT = Path(__file__).resolve().parents[2]
+if str(PIPELINE_ROOT) not in sys.path:
+    sys.path.insert(0, str(PIPELINE_ROOT))
 
 # ---------------------------------------------------------------------------
 # 必须排在任何 `retainpdf_pipeline` 的 import 之前。

@@ -1,8 +1,4 @@
-import sys
-from pathlib import Path
 
-REPO_SCRIPTS_ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(REPO_SCRIPTS_ROOT))
 
 from retainpdf_pipeline.translate.workflow.batching.plan import _allocate_translation_queue_workers
 from retainpdf_pipeline.translate.workflow.batching.plan import _build_translation_batches

@@ -27,11 +27,6 @@ test_equivalent_rewrites_are_not_counted_as_dropped_commands。
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
-REPO_SCRIPTS_ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(REPO_SCRIPTS_ROOT))
 
 from retainpdf_pipeline.translate.llm.placeholder_transform import (  # noqa: E402
     item_with_runtime_hard_glossary,

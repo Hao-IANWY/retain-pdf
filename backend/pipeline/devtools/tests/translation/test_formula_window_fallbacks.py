@@ -1,15 +1,10 @@
 import json
-import sys
 import unittest
 import time
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 from dataclasses import replace
-from pathlib import Path
 
-
-REPO_SCRIPTS_ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(REPO_SCRIPTS_ROOT))
 
 from retainpdf_pipeline.translate.llm.result_payload import result_entry
 from retainpdf_pipeline.translate.llm.shared.orchestration.heavy_formula import heavy_formula_split_reason

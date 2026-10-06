@@ -24,8 +24,6 @@ from pathlib import Path
 import pytest
 
 PIPELINE_ROOT = Path(__file__).resolve().parents[3]
-if str(PIPELINE_ROOT) not in sys.path:
-    sys.path.insert(0, str(PIPELINE_ROOT))
 
 docx = pytest.importorskip("docx", reason="python-docx 未安装（它在 pyproject 里声明了）")
 fitz = pytest.importorskip("fitz", reason="PyMuPDF 未安装")

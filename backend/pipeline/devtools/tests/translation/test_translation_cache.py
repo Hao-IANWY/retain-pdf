@@ -1,10 +1,4 @@
-import sys
-from pathlib import Path
 import json
-
-
-REPO_SCRIPTS_ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(REPO_SCRIPTS_ROOT))
 
 
 from retainpdf_pipeline.translate.llm.shared.cache import cache_key_for_item

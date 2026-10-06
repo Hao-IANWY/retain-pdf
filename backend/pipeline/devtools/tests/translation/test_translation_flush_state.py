@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-import sys
 import time
 import pytest
 from pathlib import Path
 
-REPO_SCRIPTS_ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(REPO_SCRIPTS_ROOT))
 
 from retainpdf_pipeline.translate.services.results import (
     flush as flush_module,

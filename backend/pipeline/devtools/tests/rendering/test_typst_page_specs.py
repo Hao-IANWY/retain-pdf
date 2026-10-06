@@ -1,4 +1,3 @@
-import sys
 import tempfile
 from pathlib import Path
 from unittest import mock
@@ -7,10 +6,6 @@ import re
 import fitz
 import pytest
 from PIL import Image
-
-
-REPO_SCRIPTS_ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(REPO_SCRIPTS_ROOT))
 
 
 from retainpdf_pipeline.render.source.background.stage import build_clean_background_pdf
@@ -172,7 +167,6 @@ def test_build_render_page_specs_reports_progress_only_via_callback() -> None:
 
         assert [spec.page_index for spec in page_specs] == [0, 1]
         assert progress == [(1, 2, 0), (2, 2, 1)]
-
 
 
 def test_page_specs_parallel_matches_sequential() -> None:

@@ -2,13 +2,11 @@ from __future__ import annotations
 
 from copy import deepcopy
 from pathlib import Path
-import sys
 from unittest import mock
 
 import fitz
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from retainpdf_pipeline.render.layout.payload import prepare
 from retainpdf_pipeline.render.output.typst import overlay_ops

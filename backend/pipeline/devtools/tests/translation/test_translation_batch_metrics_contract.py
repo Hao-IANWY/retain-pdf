@@ -1,13 +1,10 @@
 """Timing is application-only; exceptions still publish partial diagnostics."""
 from __future__ import annotations
 
-from pathlib import Path
-import sys
 from types import SimpleNamespace
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from retainpdf_pipeline.translate.artifacts import TranslationRunDiagnostics
 from retainpdf_pipeline.translate.llm.shared import executor_context

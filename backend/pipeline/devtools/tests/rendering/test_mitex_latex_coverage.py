@@ -18,13 +18,9 @@ Unicode 的重写规则——`\\mathscr` → `\\mathcal` 更是直接把手写�
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 
 import pytest
 
-REPO_SCRIPTS_ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(REPO_SCRIPTS_ROOT))
 
 from retainpdf_pipeline.render.layout.inline_content import (  # noqa: E402
     build_direct_typst_passthrough_markdown,

@@ -19,13 +19,9 @@ Typst 符号名时，报错长得像「不支持这个命令」，于是长出�
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 
 import pytest
 
-REPO_SCRIPTS_ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(REPO_SCRIPTS_ROOT))
 
 from devtools.tests.rendering.mitex_probe import TYPST_BIN  # noqa: E402
 from devtools.tests.rendering.mitex_probe import compile_native  # noqa: E402
