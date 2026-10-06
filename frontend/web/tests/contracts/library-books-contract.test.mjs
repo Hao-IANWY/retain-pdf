@@ -18,10 +18,6 @@ function schemaProps(definition) {
   return new Set(Object.keys(def.properties || {}));
 }
 
-function schemaRequired(definition) {
-  return new Set(contract.definitions[definition]?.required || []);
-}
-
 function tsTypeFields(source, typeName) {
   // 兼容 generator 的 interface 与历史 type object 两种形态。
   const block =

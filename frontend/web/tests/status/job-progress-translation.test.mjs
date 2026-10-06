@@ -7,7 +7,6 @@ import {
 } from "@retainpdf/domain/job-status";
 import { compositeTranslationProgressFromRecord } from "@retainpdf/domain/job-status";
 import { summarizeStageProgressText } from "@retainpdf/domain/job-status";
-import { TRANSLATION_WORKFLOW_DIALOG } from "../../src/features/ingest/domain/dialog/contract.js";
 
 test("english batch detail is not parsed as translation batch progress", () => {
   assert.equal(

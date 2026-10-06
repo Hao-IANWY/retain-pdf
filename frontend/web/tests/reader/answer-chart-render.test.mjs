@@ -8,7 +8,7 @@
 
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
-import { describe, it, before } from "node:test";
+import { describe, it } from "node:test";
 
 const dom = new JSDOM("<!doctype html><body></body>", { url: "http://localhost/", pretendToBeVisual: true });
 for (const key of ["window", "document", "HTMLElement", "Node", "Event", "CustomEvent", "DocumentFragment", "MutationObserver", "NodeFilter"]) {
@@ -161,7 +161,6 @@ describe("图表块的渲染", () => {
     one.unmount();
   });
 });
-
 
 describe("代码块的外壳", () => {
   const codeShell = (host) => host.querySelector(".reader-answer-code");

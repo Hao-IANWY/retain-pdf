@@ -6,43 +6,6 @@ import { createUploadConfigPort } from "../../src/features/ingest/domain/upload/
 import { createUploadStatePort } from "../../src/features/ingest/domain/upload/state.js";
 import { createLegacyStateFixture } from "../helpers/legacy-state-fixture.mjs";
 
-function createClassList() {
-  const classes = new Set();
-  return {
-    add: (...names) => names.forEach((name) => classes.add(name)),
-    remove: (...names) => names.forEach((name) => classes.delete(name)),
-    toggle(name, force) {
-      if (force) {
-        classes.add(name);
-      } else {
-        classes.delete(name);
-      }
-    },
-    contains(name) {
-      return classes.has(name);
-    },
-  };
-}
-
-function createElement(overrides = {}) {
-  return {
-    classList: createClassList(),
-    dataset: {},
-    files: [],
-    style: {},
-    textContent: "",
-    title: "",
-    value: "",
-    closest() {
-      return null;
-    },
-    setAttribute(name, value) {
-      this[name] = value;
-    },
-    ...overrides,
-  };
-}
-
 test("upload config port owns upload endpoint url", () => {
   const calls = [];
   const port = createUploadConfigPort({

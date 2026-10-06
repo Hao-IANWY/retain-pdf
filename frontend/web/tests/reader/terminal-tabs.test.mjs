@@ -33,7 +33,6 @@ const read = (relative) =>
   readFileSync(fileURLToPath(new URL(relative, import.meta.url)), "utf8");
 
 const PANEL = read("../../src/features/reader/ui/terminal.tsx");
-const CHROME = read("../../src/features/reader/ui/terminal-chrome.tsx");
 const CSS = read("../../src/features/reader/ui/terminal-chrome.css");
 
 let counter = 1;

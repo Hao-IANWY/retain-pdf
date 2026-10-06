@@ -44,12 +44,6 @@ function tsInterfaceFields(source, interfaceName) {
   return new Set([...block.matchAll(/^\s*([a-zA-Z_][a-zA-Z0-9_]*)\??:/gm)].map((m) => m[1]));
 }
 
-function tsTypeFieldsLoose(source, typeName) {
-  const block = source.match(new RegExp(`export type ${typeName}\\s*=\\s*\\{([\\s\\S]*?)\\n\\};`))?.[1];
-  if (!block) return null;
-  return new Set([...block.matchAll(/^\s*([a-zA-Z_][a-zA-Z0-9_]*)\??:/gm)].map((m) => m[1]));
-}
-
 // 白盒例外：这里校验接口字段源码，路径由 test-layout 的显式清单约束。
 const jobTypesSrc = readFileSync(join(
   process.cwd(),

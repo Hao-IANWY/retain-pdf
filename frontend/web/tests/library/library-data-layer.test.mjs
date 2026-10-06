@@ -10,7 +10,6 @@ import {
   deleteMockDocument,
 } from "@/platform/mock/documents.js";
 import { MOCK_JOB_ID } from "@/platform/mock/constants.js";
-import { createRecentJobActions } from "../../src/features/library/domain/recent-jobs/actions.js";
 
 // ===== documents:形状与语义(与后端对接说明对齐) =====
 
@@ -59,7 +58,6 @@ test("mock 文档列表支持 q 标题/文件名过滤（镜像后端 LIKE）", 
   );
 });
 
-
 test("translateMockDocument:给馆藏文档挂 active_job_id 并返回提交视图", () => {
   const before = getMockDocumentList().documents.find((doc) => !`${doc.active_job_id || ""}`.trim());
   assert.ok(before, "至少一篇馆藏文档");
@@ -89,7 +87,6 @@ test("deleteMockDocument:删除后从列表消失,再取抛 404", () => {
   assert.throws(() => deleteMockDocument(target), /404/, "再删一次报 404");
 });
 
-
 test("PATCH 文档:reading_status 只认三个合法值", () => {
   assert.throws(() => patchMockDocument(MOCK_DOCUMENT_ID, { reading_status: "archived" }), /400/);
   patchMockDocument(MOCK_DOCUMENT_ID, { reading_status: "done" });
@@ -110,7 +107,6 @@ test("检索命中带锚点四元组,命中词以 [ ] 包裹", () => {
 });
 
 // ===== 删除保护:409 呈现为友好文案,绝不自动 force =====
-
 
 test("按 job_id 直查文档:active_job_id 命中 + 历史 run 也解析到同一文档", async () => {
   // isMockMode 靠 window.location.search 的 ?mock=,置好后再动态 import api 层

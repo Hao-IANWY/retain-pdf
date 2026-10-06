@@ -1,6 +1,5 @@
 import test, { before } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 // 数据端口白盒测试直连 src，避免依赖需单独构建的 reader dist（与
 // markdown-payload.test.mjs 相同边界）。
 import { createReaderDataPort } from "../../../../frontend/packages/reader/src/shared/data/data-port.ts";
@@ -182,12 +181,6 @@ test("reader page config port exposes injectable message origin and job id", () 
   assert.equal(port.readerJobId(), "job-real");
 });
 
-
-
-
-
-
-
 // 删：「reader translated region right click keeps selection drag from stealing the event」。
 // 用例第一行就是 `return;`（旧 src/js/reader/region-interactions 已删，新 reader 的块级
 // 交互只剩悬停复制，见 reader-hover-copy.test.mjs），后面的断言永远不执行；它依赖的
@@ -234,7 +227,6 @@ test("reader download actions resolve artifact urls and disabled reasons", () =>
 
 // 抽屉互斥开合的状态语义已移入 React 世界的 drawer store,
 // DOM 写入(is-open/inert/aria-expanded)由组件渲染;见 tests/reader-drawers.test.mjs。
-
 
 test("reader markdown answerer answers from markdown sections", async () => {
   if (!readerAiMarkdown) return; // shared ai not available, skip
@@ -418,9 +410,6 @@ test("reader page state owns boot progress snapshots", () => {
     translatedDone: false,
   });
 });
-
-
-
 
 test("reader dialog runtime port reuses artifact pdf download names", () => {
   const port = readerDialogRuntimePort.createReaderDialogRuntimePort({

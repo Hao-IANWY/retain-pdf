@@ -19,14 +19,6 @@ const { createBookDetailNavigation } = await import(
   "../../src/features/library/domain/documents/navigation-actions.js"
 );
 
-function blockedFavoritesError(count = 2, path = "/api/v1/documents/doc-b/favorites") {
-  return Object.assign(new Error("document is referenced by favorite(s)"), {
-    errorCode: "DELETE_BLOCKED_BY_FAVORITES",
-    favoriteCount: count,
-    clearFavoritesPath: path,
-  });
-}
-
 test("错误文案：凭据缺失、OCR 复用失败", () => {
   assert.match(friendlyTranslateError(new Error("paddle_token is required")), /配置 OCR/);
   assert.match(
@@ -65,7 +57,6 @@ test("提交载荷：凭据基座 + overrides 叠加；复用 OCR 时删掉 ocr 
   assert.equal(ocr.workflow, "ocr");
   assert.equal(ocr.ocr.page_ranges, "5-6");
 });
-
 
 test("任务动作：cancel 按 workflow 路由；retry 带 document_id 并 promote", async () => {
   const fakeStore = {
