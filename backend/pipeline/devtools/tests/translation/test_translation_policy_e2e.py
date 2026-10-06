@@ -4,7 +4,6 @@ from __future__ import annotations
 from retainpdf_pipeline.translate.artifacts.status import blocking_review_error_items
 from retainpdf_pipeline.translate.artifacts.status import blocking_untranslated_items
 from retainpdf_pipeline.translate.core.payload.parts.apply import apply_single_translated_entry
-from retainpdf_pipeline.translate.llm.result_payload import result_entry
 from retainpdf_pipeline.translate.llm.shared.control_context import build_translation_control_context
 from retainpdf_pipeline.translate.services.agents.review_artifact import build_translation_review
 from retainpdf_pipeline.translate.services.finalization.untranslated import recover_blocking_untranslated_items

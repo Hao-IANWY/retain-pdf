@@ -1,13 +1,9 @@
-import json
 import unittest
-from dataclasses import replace
 
 
 from retainpdf_pipeline.translate.llm.result_payload import result_entry
 from retainpdf_pipeline.translate.llm.shared.orchestration.heavy_formula import heavy_formula_split_reason
 from retainpdf_pipeline.translate.llm.shared.orchestration.heavy_formula import translate_heavy_formula_block
-from retainpdf_pipeline.translate.llm.shared.orchestration.metadata import should_store_translation_result
-from retainpdf_pipeline.translate.llm.shared.orchestration.sentence_level import sentence_level_fallback
 from retainpdf_pipeline.translate.llm.shared.orchestration.transport import DeferredTransportRetry
 
 
