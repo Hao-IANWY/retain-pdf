@@ -4,8 +4,37 @@ use crate::models::api::BookSummaryView;
 use crate::models::domain::{JobSnapshot, UploadRecord};
 use crate::services::jobs::summary_loaders::SummaryCache;
 
-pub(super) fn derive_display_name(upload: Option<&UploadRecord>, job: &JobSnapshot) -> String {
-    source_file_name(upload, job).unwrap_or_else(|| job.job_id.clone())
+/// 书名：所属文档的标题优先（和书籍详情一致，会被自动改名 / 手改），其次上传文件名，
+/// 最后才是 job_id。
+pub(super) fn derive_display_name(
+    upload: Option<&UploadRecord>,
+    job: &JobSnapshot,
+    titles: &DocumentTitles,
+) -> String {
+    document_title(upload, titles)
+        .or_else(|| source_file_name(upload, job))
+        .unwrap_or_else(|| job.job_id.clone())
+}
+
+/// `document_id`（= 上传内容的 sha256）→ 文档当前标题。
+pub(crate) type DocumentTitles = std::collections::HashMap<String, String>;
+
+pub(crate) fn document_title(upload: Option<&UploadRecord>, titles: &DocumentTitles) -> Option<String> {
+    let hash = upload?.content_hash.trim();
+    (!hash.is_empty()).then(|| titles.get(hash).cloned()).flatten()
+}
+
+/// 给一批上传记录查它们所属文档的标题。查询失败就当没有 —— 退回文件名，不影响列表。
+pub(crate) fn document_titles_for<'a>(
+    db: &crate::db::Db,
+    uploads: impl IntoIterator<Item = &'a UploadRecord>,
+) -> DocumentTitles {
+    let ids: Vec<String> = uploads
+        .into_iter()
+        .map(|upload| upload.content_hash.trim().to_string())
+        .filter(|hash| !hash.is_empty())
+        .collect();
+    db.document_titles(&ids).unwrap_or_default()
 }
 
 pub(super) fn upload_id(job: &JobSnapshot) -> Option<&str> {

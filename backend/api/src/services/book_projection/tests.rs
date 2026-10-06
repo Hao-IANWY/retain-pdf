@@ -208,7 +208,7 @@ fn library_metadata_keeps_upload_artifact_and_summary_fallback_order() {
         content_hash: String::new(),
     };
     let mut summaries = SummaryCache::default();
-    let title = derive_display_name(Some(&upload), &job);
+    let title = derive_display_name(Some(&upload), &job, &Default::default());
     let summary = build_book_summary(Some(&upload), &mut summaries, &job, &test.root, &title);
     assert_eq!(summary.title, "Uploaded.pdf");
     assert_eq!(summary.source_file_name.as_deref(), Some("Uploaded.pdf"));

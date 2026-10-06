@@ -44,6 +44,22 @@ test("已翻译文档:合并 library/books 活态,保留真实 job_id 与文档�
   assert.equal(item.source_pdf_url, "/api/v1/documents/docA/source.pdf");
   // book 带了 cover → 用 book 的(与现网格视觉一致)
   assert.equal(item.cover_url, "/api/v1/library/books/20260601-a/cover");
+  // 书名和书籍详情一致：用文档标题（会被自动改名 / 手改），不用任务里的上传文件名。
+  assert.equal(item.title, "共轭选择性");
+  assert.equal(item.display_name, "共轭选择性");
+});
+
+test("文档没有标题时：任务标题兜底，占位标题（job_id）再退回文件名", () => {
+  const fromBook = shapeDocumentCardItem(
+    { document_id: "d", active_job_id: "j1", title: "", source_filename: "file.pdf" },
+    { job_id: "j1", title: "book 标题", status: "succeeded", progress: {} },
+  );
+  assert.equal(fromBook.title, "book 标题");
+  const placeholder = shapeDocumentCardItem(
+    { document_id: "d", active_job_id: "j1", title: "", source_filename: "file.pdf" },
+    { job_id: "j1", title: "j1.pdf", status: "succeeded", progress: {} },
+  );
+  assert.equal(placeholder.title, "file.pdf");
 });
 
 test("已翻译但 book 缺 cover:封面回退到文档级 cover_url", () => {

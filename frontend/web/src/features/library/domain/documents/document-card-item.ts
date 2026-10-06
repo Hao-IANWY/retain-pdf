@@ -33,19 +33,29 @@ function firstUrl(...candidates) {
   return "";
 }
 
-/** book 标题若是 job_id / job_id.pdf / Mock…，改用文档真名 */
+/**
+ * 卡片书名：文档标题优先 —— 和书籍详情同一个名字。
+ *
+ * 文档标题会被元数据建议自动改名、或被用户手改；任务（book 投影）只知道上传时的文件名。
+ * 原来是任务标题优先、只在它是 job_id / Mock 占位时才换文档名，于是改过名的书在卡片上
+ * 还是文件名，和详情对不上。文档没有标题时才用任务标题（占位的除外），最后退回文件名。
+ */
 function pickCardTitle(bookTitle, document, jobId) {
+  const docTitle = `${document?.title || ""}`.trim();
+  if (docTitle) {
+    return docTitle;
+  }
   const book = `${bookTitle || ""}`.trim();
-  const docTitle = `${document?.title || document?.source_filename || ""}`.trim();
+  const fileName = `${document?.source_filename || ""}`.trim();
   const id = `${jobId || ""}`.trim();
   const bookIsPlaceholder = !book
     || (id && (book === id || book === `${id}.pdf`))
     || /^Mock(\s|重试|-|_)/i.test(book)
     || /^mock-/i.test(book);
-  if (bookIsPlaceholder && docTitle) {
-    return docTitle;
+  if (bookIsPlaceholder && fileName) {
+    return fileName;
   }
-  return book || docTitle || id || "";
+  return book || fileName || id || "";
 }
 
 // document + 可选的 active-job 投影 → 一张网格卡片 item。

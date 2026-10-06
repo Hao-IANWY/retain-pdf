@@ -154,6 +154,34 @@ impl Db {
         Ok(())
     }
 
+    /// 一批文档的当前标题（`document_id` → `title`），查不到的不出现在结果里。
+    ///
+    /// 任务列表、书架卡片按任务展示时，书名要和书籍详情一致 —— 书籍详情显示的是文档标题，
+    /// 而它会被元数据建议自动改名或被用户手改；任务自己只知道上传时的文件名。
+    pub fn document_titles(
+        &self,
+        document_ids: &[String],
+    ) -> Result<std::collections::HashMap<String, String>> {
+        let mut titles = std::collections::HashMap::new();
+        if document_ids.is_empty() {
+            return Ok(titles);
+        }
+        let conn = self.connect()?;
+        let mut stmt = conn.prepare("SELECT title FROM documents WHERE document_id = ?1")?;
+        for document_id in document_ids {
+            if titles.contains_key(document_id) {
+                continue;
+            }
+            let title: Option<String> = stmt
+                .query_row(params![document_id], |row| row.get(0))
+                .optional()?;
+            if let Some(title) = title.map(|title| title.trim().to_string()).filter(|title| !title.is_empty()) {
+                titles.insert(document_id.clone(), title);
+            }
+        }
+        Ok(titles)
+    }
+
     pub fn get_document(&self, document_id: &str) -> Result<DocumentRecord> {
         let conn = self.connect()?;
         let record = query_document(&conn, document_id)?

@@ -8,7 +8,15 @@ use crate::models::api::{
 use crate::models::domain::{JobFailureInfo, JobSnapshot, UploadRecord};
 use crate::storage_paths::resolve_source_pdf;
 
-pub(super) fn derive_display_name(upload: Option<&UploadRecord>, job: &JobSnapshot) -> String {
+/// 书名：所属文档的标题优先（和书籍详情一致），其次上传文件名，最后 job_id。
+pub(super) fn derive_display_name(
+    upload: Option<&UploadRecord>,
+    job: &JobSnapshot,
+    titles: &crate::services::book_projection::DocumentTitles,
+) -> String {
+    if let Some(title) = crate::services::book_projection::document_title(upload, titles) {
+        return title;
+    }
     if let Some(source_file_name) = source_file_name(upload, job) {
         return source_file_name;
     }
@@ -195,7 +203,7 @@ mod tests {
             content_hash: String::new(),
         };
         let mut summaries = SummaryCache::default();
-        assert_eq!(derive_display_name(Some(&upload), &job), "upload.pdf");
+        assert_eq!(derive_display_name(Some(&upload), &job, &Default::default()), "upload.pdf");
         // A stored zero is still metadata, not a signal to substitute artifacts.
         assert_eq!(
             page_count_for_job(Some(&upload), &mut summaries, &job, &root),
@@ -211,10 +219,10 @@ mod tests {
             Some(9)
         );
         upload.filename = " ".into();
-        assert_eq!(derive_display_name(Some(&upload), &job), "source.pdf");
+        assert_eq!(derive_display_name(Some(&upload), &job, &Default::default()), "source.pdf");
         assert_eq!(source_file_name(None, &job), Some("source.pdf".into()));
         job.request_payload.source.source_url.clear();
-        assert_eq!(derive_display_name(None, &job), "job-fallback");
+        assert_eq!(derive_display_name(None, &job, &Default::default()), "job-fallback");
         std::fs::remove_dir_all(root).unwrap();
     }
 

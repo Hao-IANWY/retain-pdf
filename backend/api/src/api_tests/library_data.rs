@@ -2430,3 +2430,68 @@ async fn split_translation_pre_check_sees_the_dev_stack_defaults() {
     assert_eq!(jobs.len(), 2);
     assert!(jobs.iter().all(|job| job.request_payload.translation.model == "glm-5.3-flash"));
 }
+
+async fn get_json(app: &axum::Router, uri: &str) -> serde_json::Value {
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(uri)
+                .header("X-API-Key", "test-key")
+                .header("host", "127.0.0.1:41000")
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    assert_eq!(response.status(), StatusCode::OK, "{uri}");
+    json_response(response).await
+}
+
+#[tokio::test]
+async fn cards_and_job_lists_show_the_document_title_not_the_upload_file_name() {
+    // 书籍详情显示文档标题（会被元数据建议自动改名、或用户手改）；书架卡片和任务列表原来
+    // 显示的是上传文件名，两边对不上。
+    let state = test_state("library-card-title-follows-document");
+    let app = build_app(state.clone());
+    let document_id = seed_document(&state, b"card-title-follows-document");
+    let upload = state.db.find_upload_for_document(&document_id).unwrap().unwrap();
+    let mut job = JobSnapshot::new("job-titled".to_string(), CreateJobInput::default(), vec!["python".to_string()]);
+    job.status = JobStatusKind::Succeeded;
+    job.upload_id = Some(upload.upload_id.clone());
+    job.sync_runtime_state();
+    state.db.save_job(&job).unwrap();
+    state.db.link_job_to_document("job-titled", &upload.upload_id).unwrap();
+    state.db.update_document_fields(&document_id, Some("自动识别出的论文标题"), None).unwrap();
+
+    let books = get_json(&app, "/api/v1/library/books").await;
+    let book = books["data"]["items"].as_array().unwrap().iter().find(|item| item["job_id"] == "job-titled").expect("book item");
+    assert_eq!(book["title"], "自动识别出的论文标题", "书架卡片还是文件名");
+    assert_eq!(book["display_name"], "自动识别出的论文标题");
+    assert_eq!(book["source_file_name"], "光谱综述.pdf", "原始文件名仍要保留");
+
+    let jobs = get_json(&app, "/api/v1/jobs").await;
+    let listed = jobs["data"]["items"].as_array().unwrap().iter().find(|item| item["job_id"] == "job-titled").expect("job item");
+    assert_eq!(listed["display_name"], "自动识别出的论文标题", "任务列表还是文件名");
+
+    let detail = get_json(&app, "/api/v1/library/books/job-titled").await;
+    assert_eq!(detail["data"]["title"], "自动识别出的论文标题", "书籍投影详情还是文件名");
+}
+
+#[tokio::test]
+async fn a_job_without_a_document_still_falls_back_to_the_upload_file_name() {
+    let state = test_state("library-card-title-fallback");
+    let app = build_app(state.clone());
+    let document_id = seed_document(&state, b"card-title-fallback");
+    let upload = state.db.find_upload_for_document(&document_id).unwrap().unwrap();
+    // 文档标题被清空（或这本书的文档记录不存在）：退回文件名，不能显示空白。
+    state.db.update_document_fields(&document_id, Some(""), None).unwrap();
+    let mut job = JobSnapshot::new("job-untitled".to_string(), CreateJobInput::default(), vec!["python".to_string()]);
+    job.status = JobStatusKind::Succeeded;
+    job.upload_id = Some(upload.upload_id.clone());
+    job.sync_runtime_state();
+    state.db.save_job(&job).unwrap();
+    let books = get_json(&app, "/api/v1/library/books").await;
+    let book = books["data"]["items"].as_array().unwrap().iter().find(|item| item["job_id"] == "job-untitled").expect("book item");
+    assert_eq!(book["title"], "光谱综述.pdf");
+}

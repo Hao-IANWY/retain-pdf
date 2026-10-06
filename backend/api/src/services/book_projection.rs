@@ -23,6 +23,7 @@ use metadata::{
     build_book_summary, derive_display_name, page_count_for_library, source_file_name,
     source_url_file_name, upload_id,
 };
+pub(crate) use metadata::{document_title, document_titles_for, DocumentTitles};
 
 pub(crate) fn build_library_book_list_view(
     db: &Db,
@@ -33,6 +34,7 @@ pub(crate) fn build_library_book_list_view(
     let jobs = list_books_filtered(db, query)?;
     let ids: Vec<_> = jobs.iter().filter_map(upload_id).collect();
     let uploads = db.get_uploads(&ids).unwrap_or_default();
+    let titles = document_titles_for(db, uploads.values());
     let live_stages = if query.include_live_stage != Some(false) {
         load_live_stage_snapshots(db, &jobs, data_root)
     } else {
@@ -48,6 +50,7 @@ pub(crate) fn build_library_book_list_view(
                 job,
                 base_url,
                 upload,
+                &titles,
                 &mut summaries,
                 live_stages.get(&job.job_id),
             )
@@ -66,7 +69,8 @@ pub(crate) fn build_library_book_detail_view(
     let uploads = db.get_uploads(&ids).unwrap_or_default();
     let upload = upload_id(job).and_then(|id| uploads.get(id));
     let mut summaries = SummaryCache::default();
-    let display_name = derive_display_name(upload, job);
+    let titles = document_titles_for(db, upload);
+    let display_name = derive_display_name(upload, job, &titles);
     let summary = build_book_summary(upload, &mut summaries, job, data_root, &display_name)
         .with_cover_url(library_image_url(job, data_root, base_url, "cover"))
         .with_thumbnail_url(library_image_url(job, data_root, base_url, "thumbnail"));
@@ -104,10 +108,11 @@ fn build_library_book_list_item(
     job: &JobSnapshot,
     base_url: &str,
     upload: Option<&UploadRecord>,
+    titles: &DocumentTitles,
     summaries: &mut SummaryCache,
     live_stage: Option<&LiveStageSnapshot>,
 ) -> LibraryBookListItemView {
-    let display_name = derive_display_name(upload, job);
+    let display_name = derive_display_name(upload, job, titles);
     let live = project_live_stage(job, live_stage);
     let (output_pdf_ready, markdown_ready, bundle_ready) = job_readiness(job, data_root);
     LibraryBookListItemView {
