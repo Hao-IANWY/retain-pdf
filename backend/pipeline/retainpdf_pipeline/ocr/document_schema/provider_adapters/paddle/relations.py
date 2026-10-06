@@ -137,13 +137,27 @@ def _body_flow_start_order(parsing_res_list: list[dict]) -> int:
     return -1
 
 
+# 线索词出现在段中时，只有短句才算元数据。版权 / 资助 / 利益声明本来就是一两句话；
+# 正文顺带提到一句「copyrighted by」「funded by」「open access」很常见，原来不看长度，
+# 整段正文（实测一段 189 词的方法学描述）就被当成元数据跳过、不翻译。
+# 线索在开头时（"Received: …"、"Funding: …"）声明可以写得长一些，上限放宽。
+_METADATA_CUE_MID_MAX_WORDS = 40
+_METADATA_CUE_START_MAX_WORDS = 80
+
+
 def _looks_like_metadata_text(text: str) -> bool:
     compact = " ".join((text or "").split()).strip()
     if not compact:
         return False
     if _is_short_metadata_bullet(compact):
         return True
-    return bool(_PADDLE_METADATA_TEXT_RE.search(compact))
+    match = _PADDLE_METADATA_TEXT_RE.search(compact)
+    if not match:
+        return False
+    words = _ascii_word_count(compact)
+    if match.start() == 0:
+        return words <= _METADATA_CUE_START_MAX_WORDS
+    return words <= _METADATA_CUE_MID_MAX_WORDS
 
 
 def _looks_like_ancillary_tail_heading(text: str) -> bool:

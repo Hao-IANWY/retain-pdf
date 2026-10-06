@@ -171,6 +171,45 @@ def test_paddle_metadata_cues_must_appear_at_start() -> None:
     assert classified[3][:2] == ("text", "metadata")
 
 
+def test_paddle_long_body_paragraph_mentioning_copyright_stays_body() -> None:
+    """正文顺带提到 copyright / funded by / open access，不能整段当元数据跳过。
+
+    实测（BMC Neurol 2021, 21:433 第 2 页）：一段 189 词的方法学描述因为写了
+    「a cognitive impairment screening tool copyrighted by the University of New South
+    Wales」被判成 metadata，整段没翻译。真正的元数据声明在本机所有 Paddle 任务里
+    都不超过 27 词。
+    """
+    gpcog = (
+        "The General Practitioner Assessment of Cognition (GPCOG), a cognitive impairment "
+        "screening tool copyrighted by the University of New South Wales, was utilized in the "
+        "assessment of cognitive impairment. The GPCOG has been validated for use in a wide "
+        "variety of populations including hypertension and resistant hypertension subpopulations. "
+        "With a sensitivity and specificity for the English GPCOG ranging from 0.81 to 0.98 and "
+        "0.72 to 0.95, respectively; the GPCOG performed at least as well as, if not better, than "
+        "the widely-used cognitive screens such as the Mini-Mental State Examination (MMSE)."
+    )
+    funded = (
+        "Participants were recruited from three outpatient clinics whose screening programme is "
+        "funded by the regional health authority; all clinics followed the same protocol, used the "
+        "same trained assessors, and recorded blood pressure with validated automated devices at "
+        "every visit over the twelve month follow-up period."
+    )
+    classified = classify_page_blocks(
+        [
+            {"block_label": "text", "block_content": gpcog},
+            {"block_label": "text", "block_content": funded},
+            {"block_label": "text", "block_content": "Open Access"},
+            {"block_label": "text", "block_content": "Received: 22 June 2021 Accepted: 25 October 2021 Published online: 08 November 2021"},
+        ]
+    )
+
+    assert classified[0][:2] == ("text", "body")
+    assert classified[1][:2] == ("text", "body")
+    # 反向：线索在开头的短声明照旧是元数据。
+    assert classified[2][:2] == ("text", "metadata")
+    assert classified[3][:2] == ("text", "metadata")
+
+
 def test_paddle_classifies_ancillary_tail_headings_as_metadata() -> None:
     classified = classify_page_blocks(
         [
