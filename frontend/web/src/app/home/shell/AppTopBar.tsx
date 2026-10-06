@@ -29,7 +29,7 @@ export function AppTopBar({ activeTab, onTabChange }: { activeTab?: string; onTa
           rel="noopener noreferrer"
         >
           <img className="hero-repo-logo" src="src/assets/RetainPDF-logo.svg" alt="RetainPDF logo" />
-          <span>RetainPDF</span>
+          <span className="library-brand-link-text">RetainPDF</span>
         </a>
         <div className="hero-actions hidden" aria-hidden="true">
           <button id="developer-btn" type="button" className="secondary hidden" aria-hidden="true">开发者</button>

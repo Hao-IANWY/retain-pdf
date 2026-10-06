@@ -54,6 +54,10 @@
   border: 0;
   border-radius: 0;
   box-shadow: none;
+
+  @media (max-width: 419px) {
+    gap: 10px;
+  }
 }
 
 @utility library-header-actions {
@@ -101,6 +105,13 @@
     padding: 6px 8px;
     font-size: 12px;
   }
+
+  /* 最窄（≤ 359px）连标签图标也放不下：只留文字。 */
+  @media (max-width: 359px) {
+    & svg {
+      display: none;
+    }
+  }
   font-weight: 600;
   color: var(--muted);
   cursor: pointer;
@@ -142,6 +153,14 @@
   & .hero-repo-logo {
     width: 22px;
     height: 22px;
+  }
+
+  /* ≤ 419px（手机竖屏）：logo 文字 + 三个标签放不下，「AI 问答」会被挤出屏幕。
+     只留图标（图片 alt 里有名字），标签一个都不少。 */
+  @media (max-width: 419px) {
+    & .library-brand-link-text {
+      display: none;
+    }
   }
 }
 
