@@ -2,8 +2,8 @@
  *
  * DOM 契约（ids / data-attrs / hidden 语义）由 SettingsDialog.tsx 保证，
  * 测试锁定；本文件只管观感。颜色一律语义 token（棘轮门禁）。
- * 旧版曾注册全局短名 @utility is-active（status-card.css 头注释明令禁止的
- * 模式，会波及全站同名 class）——v2 改回嵌套写法，短名不再外泄。 */
+ * 旧版曾注册全局短名 @utility is-active（全局短名工具类的模式，
+ * 会波及全站同名 class）——v2 改回嵌套写法，短名不再外泄。 */
 
 @utility app-settings-dialog {
   width: min(1040px, calc(100vw - 24px));

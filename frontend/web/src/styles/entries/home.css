@@ -94,7 +94,13 @@
 @import "../../features/credentials/ui/SecretInput.css";
 @import "../../features/credentials/ui/CredentialsWorkbenchInSettings.css";
 @import "../pages/home/credential-ocr.css";
-@import "../pages/home/status-card.css";
+/* 任务状态卡：样式放在组件旁边（顺序与原 status-card.css 一致）。 */
+@import "../../features/jobs/ui/StatusCard.css";
+@import "../../features/jobs/ui/StageFlow.css";
+@import "../../features/jobs/ui/StatusCardAnimation.css";
+@import "../../features/jobs/ui/ProgressBlock.css";
+@import "../../features/jobs/ui/StageRetry.css";
+@import "../../features/jobs/ui/ResultActions.css";
 /* 书籍详情按职责拆分：壳层 → 概览 → 处理 → 文件产物。 */
 @import "../pages/home/book-detail-shell.css" layer(pages);
 @import "../pages/home/book-detail-overview.css" layer(pages);

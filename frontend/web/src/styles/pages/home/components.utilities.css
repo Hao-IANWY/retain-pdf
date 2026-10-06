@@ -52,11 +52,11 @@
 
 /*
   危险区修复(Tailwind v4 迁移):`.status-card` 在 components.utilities.css
-  (旧版固定 448px 高的 grid 布局)和 status-card.css(现役的
+  (旧版固定 448px 高的 grid 布局)和 features/jobs/ui/StatusCard.css(现役的
   `block h-full w-full ...` 弹性布局,StatusCard.jsx 唯一实际渲染的版本)
   里各定义一份、display/height/width/max-width/overflow/background/color/
   box-shadow/padding 等大量属性同名冲突——v3 靠源码序 tie-break,
-  status-card.css 后写胜出(display:block,依赖 h-full 撑满父容器);
+  StatusCard.css 后写胜出(display:block,依赖 h-full 撑满父容器);
   旧版 448px 定高 grid 版本一直是死代码。v4 顺序不保真源码序,实测迁移后
   旧版反而胜出,`.status-card-shell` 塌陷。这里去掉冲突的布局/外观声明,
   只保留不冲突的 `position: relative` 与 `@apply mx-auto`。
