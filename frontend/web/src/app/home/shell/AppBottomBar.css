@@ -42,7 +42,10 @@
 }
 
 @utility library-bottom-search {
-  flex: 0 0 auto;
+  /* 搜索框是栏里唯一能让步的东西：允许收缩（flex-shrink: 1），由栏的 max-width 兜底。
+     以前写死 flex: 0 0 auto + 「100vw - 148px」，只算了添加 / 设置两颗按钮；加了「任务中心」后
+     窄屏（420px）上整条栏比屏幕宽，最右边的设置按钮被裁掉一半。按钮数量再变也不用改这里。 */
+  flex: 0 1 auto;
   width: min(440px, calc(100vw - 148px));
   width: min(440px, calc(100dvw - 148px));
   min-width: 0;
