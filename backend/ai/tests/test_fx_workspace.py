@@ -283,7 +283,7 @@ def _parser_source() -> str:
 
 
 def _indented_json_example(text: str, marker: str) -> dict:
-    """把说明里那段缩进 4 格的 JSON 例子抠出来解析。
+    r"""把说明里那段缩进 4 格的 JSON 例子抠出来解析。
 
     不用正则找结尾：`.*?\]\}` 这种非贪婪写法会在**内层**的 `}]}` 提前收尾，
     例子只截到一半（notes 的例子就是这么漏的；canvas 的例子当时碰巧没踩到）。

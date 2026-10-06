@@ -341,7 +341,9 @@ def test_a_complete_answer_is_persisted_without_a_reason():
 def test_a_cancelled_agent_leaves_nothing_behind():
     """agent 在中途抛出取消时,不留半截回答。
 
-    注意这条只覆盖「抛在落库之前」这一种;真正的顺序不变式由下面那条源码测试钉。
+    注意这条只覆盖「抛在落库之前」这一种;「模型已答完、落库前才被取消」那种交错由
+    test_followup_suggestions.py::test_a_stopped_turn_is_not_persisted 钉住（原先说的
+    「下面那条源码测试」早已删除）。
     """
     settings = api_settings(llm_api_key="env-llm-key")
     rust = FakeRust()
