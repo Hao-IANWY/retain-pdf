@@ -123,6 +123,7 @@ pub(crate) async fn cancel_job(
             if !updated {
                 return Ok(load_job_or_404(deps.db, job_id)?);
             }
+            release_document_card_after_cancel(deps.db, job_id);
         }
         return Ok(job);
     }
@@ -144,7 +145,31 @@ pub(crate) async fn cancel_job(
     if !updated {
         return Ok(load_job_or_404(deps.db, job_id)?);
     }
+    release_document_card_after_cancel(deps.db, job_id);
     Ok(job)
+}
+
+/// 取消由这里的 CAS 落定终态之后,书卡别停在被取消的任务上。
+///
+/// 重试 / 重跑 / 继续提交时就把 documents.active_job_id 指向了新任务;用户紧接着取消,
+/// 终态是这里写的 —— driver 随后看到 CAS 没更新就退出,lifecycle 的书卡回退
+/// (`maintain_document_after_terminal`)根本不会走,书卡一直显示「已取消」、阅读入口
+/// 变成读原文,直到下次启动 `backfill_active_jobs` 才纠正。规则与 lifecycle 相同
+/// (`release_document_active_job`):书卡仍指着它、且这本书有成功任务时才退回。
+/// 只在本函数的 CAS 赢了时调用 —— 没赢说明终态是别人写的,由写的那一方负责。
+/// 尽力而为:书卡是派生展示,失败只记日志,不影响取消本身。
+fn release_document_card_after_cancel(db: &Db, job_id: &str) {
+    let document_id = match db.document_id_for_job(job_id) {
+        Ok(Some(document_id)) => document_id,
+        Ok(None) => return,
+        Err(error) => {
+            tracing::error!("library: resolve document for canceled job {job_id} failed: {error}");
+            return;
+        }
+    };
+    if let Err(error) = db.release_document_active_job(&document_id, job_id) {
+        tracing::error!("library: release active job {job_id} for {document_id} failed: {error}");
+    }
 }
 
 #[cfg(test)]

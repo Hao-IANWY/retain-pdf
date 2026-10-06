@@ -256,6 +256,7 @@ where
     )?;
     if !updated {
         // Already terminal (e.g., canceled), do not overwrite with Succeeded/Failed
+        release_document_after_foreign_terminal(&deps, &job_id);
         clear_job_cancel_request(&deps, &job_id).await;
         return Ok(());
     }
@@ -309,6 +310,26 @@ fn maintain_document_after_terminal(
     // 1-5 页再翻 6-10 页，前 5 页就搜不到了。
     if let Err(error) = deps.db.rebuild_document_fts(&document_id) {
         error!("library: fts rebuild for {document_id} failed: {error}");
+    }
+}
+
+/// 终态不是 driver 写的(CAS 没更新)时的书卡收尾。
+///
+/// 经 API 取消 OCR 任务且已过排队阶段时(`cancel_job(ocr_only = true)`),API 不写 DB,
+/// 由 runner 的取消检查点(`save_ocr_job`)落 Canceled;runner 内部别的检查点也可能自己
+/// 落 Failed。这些写法都不走任何书卡回退,driver 是最后一个知道任务结束了的地方。
+/// 只做「没成功 → 退回」这一半:`release_document_active_job` 只在书卡仍指着它时生效,
+/// 若终态是 API 的 `cancel_job` 写的,它已经退回过,这里自然是空操作。
+fn release_document_after_foreign_terminal(deps: &ProcessRuntimeDeps, job_id: &str) {
+    let job = match deps.db.get_job(job_id) {
+        Ok(job) => job,
+        Err(error) => {
+            error!("library: reload job {job_id} after foreign terminal failed: {error}");
+            return;
+        }
+    };
+    if matches!(job.status, JobStatusKind::Canceled | JobStatusKind::Failed) {
+        maintain_document_after_terminal(deps, job_id, job.upload_id.as_deref(), &job.status);
     }
 }
 

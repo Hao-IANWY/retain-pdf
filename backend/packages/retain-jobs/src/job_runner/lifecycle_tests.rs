@@ -466,3 +466,40 @@ async fn a_failed_derived_job_hands_the_card_back_to_the_last_success() {
     update_document_after_job(&fx.deps, &fx.deps.db.get_job("retry-c").unwrap().into_runtime());
     assert_eq!(active(&fx, &document_id).as_deref(), Some("newer"));
 }
+
+/// 经 API 取消已过排队阶段的 OCR 任务时 API 不写 DB,由 runner 的取消检查点自己落 Canceled;
+/// driver 最后的 CAS 没更新就退出 —— 以前这里不碰书卡,书卡停在被取消的任务上。
+#[tokio::test]
+async fn a_job_canceled_by_its_own_runner_checkpoint_hands_the_card_back() {
+    let fx = Fixture::new(1);
+    let document_id = seed_document(&fx);
+    let mut old = document_job(&fx, "old", "2026-10-01T00:00:00", WorkflowKind::Book, JobStatusKind::Succeeded);
+    old.finished_at = Some("2026-10-01T01:00:00".into());
+    fx.deps.db.save_job(&old).unwrap();
+    derived_job(&fx, &document_id, "ocr-redo", "2026-10-02T00:00:00", JobStatusKind::Queued);
+    fx.deps.db.set_document_active_job(&document_id, "ocr-redo", None).unwrap();
+
+    spawn_job_with_workflow(fx.deps.clone(), "ocr-redo".into(), |deps, mut job| async move {
+        // runner 的取消检查点:自己 CAS 落 Canceled,再把同样的终态返回给 driver。
+        job.status = JobStatusKind::Canceled;
+        job.stage = Some("canceled".into());
+        assert!(cas_persist_job_with_resources(
+            deps.db.as_ref(),
+            &deps.persist.data_root,
+            &deps.persist.output_root,
+            &job.snapshot(),
+            &["queued", "running"],
+        )?);
+        Ok(job)
+    })
+    .unwrap()
+    .await
+    .unwrap();
+
+    assert_eq!(fx.deps.db.get_job("ocr-redo").unwrap().status, JobStatusKind::Canceled);
+    assert_eq!(
+        active(&fx, &document_id).as_deref(),
+        Some("old"),
+        "runner 自己落定的取消没有把书卡退回上一个成功任务"
+    );
+}
