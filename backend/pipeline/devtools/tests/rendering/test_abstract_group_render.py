@@ -1,14 +1,13 @@
-"""摘要这类「合并几何」的翻译组：整段译文只画一次，画在几个框的并集里。
+"""摘要这类「合并几何」的翻译组：整段一次翻译，再按原来的几个框分开填，每段只画一次。
 
 实测（BMC Neurol 2021, 21:433，Paddle）：摘要的 Background / Methodology / Results 三块被
 翻译阶段合成一组（translation_group_strategy=aggregate_geometry）一起翻，渲染出来三个框
-里各画了一遍整段译文。两处叠加：
+里各画了一遍整段译文。原因是 prepare_render_payloads_by_page 已经把整段按框切好，
+build_render_blocks 又对每个 item seed_render_fields 一遍，按「组成员取整组译文」把切好的
+结果覆盖回整段。
 
-1. prepare_render_payloads_by_page 把整段按容量切回各框之后，build_render_blocks 又对每个
-   item seed_render_fields 一遍，按「组成员取整组译文」把切好的结果覆盖回整段；
-2. 就算不覆盖，按容量切的切点也会落在词中间，「方法：」「结果：」对不上原来每块的开头。
-   同一栏上下相接的几块（这个摘要就是）直接合成一个框排整段；绕着图排的摘要不合并
-   （并集会盖住图），照旧切回各框 —— 那条由 test_translation_abstract_groups 守着。
+框保持原样、不合并：摘要可能分成好几块（同栏上下几块，或者绕着图一个窄框 + 一个通栏框），
+设计就是一次翻译、分开填充。
 """
 
 from retainpdf_pipeline.render.layout.payload.blocks import build_render_blocks
@@ -66,13 +65,14 @@ def _abstract_items() -> list[dict]:
     return items
 
 
-def test_aggregate_geometry_group_renders_once_in_the_union_box() -> None:
-    prepared = prepare_render_payloads_by_page({0: _abstract_items()}, first_line_indent_lookup={})
-    head, *rest = prepared[0]
+def test_aggregate_geometry_group_is_split_across_the_original_boxes() -> None:
+    prepared = prepare_render_payloads_by_page({0: _abstract_items()}, first_line_indent_lookup={})[0]
 
-    assert head["render_protected_text"] == UNIT_TEXT, "整段译文没有完整排在第一块里"
-    assert head["bbox"] == [57.0, 295.0, 532.0, 580.0], "第一块的框不是三个框的并集"
-    assert all(item["render_protected_text"] == "" for item in rest), "其余成员还在画字"
+    assert [item["bbox"] for item in prepared] == BOXES, "框被改了：摘要要按原来的几个框分开填"
+    chunks = [item["render_protected_text"] for item in prepared]
+    assert all(chunks), f"有框没分到译文：{chunks}"
+    assert all(chunk != UNIT_TEXT for chunk in chunks), "某个框里塞了整段译文"
+    assert "".join(chunks).count("背景：血管源性") == 1
 
 
 def test_build_render_blocks_does_not_reseed_prepared_items() -> None:
