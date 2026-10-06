@@ -87,6 +87,11 @@ PRIMARY_TRANSLATABLE_STRUCTURE_ROLES = {
     ROLE_HEADING,
     ROLE_CAPTION,
     ROLE_FIGURE_CAPTION,
+    # OCR 层对这三类标题都给 policy.translate=True（provider_caption_whitelist），
+    # 这里漏掉就会在最终过滤时被静默丢弃 —— 表格标题从不翻译。
+    ROLE_IMAGE_CAPTION,
+    ROLE_TABLE_CAPTION,
+    ROLE_CODE_CAPTION,
     ROLE_FOOTNOTE,
     ROLE_IMAGE_FOOTNOTE,
     ROLE_TABLE_FOOTNOTE,
