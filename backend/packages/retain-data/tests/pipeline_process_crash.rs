@@ -1,16 +1,19 @@
+mod support;
+
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use retain_data::db::{Db, PipelineDispatchBegin, PipelineDispatchIntent, PipelineUnitCommit};
-use retain_data::models::domain::{JobSnapshot, JobStatusKind};
-use retain_data::models::request::CreateJobInput;
+use retain_data::db::{PipelineDispatchBegin, PipelineDispatchIntent, PipelineUnitCommit};
+
+use support::{db, fixture_root, seed_running_job};
 
 const CRASH_MODE_ENV: &str = "RETAIN_TEST_PIPELINE_CRASH_MODE";
 const CRASH_ROOT_ENV: &str = "RETAIN_TEST_PIPELINE_CRASH_ROOT";
 const READY_FILE: &str = "child-ready";
+const FIXTURE_PREFIX: &str = "retain-pipeline-process-crash";
 const JOB_ID: &str = "job-process-crash";
 
 #[derive(Clone, Copy)]
@@ -26,28 +29,6 @@ impl CrashMode {
             Self::PageBeforeCheckpoint => "page-before-checkpoint",
         }
     }
-}
-
-fn fixture_root(label: &str) -> PathBuf {
-    std::env::temp_dir().join(format!(
-        "retain-pipeline-process-crash-{label}-{}-{}",
-        std::process::id(),
-        fastrand::u64(..)
-    ))
-}
-
-fn db(root: &Path) -> Db {
-    Db::new(root.join("jobs.db"), root.to_path_buf())
-}
-
-fn seed_running_job(db: &Db) {
-    let mut job = JobSnapshot::new(
-        JOB_ID.to_string(),
-        CreateJobInput::default(),
-        vec!["process-crash-fixture".to_string()],
-    );
-    job.status = JobStatusKind::Running;
-    db.save_job(&job).expect("seed running job");
 }
 
 fn dispatch_intent() -> PipelineDispatchIntent {
@@ -107,7 +88,7 @@ fn crash_writer_process_helper() {
     let root = PathBuf::from(std::env::var_os(CRASH_ROOT_ENV).expect("crash root"));
     let db = db(&root);
     db.init().expect("init child db");
-    seed_running_job(&db);
+    seed_running_job(&db, JOB_ID, "process-crash-fixture");
 
     match mode.as_str() {
         "dispatch-before-receipt" => {
@@ -152,7 +133,7 @@ fn crash_writer_process_helper() {
 
 #[test]
 fn killed_process_after_dispatch_intent_recovers_as_ambiguous_without_resubmit() {
-    let root = fixture_root("dispatch");
+    let root = fixture_root(FIXTURE_PREFIX, "dispatch");
     let _child = spawn_crash_fixture(&root, CrashMode::DispatchBeforeReceipt);
 
     let restarted = db(&root);
@@ -176,7 +157,7 @@ fn killed_process_after_dispatch_intent_recovers_as_ambiguous_without_resubmit()
 
 #[test]
 fn killed_process_after_page_save_resumes_from_last_committed_checkpoint() {
-    let root = fixture_root("checkpoint");
+    let root = fixture_root(FIXTURE_PREFIX, "checkpoint");
     let _child = spawn_crash_fixture(&root, CrashMode::PageBeforeCheckpoint);
     assert!(root.join("pages/page-0002.json").is_file());
 

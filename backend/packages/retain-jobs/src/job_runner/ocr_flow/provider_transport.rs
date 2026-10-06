@@ -207,46 +207,10 @@ fn execute_paddle_remote_transport<'a>(
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
-    use std::path::{Path, PathBuf};
-
     use super::*;
+    use crate::job_runner::test_support::{credential_test_root, write_credential_vault};
     use crate::models::domain::JobSnapshot;
     use crate::models::request::CreateJobInput;
-
-    fn test_root(name: &str) -> PathBuf {
-        let root = std::env::temp_dir().join(format!(
-            "retainpdf-ocr-transport-credential-{name}-{}",
-            fastrand::u64(..)
-        ));
-        fs::create_dir_all(root.join("secrets")).expect("create credential test root");
-        root
-    }
-
-    fn write_credential(root: &Path, credential_ref: &str, provider: &str, secret: &str) {
-        let path = root.join("secrets").join("credentials.json");
-        fs::write(
-            &path,
-            serde_json::json!({
-                "schema": "retainpdf_credential_vault_v1",
-                "credentials": {
-                    (credential_ref): {
-                        "kind": "ocr_provider_token",
-                        "provider": provider,
-                        "secret": secret
-                    }
-                }
-            })
-            .to_string(),
-        )
-        .expect("write credential vault");
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            fs::set_permissions(&path, fs::Permissions::from_mode(0o600))
-                .expect("secure credential vault");
-        }
-    }
 
     fn job_with_ocr_ref(provider: &str, credential_ref: &str) -> JobRuntimeState {
         let mut input = CreateJobInput::default();
@@ -262,10 +226,10 @@ mod tests {
 
     #[test]
     fn paddle_transport_client_uses_vault_credential_without_rehydrating_job() {
-        let root = test_root("paddle");
+        let root = credential_test_root("paddle");
         let credential_ref = "cred_paddle_transport";
         let secret = "paddle-vault-secret";
-        write_credential(&root, credential_ref, "paddle", secret);
+        write_credential_vault(&root, credential_ref, "ocr_provider_token", "paddle", secret);
         let job = job_with_ocr_ref("paddle", credential_ref);
 
         let client = build_paddle_client(&root, &job, PaddleRuntimeConfig::from_env())
@@ -280,10 +244,10 @@ mod tests {
 
     #[test]
     fn mineru_transport_client_uses_vault_credential_without_rehydrating_job() {
-        let root = test_root("mineru");
+        let root = credential_test_root("mineru");
         let credential_ref = "cred_mineru_transport";
         let secret = "mineru-vault-secret";
-        write_credential(&root, credential_ref, "mineru", secret);
+        write_credential_vault(&root, credential_ref, "ocr_provider_token", "mineru", secret);
         let job = job_with_ocr_ref("mineru", credential_ref);
 
         let client = build_mineru_client(&root, &job, MineruRuntimeConfig::from_env())

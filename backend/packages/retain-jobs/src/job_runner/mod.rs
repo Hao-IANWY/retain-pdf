@@ -21,6 +21,9 @@ mod stdout_parser;
 mod translation_flow;
 mod worker_process;
 
+#[cfg(test)]
+mod test_support;
+
 pub use cancel_registry::{clear_cancel_request_with_registry, request_cancel_with_registry};
 pub use driver_registry::JobDriverRegistry;
 pub use lifecycle::spawn_job;

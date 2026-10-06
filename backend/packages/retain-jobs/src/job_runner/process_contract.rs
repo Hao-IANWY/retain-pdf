@@ -218,6 +218,7 @@ fn require_worker_dir(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::job_runner::test_support::temp_root;
     use crate::models::domain::{JobArtifacts, JobSnapshot};
     use crate::models::request::CreateJobInput;
 
@@ -233,15 +234,6 @@ mod tests {
             ],
         )
         .into_runtime()
-    }
-
-    fn temp_root(name: &str) -> PathBuf {
-        let root = std::env::temp_dir().join(format!(
-            "rust-api-process-contract-{name}-{}",
-            fastrand::u64(..)
-        ));
-        std::fs::create_dir_all(&root).expect("create temp root");
-        root
     }
 
     #[test]

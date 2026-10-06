@@ -95,6 +95,7 @@ pub(super) mod tests {
     use crate::config::AppConfig;
     use crate::db::Db;
     use crate::job_events::persist_runtime_job_with_resources;
+    use crate::job_runner::test_support::runtime_job;
     use crate::models::domain::{now_iso, JobFailureInfo, JobSnapshot, JobStatusKind};
     use crate::models::request::CreateJobInput;
     use crate::ocr_provider::{provider_token_env_name, OcrProviderKind};
@@ -125,19 +126,10 @@ pub(super) mod tests {
         )
     }
 
-    fn build_job() -> JobRuntimeState {
-        JobSnapshot::new(
-            "job-test".to_string(),
-            CreateJobInput::default(),
-            vec!["python".to_string()],
-        )
-        .into_runtime()
-    }
-
     #[tokio::test]
     async fn startup_rejects_canceled_snapshot_before_spawning() {
         let deps = test_runtime_deps(1);
-        let stale = build_job();
+        let stale = runtime_job();
         let mut canceled = stale.snapshot();
         canceled.status = JobStatusKind::Canceled;
         deps.db.save_job(&canceled).unwrap();
@@ -242,7 +234,7 @@ pub(super) mod tests {
 
     #[test]
     fn shutdown_noise_success_requires_written_artifacts() {
-        let mut job = build_job();
+        let mut job = runtime_job();
         job.artifacts = Some(JobArtifacts {
             output_pdf: Some("/definitely/missing.pdf".to_string()),
             summary: Some("/definitely/missing.json".to_string()),
@@ -554,7 +546,7 @@ pub(super) mod tests {
 
     #[test]
     fn apply_process_completion_marks_cancel_and_clears_runtime_artifacts() {
-        let mut job = build_job();
+        let mut job = runtime_job();
         job.artifacts = Some(JobArtifacts {
             normalized_document_json: Some("/tmp/doc.json".to_string()),
             normalization_report_json: Some("/tmp/doc.report.json".to_string()),
@@ -621,7 +613,7 @@ print(json.dumps({
         config.pipeline_command = stub.to_string_lossy().to_string();
         state.config = Arc::new(config);
 
-        let mut job = build_job();
+        let mut job = runtime_job();
         job.job_id = "job-ai-diagnosis".to_string();
         job.request_payload.runtime.job_id = job.job_id.clone();
         job.request_payload.translation.api_key = "sk-test".to_string();

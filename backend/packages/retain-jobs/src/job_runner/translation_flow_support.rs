@@ -1,7 +1,5 @@
 use anyhow::Result;
 
-#[cfg(test)]
-use crate::models::domain::JobSnapshot;
 use crate::models::domain::{
     job_stage_detail, job_stage_str, JobRuntimeState, JobStage, JobStatusKind,
 };
@@ -45,21 +43,12 @@ pub(super) fn finalize_parent_after_ocr(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::request::CreateJobInput;
-
-    fn build_job() -> JobRuntimeState {
-        JobSnapshot::new(
-            "job-test".to_string(),
-            CreateJobInput::default(),
-            vec!["python".to_string()],
-        )
-        .into_runtime()
-    }
+    use crate::job_runner::test_support::runtime_job;
 
     #[test]
     fn finalize_parent_after_ocr_keeps_success_running_path() {
-        let mut parent = build_job();
-        let mut ocr = build_job();
+        let mut parent = runtime_job();
+        let mut ocr = runtime_job();
         ocr.status = JobStatusKind::Succeeded;
         let done = finalize_parent_after_ocr(&mut parent, &ocr, "2026-04-04T00:00:00Z".to_string())
             .expect("finalize");
@@ -68,8 +57,8 @@ mod tests {
 
     #[test]
     fn finalize_parent_after_ocr_marks_canceled() {
-        let mut parent = build_job();
-        let mut ocr = build_job();
+        let mut parent = runtime_job();
+        let mut ocr = runtime_job();
         ocr.status = JobStatusKind::Canceled;
         let done = finalize_parent_after_ocr(&mut parent, &ocr, "2026-04-04T00:00:00Z".to_string())
             .expect("finalize");
@@ -80,8 +69,8 @@ mod tests {
 
     #[test]
     fn finalize_parent_after_ocr_marks_failed_and_copies_error() {
-        let mut parent = build_job();
-        let mut ocr = build_job();
+        let mut parent = runtime_job();
+        let mut ocr = runtime_job();
         ocr.status = JobStatusKind::Failed;
         ocr.error = Some("ocr failed".to_string());
         let done = finalize_parent_after_ocr(&mut parent, &ocr, "2026-04-04T00:00:00Z".to_string())

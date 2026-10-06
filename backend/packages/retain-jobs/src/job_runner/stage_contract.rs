@@ -406,26 +406,7 @@ fn require_completed_checkpoint_if_present(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::domain::JobSnapshot;
-    use crate::models::request::CreateJobInput;
-
-    fn build_job() -> JobRuntimeState {
-        JobSnapshot::new(
-            "job-test".to_string(),
-            CreateJobInput::default(),
-            vec!["python".to_string()],
-        )
-        .into_runtime()
-    }
-
-    fn temp_root(name: &str) -> PathBuf {
-        let root = std::env::temp_dir().join(format!(
-            "rust-api-stage-contract-{name}-{}",
-            fastrand::u64(..)
-        ));
-        std::fs::create_dir_all(&root).expect("create temp root");
-        root
-    }
+    use crate::job_runner::test_support::{runtime_job, temp_root};
 
     #[test]
     fn ocr_ready_inputs_resolves_relative_paths_under_data_root() {
@@ -439,7 +420,7 @@ mod tests {
         std::fs::write(&normalized, b"{}").expect("normalized");
         std::fs::write(&layout, b"{}").expect("layout");
 
-        let mut job = build_job();
+        let mut job = runtime_job();
         job.artifacts = Some(JobArtifacts {
             source_pdf: Some("jobs/job-test/source/source.pdf".to_string()),
             normalized_document_json: Some("jobs/job-test/ocr/normalized.json".to_string()),

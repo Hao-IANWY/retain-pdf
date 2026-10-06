@@ -1,50 +1,11 @@
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use super::super::runtime_credentials::OCR_PROVIDER_CREDENTIAL_KIND;
 use super::*;
+use crate::job_runner::test_support::{credential_test_root, write_credential_vault};
 use crate::models::domain::{JobSnapshot, OcrProviderKind};
 use crate::models::request::CreateJobInput;
-
-fn test_root(name: &str) -> PathBuf {
-    let root = std::env::temp_dir().join(format!(
-        "retainpdf-worker-credential-{name}-{}",
-        fastrand::u64(..)
-    ));
-    fs::create_dir_all(root.join("secrets")).expect("create credential test root");
-    root
-}
-
-fn write_credential(
-    root: &Path,
-    credential_ref: &str,
-    kind: &str,
-    provider: &str,
-    secret: &str,
-) {
-    let path = root.join("secrets").join("credentials.json");
-    fs::write(
-        &path,
-        serde_json::json!({
-            "schema": "retainpdf_credential_vault_v1",
-            "credentials": {
-                (credential_ref): {
-                    "kind": kind,
-                    "provider": provider,
-                    "secret": secret
-                }
-            }
-        })
-        .to_string(),
-    )
-    .expect("write credential vault");
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(&path, fs::Permissions::from_mode(0o600))
-            .expect("secure credential vault");
-    }
-}
 
 fn job_with_ocr_ref(provider: &str, credential_ref: &str) -> JobRuntimeState {
     let mut input = CreateJobInput::default();
@@ -64,10 +25,10 @@ fn command_env(command: &Command, name: &str) -> Option<String> {
 
 #[test]
 fn builtin_ocr_credential_ref_is_resolved_into_provider_env() {
-    let root = test_root("builtin");
+    let root = credential_test_root("builtin");
     let credential_ref = "cred_ocr_paddle";
     let secret = "paddle-vault-secret";
-    write_credential(
+    write_credential_vault(
         &root,
         credential_ref,
         OCR_PROVIDER_CREDENTIAL_KIND,
@@ -107,7 +68,7 @@ fn model_job() -> JobRuntimeState {
 
 #[test]
 fn model_worker_uses_capability_without_resolving_translation_key() {
-    let root = test_root("model-capability");
+    let root = credential_test_root("model-capability");
     let db = retain_data::db::Db::new(root.join("jobs.db"), root.clone());
     db.init().unwrap();
     let job = model_job();
@@ -169,7 +130,7 @@ fn model_worker_uses_capability_without_resolving_translation_key() {
 
 #[test]
 fn model_worker_rejects_remote_or_mismatched_configuration() {
-    let root = test_root("model-binding-policy");
+    let root = credential_test_root("model-binding-policy");
     let db = retain_data::db::Db::new(root.join("jobs.db"), root.clone());
     db.init().unwrap();
     let job = model_job();
@@ -202,10 +163,10 @@ fn model_worker_rejects_remote_or_mismatched_configuration() {
 
 #[test]
 fn configured_ocr_credential_ref_is_available_through_generic_env() {
-    let root = test_root("configured");
+    let root = credential_test_root("configured");
     let credential_ref = "cred_ocr_local";
     let secret = "local-vault-secret";
-    write_credential(
+    write_credential_vault(
         &root,
         credential_ref,
         OCR_PROVIDER_CREDENTIAL_KIND,
@@ -227,10 +188,10 @@ fn configured_ocr_credential_ref_is_available_through_generic_env() {
 
 #[test]
 fn ocr_credential_provider_mismatch_fails_without_leaking_secret() {
-    let root = test_root("mismatch");
+    let root = credential_test_root("mismatch");
     let credential_ref = "cred_ocr_wrong_provider";
     let secret = "must-not-appear-in-error";
-    write_credential(
+    write_credential_vault(
         &root,
         credential_ref,
         OCR_PROVIDER_CREDENTIAL_KIND,
@@ -267,14 +228,14 @@ fn credential_child_process_helper() {
 
 #[tokio::test]
 async fn spawned_worker_process_receives_vault_credential() {
-    let root = test_root("spawned-process");
+    let root = credential_test_root("spawned-process");
     let data_root = root.join("data");
     let output_root = root.join("output");
     fs::create_dir_all(data_root.join("secrets")).expect("create data secrets root");
     fs::create_dir_all(&output_root).expect("create worker output root");
     let credential_ref = "cred_ocr_spawned_process";
     let secret = "spawned-process-vault-secret";
-    write_credential(
+    write_credential_vault(
         &data_root,
         credential_ref,
         OCR_PROVIDER_CREDENTIAL_KIND,

@@ -1,40 +1,20 @@
+mod support;
+
 use std::fs;
-use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use retain_data::config::PaddleRuntimeConfig;
-use retain_data::db::{Db, PipelineDispatchBegin, PipelineDispatchIntent};
-use retain_data::models::domain::{JobSnapshot, JobStatusKind};
-use retain_data::models::request::CreateJobInput;
+use retain_data::db::{PipelineDispatchBegin, PipelineDispatchIntent};
 use retain_data::ocr_provider::paddle::PaddleClient;
 use serde_json::json;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
+use support::{db, fixture_root, seed_running_job};
+
+const FIXTURE_PREFIX: &str = "retain-pipeline-network-fault";
 const JOB_ID: &str = "job-network-fault";
 const TOKEN: &str = "network-fault-secret";
-
-fn fixture_root(label: &str) -> PathBuf {
-    std::env::temp_dir().join(format!(
-        "retain-pipeline-network-fault-{label}-{}-{}",
-        std::process::id(),
-        fastrand::u64(..)
-    ))
-}
-
-fn db(root: &Path) -> Db {
-    Db::new(root.join("jobs.db"), root.to_path_buf())
-}
-
-fn seed_running_job(db: &Db) {
-    let mut job = JobSnapshot::new(
-        JOB_ID.to_string(),
-        CreateJobInput::default(),
-        vec!["network-fault-fixture".to_string()],
-    );
-    job.status = JobStatusKind::Running;
-    db.save_job(&job).expect("seed running job");
-}
 
 fn dispatch_intent() -> PipelineDispatchIntent {
     PipelineDispatchIntent {
@@ -102,11 +82,11 @@ async fn write_json_response(stream: &mut TcpStream, body: &str) {
 
 #[tokio::test]
 async fn lost_submit_response_is_not_retried_and_recovers_as_ambiguous() {
-    let root = fixture_root("submit-response-lost");
+    let root = fixture_root(FIXTURE_PREFIX, "submit-response-lost");
     fs::create_dir_all(&root).expect("create fixture root");
     let original = db(&root);
     original.init().expect("init DB");
-    seed_running_job(&original);
+    seed_running_job(&original, JOB_ID, "network-fault-fixture");
     let cursor = original
         .acquire_pipeline_attempt(JOB_ID, "worker-before-disconnect", "ocr", 0)
         .expect("acquire OCR attempt");
@@ -177,11 +157,11 @@ async fn lost_submit_response_is_not_retried_and_recovers_as_ambiguous() {
 
 #[tokio::test]
 async fn polling_disconnect_retries_without_losing_durable_receipt() {
-    let root = fixture_root("poll-retry");
+    let root = fixture_root(FIXTURE_PREFIX, "poll-retry");
     fs::create_dir_all(&root).expect("create fixture root");
     let original = db(&root);
     original.init().expect("init DB");
-    seed_running_job(&original);
+    seed_running_job(&original, JOB_ID, "network-fault-fixture");
     let cursor = original
         .acquire_pipeline_attempt(JOB_ID, "worker-before-poll", "ocr", 0)
         .expect("acquire OCR attempt");
