@@ -4,20 +4,15 @@ import json
 import sys
 from pathlib import Path
 
-import fitz
-
 
 from retainpdf_pipeline.foundation.shared.job_dirs import ensure_job_dirs
 from retainpdf_pipeline.foundation.shared.job_dirs import resolve_job_dirs
 from retainpdf_pipeline.ocr.ocr_provider import provider_pipeline
+from devtools.tests.pdf_fixtures import write_pdf
 
 
 def _write_source_pdf(path: Path) -> None:
-    doc = fitz.open()
-    page = doc.new_page(width=320, height=480)
-    page.insert_text((72, 72), "provider pipeline paddle smoke")
-    doc.save(path)
-    doc.close()
+    write_pdf(path, width=320, height=480, text="provider pipeline paddle smoke", at=(72, 72))
 
 
 def test_ocr_summary_preserves_transport_level_incomplete_validation(

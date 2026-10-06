@@ -16,6 +16,7 @@ from retainpdf_pipeline.render.output.typst.compiler import compile_typst_book_b
 from retainpdf_pipeline.render.output.typst.compiler import compile_typst_overlay_pdf
 from retainpdf_pipeline.render.output.typst.compiler import compile_typst_render_pages_pdf
 from devtools.tests.rendering_support.page_specs import sample_page_spec as _page_spec
+from devtools.tests.pdf_fixtures import write_pdf
 
 
 @pytest.fixture(autouse=True)
@@ -157,10 +158,7 @@ def test_render_pages_compile_uses_dynamic_project_root() -> None:
         work_dir = root / "rendered" / "typst" / "background-book"
         work_dir.mkdir(parents=True, exist_ok=True)
         background_pdf = work_dir / "book-background-cleaned.pdf"
-        doc = fitz.open()
-        doc.new_page(width=200, height=300)
-        doc.save(background_pdf)
-        doc.close()
+        write_pdf(background_pdf, width=200, height=300)
 
         with mock.patch("retainpdf_pipeline.render.output.typst.compiler.subprocess.run", return_value=completed) as run_mock:
             compile_typst_render_pages_pdf(
@@ -183,10 +181,7 @@ def test_background_book_compile_uses_job_root_as_project_root() -> None:
         work_dir.mkdir(parents=True, exist_ok=True)
         source_pdf = root / "source" / "input.pdf"
         source_pdf.parent.mkdir(parents=True, exist_ok=True)
-        doc = fitz.open()
-        doc.new_page(width=200, height=300)
-        doc.save(source_pdf)
-        doc.close()
+        write_pdf(source_pdf, width=200, height=300)
 
         page_specs = [
             (

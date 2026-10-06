@@ -5,6 +5,8 @@ from unittest import mock
 import fitz
 import pytest
 
+from devtools.tests.pdf_fixtures import write_pdf
+
 
 def test_background_book_source_draws_sampled_block_fill() -> None:
     from retainpdf_pipeline.render.output.typst.source_builder import build_typst_book_background_source
@@ -12,10 +14,7 @@ def test_background_book_source_draws_sampled_block_fill() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         source_pdf = root / "source.pdf"
-        doc = fitz.open()
-        doc.new_page(width=200, height=120)
-        doc.save(source_pdf)
-        doc.close()
+        write_pdf(source_pdf, width=200, height=120)
 
         source = build_typst_book_background_source(
             source_pdf,

@@ -18,6 +18,7 @@ from retainpdf_pipeline.ocr.document_schema.provider_adapters.paddle.relations i
 from retainpdf_pipeline.ocr.ocr_provider.paddle_normalize import rescale_document_geometry_to_pdf
 from retainpdf_pipeline.translate.core.ocr.json_extractor import extract_text_items
 from devtools.tests.document_schema.fixtures.registry import PADDLE_FIXTURES_ROOT
+from devtools.tests.pdf_fixtures import write_pdf
 
 
 PADDLE_FIXTURE_JSON = PADDLE_FIXTURES_ROOT / "json_full.json"
@@ -668,13 +669,9 @@ def test_paddle_inline_formula_uses_provider_layout_bbox_only_for_exact_pairing(
 
 
 def test_paddle_rescale_keeps_compatibility_and_contract_bbox_in_sync(tmp_path: Path) -> None:
-    import fitz
 
     pdf_path = tmp_path / "source.pdf"
-    pdf = fitz.open()
-    pdf.new_page(width=600, height=800)
-    pdf.save(pdf_path)
-    pdf.close()
+    write_pdf(pdf_path, width=600, height=800)
     document = {
         "pages": [
             {

@@ -28,6 +28,7 @@ from retainpdf_pipeline.render.source_cleanup.planning import segments
 from retainpdf_pipeline.render.analysis.document.builder import build_render_page_analysis
 from retainpdf_pipeline.render.contracts import RenderDocumentAnalysis
 from devtools.tests.rendering_support.page_profiles import sample_render_page_profile
+from devtools.tests.pdf_fixtures import write_pdf
 
 
 def test_bbox_text_strip_segments_keep_inline_formula_sides_deletable() -> None:
@@ -654,11 +655,7 @@ def test_bbox_text_strip_removes_textual_formula_when_overlay_exists() -> None:
         root = Path(tmp)
         source_pdf = root / "source.pdf"
         output_pdf = root / "stripped.pdf"
-        doc = fitz.open()
-        page = doc.new_page(width=260, height=180)
-        page.insert_text((30, 50), "f = lateral friction for design speed", fontsize=12)
-        doc.save(source_pdf)
-        doc.close()
+        write_pdf(source_pdf, width=260, height=180, text="f = lateral friction for design speed", at=(30, 50), fontsize=12)
 
         result = build_bbox_text_stripped_pdf_copy(
             source_pdf_path=source_pdf,
@@ -1278,11 +1275,7 @@ def test_execute_source_cleanup_replans_when_protected_pages_present() -> None:
         root = Path(tmp)
         source_pdf = root / "source.pdf"
         output_pdf = root / "stripped.pdf"
-        doc = fitz.open()
-        page = doc.new_page(width=200, height=200)
-        page.insert_text((20, 40), "inside text", fontsize=12)
-        doc.save(source_pdf)
-        doc.close()
+        write_pdf(source_pdf, width=200, height=200, text="inside text", at=(20, 40), fontsize=12)
 
         translated_pages = {
             0: [
@@ -1322,11 +1315,7 @@ def test_execute_source_cleanup_reuses_candidates_when_protection_matches() -> N
         root = Path(tmp)
         source_pdf = root / "source.pdf"
         output_pdf = root / "stripped.pdf"
-        doc = fitz.open()
-        page = doc.new_page(width=200, height=200)
-        page.insert_text((20, 40), "inside text", fontsize=12)
-        doc.save(source_pdf)
-        doc.close()
+        write_pdf(source_pdf, width=200, height=200, text="inside text", at=(20, 40), fontsize=12)
 
         translated_pages = {
             0: [

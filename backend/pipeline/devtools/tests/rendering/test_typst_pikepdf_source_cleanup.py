@@ -19,6 +19,7 @@ from retainpdf_pipeline.render.workflow.cover_fallback import cover_fallback_pag
 from retainpdf_pipeline.render.document.pikepdf_overlay import PikepdfOverlayResult
 from retainpdf_pipeline.render.output.typst.overlay_chunk_compile import OverlayChunkCompileResult
 from devtools.tests.rendering_support.page_specs import sample_page_spec as _page_spec
+from devtools.tests.pdf_fixtures import write_pdf
 
 def test_overlay_diagnostics_count_legacy_pymupdf_redaction_pages() -> None:
     diagnostics = new_overlay_merge_diagnostics()
@@ -238,15 +239,9 @@ def test_overlay_includes_cover_rect_without_promoting_unprecleaned_pages_to_fal
         output_pdf = root / "out.pdf"
         overlay_pdf = root / "overlay.pdf"
 
-        doc = fitz.open()
-        doc.new_page(width=200, height=300)
-        doc.save(source_pdf)
-        doc.close()
+        write_pdf(source_pdf, width=200, height=300)
 
-        overlay_doc = fitz.open()
-        overlay_doc.new_page(width=200, height=300)
-        overlay_doc.save(overlay_pdf)
-        overlay_doc.close()
+        write_pdf(overlay_pdf, width=200, height=300)
 
         source_doc = fitz.open(source_pdf)
         try:
@@ -296,15 +291,9 @@ def test_overlay_uses_explicit_visual_cover_pages_for_cover_fallback() -> None:
         output_pdf = root / "out.pdf"
         overlay_pdf = root / "overlay.pdf"
 
-        doc = fitz.open()
-        doc.new_page(width=200, height=300)
-        doc.save(source_pdf)
-        doc.close()
+        write_pdf(source_pdf, width=200, height=300)
 
-        overlay_doc = fitz.open()
-        overlay_doc.new_page(width=200, height=300)
-        overlay_doc.save(overlay_pdf)
-        overlay_doc.close()
+        write_pdf(overlay_pdf, width=200, height=300)
 
         source_doc = fitz.open(source_pdf)
         try:
@@ -355,15 +344,9 @@ def test_pikepdf_text_strip_compile_fallback_does_not_reenter_source_overlay() -
         output_pdf = root / "out.pdf"
         overlay_pdf = root / "overlay.pdf"
 
-        doc = fitz.open()
-        doc.new_page(width=200, height=300)
-        doc.save(source_pdf)
-        doc.close()
+        write_pdf(source_pdf, width=200, height=300)
 
-        overlay_doc = fitz.open()
-        overlay_doc.new_page(width=200, height=300)
-        overlay_doc.save(overlay_pdf)
-        overlay_doc.close()
+        write_pdf(overlay_pdf, width=200, height=300)
 
         source_doc = fitz.open(source_pdf)
         try:
@@ -407,10 +390,7 @@ def test_typst_render_source_does_not_emit_white_cover_rects() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         background_pdf = root / "background.pdf"
-        doc = fitz.open()
-        doc.new_page(width=200, height=300)
-        doc.save(background_pdf)
-        doc.close()
+        write_pdf(background_pdf, width=200, height=300)
 
         source = build_typst_source_from_page_specs(
             background_pdf_path=background_pdf,

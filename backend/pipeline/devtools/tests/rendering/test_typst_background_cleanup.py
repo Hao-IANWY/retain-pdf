@@ -16,6 +16,7 @@ from retainpdf_pipeline.render.visual_profile.contracts import DocumentVisualPro
 from retainpdf_pipeline.render.visual_profile.contracts import ItemVisualProfile
 from retainpdf_pipeline.render.visual_profile.contracts import PageVisualProfile
 from retainpdf_pipeline.render.visual_profile.runtime import VisualProfileRuntime
+from devtools.tests.pdf_fixtures import write_pdf
 
 
 def test_background_stage_creates_cleaned_pdf() -> None:
@@ -24,11 +25,7 @@ def test_background_stage_creates_cleaned_pdf() -> None:
         source_pdf = root / "source.pdf"
         output_pdf = root / "cleaned.pdf"
 
-        doc = fitz.open()
-        page = doc.new_page(width=200, height=300)
-        page.insert_text((20, 40), "source text")
-        doc.save(source_pdf)
-        doc.close()
+        write_pdf(source_pdf, width=200, height=300, text="source text", at=(20, 40))
 
         result = build_clean_background_pdf(
             source_pdf_path=source_pdf,
@@ -52,10 +49,7 @@ def test_background_stage_creates_cleaned_pdf() -> None:
 
 def test_background_cache_key_includes_visual_profile_payload(tmp_path: Path) -> None:
     source_pdf = tmp_path / "source.pdf"
-    doc = fitz.open()
-    doc.new_page(width=200, height=300)
-    doc.save(source_pdf)
-    doc.close()
+    write_pdf(source_pdf, width=200, height=300)
     spec = RenderPageSpec(
         page_index=0,
         page_width_pt=200,
@@ -132,10 +126,7 @@ def test_background_stage_uses_cover_only_redaction_for_vector_text() -> None:
         source_pdf = root / "source.pdf"
         output_pdf = root / "cleaned.pdf"
 
-        doc = fitz.open()
-        doc.new_page(width=200, height=300)
-        doc.save(source_pdf)
-        doc.close()
+        write_pdf(source_pdf, width=200, height=300)
 
         with mock.patch(
             "retainpdf_pipeline.render.source.background.stage.collect_vector_text_rects",
@@ -171,10 +162,7 @@ def test_background_stage_uses_visual_cover_for_formula_pages_by_default() -> No
         source_pdf = root / "source.pdf"
         output_pdf = root / "cleaned.pdf"
 
-        doc = fitz.open()
-        doc.new_page(width=200, height=300)
-        doc.save(source_pdf)
-        doc.close()
+        write_pdf(source_pdf, width=200, height=300)
 
         with mock.patch(
             "retainpdf_pipeline.render.source.background.stage.redact_source_text_areas",
@@ -215,11 +203,7 @@ def test_background_stage_skips_old_cleanup_for_precleaned_pages() -> None:
         source_pdf = root / "source.pdf"
         output_pdf = root / "cleaned.pdf"
 
-        doc = fitz.open()
-        page = doc.new_page(width=200, height=300)
-        page.insert_text((20, 40), "already stripped by pikepdf")
-        doc.save(source_pdf)
-        doc.close()
+        write_pdf(source_pdf, width=200, height=300, text="already stripped by pikepdf", at=(20, 40))
 
         with mock.patch(
             "retainpdf_pipeline.render.source.background.stage.protect_formula_regions_in_redaction_items",

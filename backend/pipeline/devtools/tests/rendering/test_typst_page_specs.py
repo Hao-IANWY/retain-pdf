@@ -7,6 +7,7 @@ import fitz
 from retainpdf_pipeline.render.layout.model.models import RenderLayoutBlock
 from retainpdf_pipeline.render.layout.model.models import RenderPageSpec
 from retainpdf_pipeline.render.layout.page_specs import build_render_page_specs
+from devtools.tests.pdf_fixtures import write_pdf
 
 
 def test_build_render_page_specs_uses_layout_block_protocol() -> None:
@@ -14,10 +15,7 @@ def test_build_render_page_specs_uses_layout_block_protocol() -> None:
         root = Path(tmp)
         source_pdf = root / "source.pdf"
 
-        doc = fitz.open()
-        doc.new_page(width=200, height=300)
-        doc.save(source_pdf)
-        doc.close()
+        write_pdf(source_pdf, width=200, height=300)
 
         translated_pages = {
             0: [

@@ -2,13 +2,12 @@ import tempfile
 from pathlib import Path
 from unittest import mock
 
-import fitz
-
 
 from retainpdf_pipeline.render.render_inputs import resolve_render_inputs
 from retainpdf_pipeline.render.render_stage import run_render_stage
 from retainpdf_pipeline.render.translation_loader import load_translated_pages
 from retainpdf_pipeline.translate.core.payload.manifest import write_translation_manifest
+from devtools.tests.pdf_fixtures import write_pdf
 
 
 def _write_payload(path: Path, translated_text: str) -> None:
@@ -112,10 +111,7 @@ def test_run_render_stage_uses_manifest_backed_pdf_inputs() -> None:
         output_pdf_path = root / "output.pdf"
         translations_dir.mkdir()
 
-        doc = fitz.open()
-        doc.new_page(width=200, height=300)
-        doc.save(source_pdf_path)
-        doc.close()
+        write_pdf(source_pdf_path, width=200, height=300)
 
         payload_path = translations_dir / "custom-page-001.json"
         _write_payload(payload_path, "manifest text")
@@ -159,10 +155,7 @@ def test_run_render_stage_no_cache_disables_render_prewarm_manifest(monkeypatch)
         output_pdf_path = root / "output.pdf"
         translations_dir.mkdir()
 
-        doc = fitz.open()
-        doc.new_page(width=200, height=300)
-        doc.save(source_pdf_path)
-        doc.close()
+        write_pdf(source_pdf_path, width=200, height=300)
 
         payload_path = translations_dir / "custom-page-001.json"
         _write_payload(payload_path, "manifest text")

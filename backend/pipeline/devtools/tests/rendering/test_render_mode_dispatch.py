@@ -8,6 +8,7 @@ import pytest
 
 from retainpdf_pipeline.render.workflow.executor import _dispatch_render_mode
 from retainpdf_pipeline.render.workflow.modes import RENDER_MODE_HANDLERS
+from devtools.tests.pdf_fixtures import write_pdf
 
 
 def test_render_mode_registry_covers_all_dispatch_modes() -> None:
@@ -65,11 +66,7 @@ def test_dispatch_overlay_runs_end_to_end_on_single_page(tmp_path: Path) -> None
     from retainpdf_pipeline.render.workflow.context import RenderExecutionContext
 
     source_pdf = tmp_path / "source.pdf"
-    doc = fitz.open()
-    page = doc.new_page(width=200, height=300)
-    page.insert_text((20, 40), "source text", fontsize=12)
-    doc.save(source_pdf)
-    doc.close()
+    write_pdf(source_pdf, width=200, height=300, text="source text", at=(20, 40), fontsize=12)
 
     context = RenderExecutionContext(
         output_pdf_path=tmp_path / "out.pdf",

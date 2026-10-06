@@ -3,22 +3,17 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
-import fitz
-
 
 from retainpdf_pipeline.foundation.shared.job_dirs import ensure_job_dirs
 from retainpdf_pipeline.foundation.shared.job_dirs import resolve_job_dirs
 from retainpdf_pipeline.ocr.ocr_provider.local_command_driver import LOCAL_OCR_COMMAND_ENV
 from retainpdf_pipeline.ocr.ocr_provider.local_command_driver import LOCAL_OCR_RAW_PROVIDER_ENV
 from retainpdf_pipeline.ocr.ocr_provider.local_command_driver import run_local_command_ocr_to_job_dir
+from devtools.tests.pdf_fixtures import write_pdf
 
 
 def _write_source_pdf(path: Path) -> None:
-    doc = fitz.open()
-    page = doc.new_page(width=320, height=480)
-    page.insert_text((72, 72), "provider pipeline paddle smoke")
-    doc.save(path)
-    doc.close()
+    write_pdf(path, width=320, height=480, text="provider pipeline paddle smoke", at=(72, 72))
 
 
 def test_local_command_ocr_driver_accepts_document_v1_output(tmp_path: Path, monkeypatch) -> None:

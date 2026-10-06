@@ -10,6 +10,7 @@ from retainpdf_pipeline.render.document.pikepdf_overlay import overlay_pdf_chunk
 from retainpdf_pipeline.render.document.pikepdf_overlay import overlay_pdf_pages_with_pikepdf
 from retainpdf_pipeline.render.document.pikepdf_overlay import overlay_page_pdfs_with_pikepdf
 from retainpdf_pipeline.render.document.pikepdf_pages import extract_pages_with_pikepdf
+from devtools.tests.pdf_fixtures import write_pdf
 
 def test_pikepdf_overlay_merges_overlay_page_without_pymupdf_write() -> None:
     with tempfile.TemporaryDirectory() as tmp:
@@ -18,17 +19,9 @@ def test_pikepdf_overlay_merges_overlay_page_without_pymupdf_write() -> None:
         overlay_pdf = root / "overlay.pdf"
         output_pdf = root / "merged.pdf"
 
-        doc = fitz.open()
-        page = doc.new_page(width=200, height=120)
-        page.insert_text((20, 40), "source text", fontsize=12)
-        doc.save(source_pdf)
-        doc.close()
+        write_pdf(source_pdf, width=200, height=120, text="source text", at=(20, 40), fontsize=12)
 
-        doc = fitz.open()
-        page = doc.new_page(width=200, height=120)
-        page.insert_text((20, 80), "overlay text", fontsize=12)
-        doc.save(overlay_pdf)
-        doc.close()
+        write_pdf(overlay_pdf, width=200, height=120, text="overlay text", at=(20, 80), fontsize=12)
 
         result = overlay_pdf_pages_with_pikepdf(
             source_pdf_path=source_pdf,
@@ -60,11 +53,7 @@ def test_pikepdf_overlay_merges_single_page_pdfs_by_source_page() -> None:
         doc.save(source_pdf)
         doc.close()
 
-        doc = fitz.open()
-        page = doc.new_page(width=200, height=120)
-        page.insert_text((20, 80), "page two overlay", fontsize=12)
-        doc.save(page_two_overlay)
-        doc.close()
+        write_pdf(page_two_overlay, width=200, height=120, text="page two overlay", at=(20, 80), fontsize=12)
 
         result = overlay_page_pdfs_with_pikepdf(
             source_pdf_path=source_pdf,
@@ -105,11 +94,7 @@ def test_pikepdf_overlay_merges_chunk_pdfs_by_source_pages() -> None:
         doc.save(chunk_one_pdf)
         doc.close()
 
-        doc = fitz.open()
-        page = doc.new_page(width=200, height=120)
-        page.insert_text((20, 80), "chunk two page one", fontsize=12)
-        doc.save(chunk_two_pdf)
-        doc.close()
+        write_pdf(chunk_two_pdf, width=200, height=120, text="chunk two page one", at=(20, 80), fontsize=12)
 
         result = overlay_pdf_chunks_with_pikepdf(
             source_pdf_path=source_pdf,

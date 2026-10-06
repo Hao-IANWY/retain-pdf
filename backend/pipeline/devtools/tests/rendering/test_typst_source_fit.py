@@ -2,12 +2,11 @@ import tempfile
 from pathlib import Path
 import re
 
-import fitz
-
 
 from retainpdf_pipeline.render.layout.model.models import RenderLayoutBlock
 from retainpdf_pipeline.render.layout.model.models import RenderPageSpec
 from retainpdf_pipeline.render.output.typst.emitter import build_typst_source_from_page_specs
+from devtools.tests.pdf_fixtures import write_pdf
 
 
 def test_typst_render_source_keeps_title_fit_inside_rect_budget() -> None:
@@ -42,10 +41,7 @@ def test_typst_render_source_keeps_title_fit_inside_rect_budget() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         background_pdf = root / "background.pdf"
-        doc = fitz.open()
-        doc.new_page(width=200, height=300)
-        doc.save(background_pdf)
-        doc.close()
+        write_pdf(background_pdf, width=200, height=300)
 
         source = build_typst_source_from_page_specs(
             background_pdf_path=background_pdf,
@@ -90,10 +86,7 @@ def test_typst_render_source_does_not_shrink_multiline_markdown_fit_height() -> 
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         background_pdf = root / "background.pdf"
-        doc = fitz.open()
-        doc.new_page(width=200, height=300)
-        doc.save(background_pdf)
-        doc.close()
+        write_pdf(background_pdf, width=200, height=300)
 
         source = build_typst_source_from_page_specs(
             background_pdf_path=background_pdf,
@@ -133,10 +126,7 @@ def test_long_plain_fallback_wraps_instead_of_single_line_scaling() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         background_pdf = root / "background.pdf"
-        doc = fitz.open()
-        doc.new_page(width=220, height=320)
-        doc.save(background_pdf)
-        doc.close()
+        write_pdf(background_pdf, width=220, height=320)
 
         source = build_typst_source_from_page_specs(
             background_pdf_path=background_pdf,

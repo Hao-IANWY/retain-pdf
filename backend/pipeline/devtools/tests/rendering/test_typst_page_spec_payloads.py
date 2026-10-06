@@ -1,10 +1,9 @@
 import tempfile
 from pathlib import Path
 
-import fitz
-
 
 from retainpdf_pipeline.render.layout.page_specs import build_render_page_specs
+from devtools.tests.pdf_fixtures import write_pdf
 
 
 def test_build_render_page_specs_restores_leaked_formula_tokens_before_render() -> None:
@@ -12,10 +11,7 @@ def test_build_render_page_specs_restores_leaked_formula_tokens_before_render() 
         root = Path(tmp)
         source_pdf = root / "source.pdf"
 
-        doc = fitz.open()
-        doc.new_page(width=200, height=300)
-        doc.save(source_pdf)
-        doc.close()
+        write_pdf(source_pdf, width=200, height=300)
 
         translated_pages = {
             0: [
@@ -70,10 +66,7 @@ def test_build_render_page_specs_marks_adjacent_collision_risk_for_stacked_block
         root = Path(tmp)
         source_pdf = root / "source.pdf"
 
-        doc = fitz.open()
-        doc.new_page(width=200, height=300)
-        doc.save(source_pdf)
-        doc.close()
+        write_pdf(source_pdf, width=200, height=300)
 
         translated_pages = {
             0: [
@@ -118,10 +111,7 @@ def test_build_render_page_specs_uses_cover_bbox_gap_for_tight_stacked_blocks() 
         root = Path(tmp)
         source_pdf = root / "source.pdf"
 
-        doc = fitz.open()
-        doc.new_page(width=240, height=320)
-        doc.save(source_pdf)
-        doc.close()
+        write_pdf(source_pdf, width=240, height=320)
 
         translated_pages = {
             0: [
