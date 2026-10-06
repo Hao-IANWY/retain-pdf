@@ -205,8 +205,6 @@ ROUTE_SERVICE_IMPORT_ALLOWLIST = {
     ),
     Path("src/routes/jobs/download.rs"): (
         "crate::services::jobs::DocumentDownloadKind",
-        # AiBoardListing 是画板列表的返回 DTO（不是服务），和 DocumentDownloadKind 同一处导入。
-        "crate::services::jobs::{AiBoardListing, DocumentDownloadKind}",
     ),
     Path("src/routes/download_response/markdown.rs"): (
         "crate::services::jobs::MarkdownDownload",

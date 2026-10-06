@@ -30,7 +30,6 @@ mod tests;
 
 use artifacts::{bundle_download, registered_artifact_download};
 use documents::document_download;
-pub(crate) use ai_board::AiBoardListing;
 pub(crate) use documents::DocumentDownloadKind;
 use markdown::{
     markdown_document_view, markdown_download, markdown_image_download, markdown_raw_download,

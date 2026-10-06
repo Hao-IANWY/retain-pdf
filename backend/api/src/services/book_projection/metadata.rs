@@ -75,16 +75,5 @@ pub(super) fn build_book_summary(
     }
 }
 
-pub(super) fn source_url_file_name(source_url: &str) -> Option<String> {
-    let trimmed = source_url.trim();
-    if trimmed.is_empty() {
-        return None;
-    }
-    let no_fragment = trimmed.split('#').next().unwrap_or(trimmed);
-    let no_query = no_fragment.split('?').next().unwrap_or(no_fragment);
-    let candidate = no_query.rsplit('/').next().unwrap_or(no_query).trim();
-    if candidate.is_empty() {
-        return None;
-    }
-    Some(candidate.to_string())
-}
+// 来源 URL 取文件名：共享的那一份在 services::artifacts（书名规则都在那里）。
+pub(super) use crate::services::artifacts::source_url_file_name;

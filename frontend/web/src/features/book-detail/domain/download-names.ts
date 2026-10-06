@@ -32,15 +32,24 @@ export const DOWNLOAD_KIND_BY_ARTIFACT_KEY: Record<string, DownloadKind> = {
   artifact_bundle_zip: "bundle",
 };
 
-const MAX_TITLE_CHARS = 120;
+/** 书名部分最多这么多 UTF-8 字节（和后端 MAX_TITLE_BYTES 一致），按字节截、不切断字符。 */
+const MAX_TITLE_BYTES = 180;
+const utf8Length = (ch: string) => new TextEncoder().encode(ch).length;
 
 function cleanTitle(title: string): string {
-  const trimmed = `${title || ""}`.trim().replace(/\.pdf$/i, "");
+  const trimmed = `${title || ""}`.replace(/\uFEFF/g, " ").trim().replace(/\.pdf$/i, "");
   const replaced = Array.from(trimmed)
     .map((ch) => (/[\\/:*?"<>|]/.test(ch) || /[\u0000-\u001f\u007f-\u009f]/.test(ch) ? " " : ch))
     .join("");
   const collapsed = replaced.split(/\s+/).filter(Boolean).join(" ");
-  const truncated = Array.from(collapsed).slice(0, MAX_TITLE_CHARS).join("");
+  let truncated = "";
+  let bytes = 0;
+  for (const ch of collapsed) {
+    const size = utf8Length(ch);
+    if (bytes + size > MAX_TITLE_BYTES) break;
+    truncated += ch;
+    bytes += size;
+  }
   const cleaned = truncated.trim().replace(/^\.+|\.+$/g, "").trim();
   return cleaned || "document";
 }

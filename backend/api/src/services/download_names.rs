@@ -56,8 +56,9 @@ impl DownloadKind {
     }
 }
 
-/// 书名部分最多这么多个字符：再长的话加上前后缀，有的文件系统（255 字节）会放不下。
-const MAX_TITLE_CHARS: usize = 120;
+/// 书名部分最多这么多 UTF-8 字节：加上前后缀（最长的 `dual_…_side-by-side.pdf` 多 23 字节）
+/// 也在 ext4 等文件系统 255 字节的文件名上限以内。按字节截、不切断字符。
+const MAX_TITLE_BYTES: usize = 180;
 
 pub(crate) fn download_file_name(title: &str, kind: DownloadKind) -> String {
     let title = clean_title(title);
@@ -67,13 +68,17 @@ pub(crate) fn download_file_name(title: &str, kind: DownloadKind) -> String {
     }
 }
 
-/// 去掉文件系统不认的字符和控制字符、去掉 `.pdf` 扩展名、压缩空白、截断；空了就是 `document`。
+/// 去掉文件系统不认的字符和控制字符、去掉 `.pdf` 扩展名（不分大小写）、压缩空白、截断；
+/// 空了就是 `document`。和前端 download-names.ts 逐字符一致（两边测试用同一组例子）：
+/// BOM（U+FEFF）在 JS 里算空白、Rust 的 split_whitespace 不算，所以这里先换成空格。
 fn clean_title(title: &str) -> String {
-    let trimmed = title.trim();
-    let without_ext = trimmed
-        .strip_suffix(".pdf")
-        .or_else(|| trimmed.strip_suffix(".PDF"))
-        .unwrap_or(trimmed);
+    let unbommed = title.replace('\u{FEFF}', " ");
+    let trimmed = unbommed.trim();
+    let without_ext = if trimmed.to_ascii_lowercase().ends_with(".pdf") {
+        &trimmed[..trimmed.len() - 4]
+    } else {
+        trimmed
+    };
     let replaced: String = without_ext
         .chars()
         .map(|ch| match ch {
@@ -83,7 +88,13 @@ fn clean_title(title: &str) -> String {
         })
         .collect();
     let collapsed = replaced.split_whitespace().collect::<Vec<_>>().join(" ");
-    let truncated: String = collapsed.chars().take(MAX_TITLE_CHARS).collect();
+    let mut truncated = String::new();
+    for ch in collapsed.chars() {
+        if truncated.len() + ch.len_utf8() > MAX_TITLE_BYTES {
+            break;
+        }
+        truncated.push(ch);
+    }
     let cleaned = truncated.trim().trim_matches('.').trim().to_string();
     if cleaned.is_empty() {
         "document".to_string()
@@ -143,8 +154,19 @@ mod tests {
         );
         assert_eq!(download_file_name("   ", DownloadKind::Bundle), "document_bundle.zip");
         assert_eq!(download_file_name("共轭在卤素.pdf", DownloadKind::Translated), "zh_共轭在卤素_translated.pdf");
+        // 「长」3 字节：180 字节恰好 60 个字。
         let long = "长".repeat(300);
         let name = download_file_name(&long, DownloadKind::Translated);
-        assert_eq!(name.chars().count(), "zh__translated.pdf".chars().count() + MAX_TITLE_CHARS);
+        assert_eq!(name, format!("zh_{}_translated.pdf", "长".repeat(60)));
+        assert!(download_file_name(&long, DownloadKind::SideBySide).len() <= 255);
+    }
+
+    #[test]
+    fn edge_inputs_match_the_frontend_mirror() {
+        // 和 frontend/web/tests/book-detail/download-names.test.mjs 同一组例子。
+        assert_eq!(download_file_name("x.Pdf", DownloadKind::Source), "orig_x_source.pdf");
+        assert_eq!(download_file_name("\u{FEFF}title", DownloadKind::Source), "orig_title_source.pdf");
+        assert_eq!(download_file_name("a\u{FEFF}b", DownloadKind::Source), "orig_a b_source.pdf");
+        assert_eq!(download_file_name("ab".repeat(100).as_str(), DownloadKind::Bundle), format!("{}_bundle.zip", "ab".repeat(90)));
     }
 }

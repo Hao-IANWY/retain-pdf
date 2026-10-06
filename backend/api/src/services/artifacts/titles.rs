@@ -45,7 +45,8 @@ pub(crate) fn job_display_title(db: &Db, job: &JobSnapshot) -> String {
         .unwrap_or_else(|| job.job_id.clone())
 }
 
-fn source_url_file_name(source_url: &str) -> Option<String> {
+/// 来源 URL 的最后一段（去掉 `#…` 和 `?…`）。书架、任务列表、下载命名共用这一份。
+pub(crate) fn source_url_file_name(source_url: &str) -> Option<String> {
     let trimmed = source_url.trim();
     let no_fragment = trimmed.split('#').next().unwrap_or(trimmed);
     let no_query = no_fragment.split('?').next().unwrap_or(no_fragment);

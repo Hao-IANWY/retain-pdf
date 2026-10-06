@@ -1,11 +1,11 @@
 use crate::error::AppError;
 use crate::models::api::{ArtifactDownloadQuery, LayoutDocxQuery, MarkdownQuery, PagePreviewQuery};
 use crate::models::api::ApiResponse;
-use crate::services::jobs::{AiBoardListing, DocumentDownloadKind};
+use crate::services::jobs::DocumentDownloadKind;
 use crate::AppState;
 use axum::extract::State;
 use axum::http::HeaderMap;
-use axum::response::Response;
+use axum::response::{IntoResponse, Response};
 use axum::Json;
 
 use crate::routes::common::{build_jobs_download_route_deps, ApiPath, ApiQuery};
@@ -250,12 +250,15 @@ pub async fn download_markdown_image(
 
 /// agent 画板里有什么。目录不存在返回空列表，不是 404 —— 画板是叠加层，
 /// 「还没往里放过」是正常状态。
+///
+/// 返回 `Response` 而不写出 `Json<ApiResponse<AiBoardListing>>`：路由只能经 facade 用服务，
+/// 写出类型名就得从 services::jobs 导入这个 DTO、再给它开架构白名单。响应体完全一样。
 pub async fn list_ai_board(
     State(state): State<AppState>,
     ApiPath(job_id): ApiPath<String>,
-) -> Result<Json<ApiResponse<AiBoardListing>>, AppError> {
+) -> Result<Response, AppError> {
     let deps = build_jobs_download_route_deps(&state);
-    Ok(Json(ApiResponse::ok(deps.downloads.ai_board_listing(&job_id)?)))
+    Ok(Json(ApiResponse::ok(deps.downloads.ai_board_listing(&job_id)?)).into_response())
 }
 
 /// 取画板里的一个文件。**这是唯一接受调用方文件名的 agent 产物端点**，

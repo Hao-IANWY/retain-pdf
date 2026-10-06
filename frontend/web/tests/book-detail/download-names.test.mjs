@@ -27,8 +27,15 @@ test("书名清理和 Rust 一致", () => {
   assert.equal(downloadFileName("a/b: c?  \"d\"\n.pdf", "source"), "orig_a b c d_source.pdf");
   assert.equal(downloadFileName("   ", "bundle"), "document_bundle.zip");
   assert.equal(downloadFileName("共轭在卤素.pdf", "translated"), "zh_共轭在卤素_translated.pdf");
-  const name = downloadFileName("长".repeat(300), "translated");
-  assert.equal(Array.from(name).length, Array.from("zh__translated.pdf").length + 120);
+  // 「长」3 字节：180 字节恰好 60 个字。
+  assert.equal(downloadFileName("长".repeat(300), "translated"), `zh_${"长".repeat(60)}_translated.pdf`);
+});
+
+test("边角输入和 Rust 一致（同一组例子）", () => {
+  assert.equal(downloadFileName("x.Pdf", "source"), "orig_x_source.pdf");
+  assert.equal(downloadFileName("\uFEFFtitle", "source"), "orig_title_source.pdf");
+  assert.equal(downloadFileName("a\uFEFFb", "source"), "orig_a b_source.pdf");
+  assert.equal(downloadFileName("ab".repeat(100), "bundle"), `${"ab".repeat(90)}_bundle.zip`);
 });
 
 test("文件页列表：给用户的文件写下载名，排查用的文件保持原名；不知道书名时保持原名", () => {
