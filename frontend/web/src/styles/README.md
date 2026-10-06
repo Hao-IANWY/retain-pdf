@@ -60,6 +60,32 @@ Reader 样式只改 `frontend/packages/reader/styles/*`。`src/styles/reader/` �
 
 卡片之间共享的值只在 `layout.css` 里定义成变量，其它文件引用变量，不复制数值、不借用别的组件的类名。响应式规则跟着组件走，放在各自文件末尾。
 
+## 组件样式放在组件旁边（迁移中）
+
+新写或迁移的组件样式放在组件文件旁边，同名：`TranslationCoveragePanel.tsx` 旁边是
+`TranslationCoveragePanel.css`。类名不改（仍是全局类名 + 组件前缀），`entries/*.css` 逐个
+`@import` 这些文件、显式写明顺序 —— Tailwind CLI 能解析任意相对路径，构建不用改。
+
+文件开头声明归属：
+
+```css
+/* @owns translation-coverage
+ * @uses status-stage-flow        ← 可选：确实要引用的别的组件的类 */
+```
+
+文件里的选择器只能用 `@owns` 的前缀、`is-` / `has-` 状态类和 `@uses` 登记的类。
+跨组件共享的值（底色、圆角、色阶）定义成 CSS 变量放在共享层，组件引用变量、不复制数值。
+
+门禁（`tests/architecture/css-module-boundaries.test.mjs`）：
+
+- 单个样式文件 ≤ 400 行。现存超标的登记在 `helpers/css-oversize-allowlist.json`，只减不增，
+  降到 400 行以内就必须从清单里删掉；
+- 组件旁样式的 `@owns` / `@uses` 约束。
+
+迁移时用 `npm run css:equivalence -- snapshot <基准.json>`（改前）和 `compare`（改后）核对编译结果：
+规则、声明、顺序都相同才算纯搬家；顺序变了会列出「先后调换且设置同一属性」的规则对 ——
+它们若命中同一元素界面就会变。拆分时尽量保持规则原来的先后顺序。
+
 ## 归属规则
 
 1. 页面专属样式只进入对应 entry：

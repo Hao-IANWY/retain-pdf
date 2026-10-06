@@ -1,0 +1,14 @@
+{
+  "src/styles/entries/reader.css": 409,
+  "src/styles/pages/home/book-detail-overview.css": 503,
+  "src/styles/pages/home/book-detail-shell.css": 524,
+  "src/styles/pages/home/components.utilities.css": 553,
+  "src/styles/pages/home/credential-settings.css": 1945,
+  "src/styles/pages/home/home-ask.css": 1522,
+  "src/styles/pages/home/job-dialogs.utilities.css": 657,
+  "src/styles/pages/home/library-shell.css": 1180,
+  "src/styles/pages/home/status-card.css": 901,
+  "src/styles/pages/home/status-detail-translation.utilities.css": 626,
+  "src/styles/pages/home/status-detail.utilities.css": 847,
+  "src/styles/pages/home/upload-workflow.utilities.css": 855
+}

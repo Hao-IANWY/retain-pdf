@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
+    "css:equivalence": "node ./scripts/css-equivalence.mjs",
     "prepare:workspace": "node ./scripts/build-workspace-packages.mjs",
     "prebuild": "npm run prepare:workspace",
     "build": "npm run prepare:vendor && npm run generate:version && npm run bundle:css && npm run bundle:js",
@@ -44,6 +45,7 @@
     "pixelmatch": "^7.2.0",
     "playwright": "^1.61.1",
     "pngjs": "^7.0.0",
+    "postcss": "^8.5.6",
     "tailwindcss": "^4.3.2",
     "typescript": "^7.0.2"
   },
