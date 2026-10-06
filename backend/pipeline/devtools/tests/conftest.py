@@ -98,12 +98,20 @@ def _isolate_output_root(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
         monkeypatch.setattr(paths, name, output_root / child)
 
 
+# 本机开着开发栈时，rust_api 和测试共用这个 data/，它会定时把路由计数刷进
+# diagnostics/route-usage.json。流水线从不写这个文件；不排除的话，哪次全量跑
+# 碰上一次刷盘，守卫就把账记在会话最后一条用例头上（偶发 ERROR at teardown）。
+_SERVICE_OWNED = frozenset({os.path.join("diagnostics", "route-usage.json")})
+
+
 def _snapshot(root: Path) -> dict[str, tuple[int, int]]:
     """(相对路径 -> (mtime_ns, size))。目录不存在就返回空表。"""
     rows: dict[str, tuple[int, int]] = {}
     for dirpath, _dirnames, filenames in os.walk(root):
         for name in filenames:
             path = Path(dirpath) / name
+            if str(path.relative_to(root)) in _SERVICE_OWNED:
+                continue
             try:
                 stat = path.lstat()
             except OSError:
