@@ -29,6 +29,12 @@ export type JobRow = {
   statusTone: "done" | "active" | "failed" | "idle";
   suppliedText: string;
   shade: number;
+  /** 成功但没翻全：「16 个内容块保留原文」。 */
+  warningText: string;
+  /** 失败原因一句话。 */
+  failureText: string;
+  /** 原始错误第一行，展开看。和 failureText 一样时不重复给。 */
+  errorDetail: string;
 };
 
 const KIND_LABEL: Record<string, string> = { ocr: "OCR", book: "翻译", translate: "翻译", render: "重新排版" };
@@ -134,6 +140,77 @@ export function jobRows(view: TranslationCoverageView | null | undefined, now: D
       statusTone,
       suppliedText,
       shade: shades.get(job.job_id) || 0,
+      warningText: keptOriginText(job),
+      failureText: `${job.failure_summary || ""}`.trim(),
+      errorDetail: errorDetailOf(job),
     };
   });
+}
+
+function keptOriginText(job: TranslationCoverageJob): string {
+  const kept = Number(job.kept_origin_blocks || 0);
+  return job.status === "succeeded" && kept > 0 ? `${kept} 个内容块保留原文` : "";
+}
+
+function errorDetailOf(job: TranslationCoverageJob): string {
+  const detail = `${job.error_head || ""}`.trim();
+  return detail && detail !== `${job.failure_summary || ""}`.trim() ? detail : "";
+}
+
+const isTranslationJob = (job: TranslationCoverageJob) => job.workflow !== "ocr";
+
+/** 最近一次成功的翻译 / OCR（jobs 已是新到旧）。 */
+function latestSucceeded(view: TranslationCoverageView, translation: boolean) {
+  return view.jobs.find((job) => job.status === "succeeded" && isTranslationJob(job) === translation) || null;
+}
+
+export type ProcessingFacts = {
+  /** 摘要那一行的几项：「已翻译 12 / 12 页」「由 2 次翻译拼成」「最近 9月21日 09:25」「用时 4 分 57 秒」「deepseek-v4-flash」。 */
+  facts: string[];
+  /** 当前合并结果里还保留原文的内容块数（只算仍在提供页面的翻译）。 */
+  keptOriginBlocks: number;
+  /** 流水线各站一句说明。没有可靠数据的站不给。 */
+  stageMeta: { ocr?: string; translate?: string };
+};
+
+/**
+ * 「进度」页顶部摘要和流水线各站说明。只读覆盖接口给的真实数据，算不出来的项就不出现 ——
+ * 不编数字。
+ */
+export function processingFacts(view: TranslationCoverageView | null | undefined, now: Date = new Date()): ProcessingFacts {
+  const empty: ProcessingFacts = { facts: [], keptOriginBlocks: 0, stageMeta: {} };
+  if (!view) return empty;
+  const keptOriginBlocks = view.jobs
+    .filter((job) => job.supplied_pages > 0)
+    .reduce((sum, job) => sum + Number(job.kept_origin_blocks || 0), 0);
+  const translation = latestSucceeded(view, true);
+  const ocr = latestSucceeded(view, false);
+  const facts: string[] = [];
+  if (view.page_count) {
+    facts.push(view.translated_pages >= view.page_count
+      ? `已翻译全部 ${view.page_count} 页`
+      : `已翻译 ${view.translated_pages} / ${view.page_count} 页`);
+  }
+  // 保留原文的块数不放在这一行：下面的提醒条和翻译站已经各说了一次。
+  if (view.contributing_jobs > 1) facts.push(`由 ${view.contributing_jobs} 次翻译拼成`);
+  if (translation) {
+    facts.push(`最近 ${formatTime(translation.created_at, now)}`);
+    const duration = formatDuration(translation.created_at, translation.finished_at);
+    if (duration) facts.push(`用时 ${duration}`);
+    if (translation.model) facts.push(translation.model);
+  }
+
+  const stageMeta: ProcessingFacts["stageMeta"] = {};
+  if (translation?.ocr_reused) {
+    stageMeta.ocr = "复用已有 OCR";
+  } else if (ocr) {
+    const duration = formatDuration(ocr.created_at, ocr.finished_at);
+    stageMeta.ocr = [pagesText(ocr, view.page_count), duration ? `用时 ${duration}` : ""].filter(Boolean).join(" · ");
+  }
+  // 翻译站不写用时：整本任务（workflow=book）的起止时间包含 OCR 和渲染，算成翻译用时会虚高。
+  // 总用时放在顶部摘要里，写明是整次任务的。
+  if (translation) {
+    stageMeta.translate = [pagesText(translation, view.page_count), translation.model].filter(Boolean).join(" · ");
+  }
+  return { facts, keptOriginBlocks, stageMeta };
 }

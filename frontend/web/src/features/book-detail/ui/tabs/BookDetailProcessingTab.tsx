@@ -8,11 +8,13 @@ import { JobFailureCard } from "../panels/processing/JobFailureCard.js";
 import { loadJobFailureDetail } from "../../domain/job-failure-detail.js";
 import type { JobFailureBrief } from "@/platform/contracts/library-payloads.js";
 import { ProcessingJobSummary } from "../panels/processing/ProcessingJobSummary.jsx";
+import { ProcessingSummary, type ProcessingSummaryTone } from "../panels/processing/ProcessingSummary.jsx";
+import { processingFacts } from "../../domain/translation-coverage.js";
 import { JobHistoryPanel, TranslationCoveragePanel } from "../panels/processing/TranslationCoveragePanel.js";
 import { btn } from "../panels/ui.jsx";
 import { documentJobPresentation, isDocumentJobActive } from "../use-document-jobs.js";
 import { countFromProgress, percentFromProgress } from "../../domain/progress-value.js";
-import { Languages, LoaderCircle, Square } from "lucide-react";
+import { LoaderCircle, Square } from "lucide-react";
 
 function progressOf(source: any): { current?: number; total?: number; percent: number | null } {
   const progress: any = source?.stage_snapshot?.progress || source?.progress || {};
@@ -43,10 +45,20 @@ function unifiedHeadline(ocr: any, translation: any): string {
   return `${translation?.status?.label || "未翻译"}`;
 }
 
-/** 统一进度条：OCR 活跃跟 OCR，否则跟翻译；无真实数字时不渲染。 */
+/** 统一进度条：只在进行中出现；OCR 活跃跟 OCR，否则跟翻译；无真实数字时不渲染。
+ *  完成后不再画一条满格的进度条 —— 它占一大块却什么也没说。 */
 function unifiedPercentOf(ocr: any, translation: any): number | null {
   if (ocr && isDocumentJobActive(ocr.job)) return progressOf(ocr.job).percent;
-  return progressOf(translation?.item).percent;
+  if (translation?.isActive) return progressOf(translation?.item).percent;
+  return null;
+}
+
+function summaryToneOf(ocr: any, translation: any, ocrTone: string, keptOriginBlocks: number): ProcessingSummaryTone {
+  if ((ocr && isDocumentJobActive(ocr.job)) || translation?.isActive) return "active";
+  const tone = `${translation?.status?.tone || ""}`;
+  if (tone === "failed" || (ocrTone === "failed" && tone !== "done")) return "failed";
+  if (tone === "done") return keptOriginBlocks > 0 ? "warn" : "done";
+  return "idle";
 }
 
 function ScanIcon() {
@@ -75,6 +87,7 @@ export function BookDetailProcessingTab({ ocr, translation, loading = false, err
         : "未执行";
   const ocrShowDetail = ocrActive || ocrStatus.tone === "failed";
   const unifiedPercent = unifiedPercentOf(ocr, translation);
+  const facts = processingFacts(coverage);
 
   const translationItem = translation?.item || {};
   const translationJobId = `${translationItem.job_id || translationItem.active_job_id || ""}`.trim();
@@ -91,7 +104,7 @@ export function BookDetailProcessingTab({ ocr, translation, loading = false, err
   const hasKnownJobData = Boolean(ocrJob) || hasTranslationJob || Boolean(translation?.isActive);
   const bootstrapping = Boolean(loading) && !hasKnownJobData;
 
-  const ocrConfigurable = !bootstrapping && !ocrActive && !ocr?.pending;
+  const ocrConfigurable = !bootstrapping && !ocrActive && !ocr?.pending && !translation?.isActive;
   const translationDescription = translation.ocrReuse
     ? "复用已有 OCR，直接翻译并生成阅读产物"
     : "执行 OCR、翻译并生成阅读产物";
@@ -110,7 +123,9 @@ export function BookDetailProcessingTab({ ocr, translation, loading = false, err
   const ocrFailure = ocrJobIsReal ? (ocrJob as { failure?: JobFailureBrief })?.failure ?? null : null;
   const translationFailure = (translationItem as { failure?: JobFailureBrief })?.failure ?? null;
   // OCR 动作与「翻译整本」同排，避免出现两行能力按钮。
-  const ocrAction = (
+  // 翻译进行中整组不出现：那时按钮只能是灰的（见 ocrBlockedByTranslation），
+  // 摆一个点不了的「重新 OCR」只是干扰。
+  const ocrAction = ocrBlockedByTranslation ? null : (
     <>
       <button
         id="book-detail-start-ocr-btn"
@@ -138,6 +153,31 @@ export function BookDetailProcessingTab({ ocr, translation, loading = false, err
     </>
   );
 
+  // OCR 指定页码：和翻译的「指定页码」放在同一个选项行里（动作区），不再单独占一张卡。
+  const ocrOptions = ocrConfigurable ? (
+    <div className="book-detail-ocr-range">
+      <label className="book-detail-ocr-range-toggle">
+        <input
+          type="checkbox"
+          checked={Boolean(ocr?.rangeOn)}
+          onChange={(event) => ocr?.onRangeOnChange?.(event.target.checked)}
+        />
+        OCR 指定页码
+      </label>
+      {ocr?.rangeOn ? (
+        <div className="book-detail-ocr-range-inputs">
+          <PageSpecInput
+            id="book-detail-ocr-pages"
+            label="要 OCR 的页码"
+            value={ocr?.pageSpec ?? ""}
+            pageCount={ocr?.pageCount}
+            onChange={(value) => ocr?.onPageSpecChange?.(value)}
+          />
+        </div>
+      ) : null}
+    </div>
+  ) : null;
+
   return (
     <div
       className="book-detail-tab-processing"
@@ -147,26 +187,14 @@ export function BookDetailProcessingTab({ ocr, translation, loading = false, err
       {loading ? <p className="text-xs text-muted-foreground">正在读取文档任务…</p> : null}
       {/* 全卡唯一 .book-detail-processing-card：OCR / 翻译收敛成同一条流水线。 */}
       <section className="book-detail-processing-card" data-processing-capability="processing" aria-label="处理">
-        <header className="book-detail-processing-head">
-          <span className="book-detail-processing-head-icon" aria-hidden="true">
-            <Languages />
-          </span>
-          <div className="book-detail-processing-head-copy">
-            <h3>处理</h3>
-            <p className="book-detail-processing-unified-status" data-processing-unified-status="true">
-              {bootstrapping ? "正在读取处理状态…" : unifiedHeadline(ocr, translation)}
-            </p>
-          </div>
-        </header>
-
-        {/* 首帧未知时留一条空轨占位：进度条稍后可能出现，先占好位置避免跳变。 */}
-        {bootstrapping ? (
-          <div className="book-detail-processing-progress overflow-hidden rounded-full bg-muted" aria-hidden="true" />
-        ) : unifiedPercent !== null ? (
-          <div className="book-detail-processing-progress overflow-hidden rounded-full bg-muted" aria-hidden="true">
-            <div className="h-full rounded-full bg-foreground transition-[width]" style={{ width: `${unifiedPercent}%` }} />
-          </div>
-        ) : null}
+        <ProcessingSummary
+          headline={unifiedHeadline(ocr, translation)}
+          tone={summaryToneOf(ocr, translation, ocrStatus.tone, facts.keptOriginBlocks)}
+          percent={unifiedPercent}
+          bootstrapping={bootstrapping}
+          facts={facts.facts}
+          keptOriginBlocks={facts.keptOriginBlocks}
+        />
 
         {/* 唯一轨道：OCR 是流水线第一站，不再是与翻译并列的能力标题。 */}
         <ProcessingPipelineRail
@@ -175,6 +203,8 @@ export function BookDetailProcessingTab({ ocr, translation, loading = false, err
           ocrStatus={{ ...ocrStatus, label: ocrStatusLabel }}
           translationStatus={translation.status}
           translationDescription={translationDescription}
+          stageMeta={facts.stageMeta}
+          translateWarning={facts.keptOriginBlocks > 0 ? `${facts.keptOriginBlocks} 块保留原文` : ""}
           loading={bootstrapping}
         />
 
@@ -197,29 +227,6 @@ export function BookDetailProcessingTab({ ocr, translation, loading = false, err
             />
           )}
           {ocr?.error ? <p className="rounded-md border border-foreground/20 bg-muted/40 px-3 py-2 text-xs text-foreground" role="alert">{ocr.error}</p> : null}
-          {ocrConfigurable ? (
-            <div className="book-detail-ocr-range">
-              <label className="book-detail-ocr-range-toggle">
-                <input
-                  type="checkbox"
-                  checked={Boolean(ocr?.rangeOn)}
-                  onChange={(event) => ocr?.onRangeOnChange?.(event.target.checked)}
-                />
-                OCR 指定页码
-              </label>
-              {ocr?.rangeOn ? (
-                <div className="book-detail-ocr-range-inputs">
-                  <PageSpecInput
-                    id="book-detail-ocr-pages"
-                    label="要 OCR 的页码"
-                    value={ocr?.pageSpec ?? ""}
-                    pageCount={ocr?.pageCount}
-                    onChange={(value) => ocr?.onPageSpecChange?.(value)}
-                  />
-                </div>
-              ) : null}
-            </div>
-          ) : null}
         </div>
 
         {/* 失败诊断。OCR 和翻译各占全部失败的一半左右（6 和 4，外加 3 次上传超时
@@ -244,6 +251,7 @@ export function BookDetailProcessingTab({ ocr, translation, loading = false, err
             // 由「还没见过任何任务」推出，点下去可能与在跑的任务撞车。
             canTranslate={bootstrapping ? false : translation.canTranslate}
             ocrActionSlot={ocrAction}
+            ocrOptionsSlot={ocrOptions}
           />
           {translationFailure ? (
             <JobFailureCard

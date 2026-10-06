@@ -34,6 +34,8 @@ export type BookTranslationWorkflowPanelProps = {
   ocrReuse?: { jobId: string } | null;
   /** 与「翻译整本」同排的动作（例如「开始/重新 OCR」）。 */
   ocrActionSlot?: ReactNode;
+  /** 与翻译「指定页码」同一选项行的 OCR 选项（「OCR 指定页码」）。 */
+  ocrOptionsSlot?: ReactNode;
   onRangeOnChange: (value: boolean) => void;
   onPageSpecChange: (value: string) => void;
   onTranslate: () => void;
@@ -67,6 +69,7 @@ export function BookTranslationWorkflowPanel({
   stageActionError = "",
   ocrReuse = null,
   ocrActionSlot = null,
+  ocrOptionsSlot = null,
   onRangeOnChange,
   onPageSpecChange,
   onTranslate,
@@ -110,13 +113,12 @@ export function BookTranslationWorkflowPanel({
             dialogOpen={dialogOpen}
             onOpenLiveReader={isActive ? onOpenLiveReader : undefined}
           />
-          {stageActionsNode}
         </section>
-      ) : (
-        stageActionsNode
-      )}
+      ) : null}
 
-      {/* 无折叠「选项」：发起/重试表单直接可见，OCR 动作与其同排。 */}
+      {/* 唯一的动作区：一行选项（翻译 / OCR 指定页码）+ 一行按钮（重新翻译、重新渲染、
+          OCR、翻译整本）。以前这些散在三处：阶段重试一行、OCR 按钮另一行、OCR 页码
+          单独一张卡。 */}
       <BookTranslateLaunchForm
         canTranslate={canTranslate}
         readerAvailable={readerAvailable}
@@ -129,6 +131,8 @@ export function BookTranslationWorkflowPanel({
         error={error}
         ocrReuse={ocrReuse}
         extraActions={ocrActionSlot}
+        leadingActions={stageActionsNode}
+        extraOptions={ocrOptionsSlot}
         onRangeOnChange={onRangeOnChange}
         onPageSpecChange={onPageSpecChange}
         onTranslate={onTranslate}

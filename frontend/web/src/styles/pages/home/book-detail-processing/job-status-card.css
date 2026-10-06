@@ -16,11 +16,16 @@
 
 .bd-job-status-inner {
   display: flex;
-  min-height: 248px;
   flex-direction: column;
   gap: 12px;
   box-sizing: border-box;
   padding: 14px;
+}
+
+/* 卡内的阶段条（OCR / 翻译 / 渲染 / 完成）不显示：上面的流水线已经画了同一件事，
+ * 运行中会出现两套阶段。卡片只留取消 / 用时 / 详情和当前阶段的进度说明。 */
+.bd-job-status-flow {
+  display: none;
 }
 
 .bd-job-status-head {

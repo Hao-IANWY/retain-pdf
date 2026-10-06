@@ -85,6 +85,44 @@
   line-height: 1.45;
 }
 
+/* 成功但没翻全：「16 个内容块保留原文」。 */
+.book-detail-job-history-warning {
+  width: fit-content;
+  padding: 1px 7px;
+  border-radius: 999px;
+  color: var(--ink);
+  background: var(--warn-weak);
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+
+/* 失败原因一句话；原始错误收在展开里，等宽、可折行，不撑破卡片。 */
+.book-detail-job-history-failure {
+  display: grid;
+  gap: 3px;
+  color: var(--ink);
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+
+.book-detail-job-history-error summary {
+  width: fit-content;
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.book-detail-job-history-error code {
+  display: block;
+  margin-top: 4px;
+  padding: 6px 8px;
+  overflow-wrap: anywhere;
+  border-radius: 8px;
+  color: var(--muted);
+  background: var(--book-detail-shade-0);
+  font-size: 10px;
+  white-space: pre-wrap;
+}
+
 /* 各项之间用间距分隔，不用圆点：折行后圆点会挂在下一行行首，CSS 隐藏不了行首那一个。 */
 .book-detail-job-history-meta {
   display: flex;
@@ -122,7 +160,7 @@
 }
 
 .book-detail-job-history-status[data-status-tone="failed"] {
-  color: var(--ink);
+  color: var(--danger);
   background: transparent;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 30%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--danger) 40%, transparent);
 }

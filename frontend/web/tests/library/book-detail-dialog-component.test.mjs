@@ -195,8 +195,10 @@ test("已翻译卡打开书籍详情:有对照阅读,无翻译按钮", async () 
   assert.equal(byId("book-detail-translate-progress"), null, "完成态不占用进度区域");
   const completedProcess = dlg.querySelector('[data-translation-process="true"]');
   assert.ok(completedProcess, "完成态展示紧凑翻译过程");
-  assert.equal(completedProcess.querySelectorAll("[data-stage-key]").length, 4, "过程包含 OCR/翻译/渲染/完成");
-  assert.equal(completedProcess.querySelector('[data-stage-key="done"]')?.getAttribute("data-state"), "done");
+  // 「完成」站已去掉：渲染打勾就是完成，它只是多一个勾。
+  assert.equal(completedProcess.querySelectorAll("[data-stage-key]").length, 3, "过程包含 OCR/翻译/渲染");
+  assert.equal(completedProcess.querySelector('[data-stage-key="done"]'), null, "不再有「完成」站");
+  assert.equal(completedProcess.querySelector('[data-stage-key="render"]')?.getAttribute("data-state"), "done");
   // 仍然不得弹工作流
   assert.equal(
     services.stores.dialog.getSnapshot().open,

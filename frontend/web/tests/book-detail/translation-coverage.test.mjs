@@ -7,6 +7,7 @@ import {
   formatDuration,
   formatTime,
   jobRows,
+  processingFacts,
 } from "../../src/features/book-detail/domain/translation-coverage.ts";
 
 const NOW = new Date("2026-10-05T12:00:00");
@@ -76,4 +77,58 @@ test("时间和用时的格式", () => {
   assert.equal(formatDuration("2026-10-05T07:00:00", "2026-10-05T07:05:00"), "5 分");
   assert.equal(formatDuration("2026-10-05T07:00:00", null), "");
   assert.equal(formatDuration("2026-10-05T08:00:00", "2026-10-05T07:00:00"), "", "结束早于开始不显示");
+});
+
+test("任务记录：没翻全的成功任务写出保留原文块数；失败任务写原因、原始错误收起", () => {
+  const view = {
+    ...VIEW,
+    jobs: [
+      { ...VIEW.jobs[0], failure_summary: "外部服务请求超时", error_head: "failed to upload file /x/y.pdf" },
+      { ...VIEW.jobs[1], kept_origin_blocks: 16 },
+      { ...VIEW.jobs[2], kept_origin_blocks: 0 },
+      VIEW.jobs[3],
+    ],
+  };
+  const rows = jobRows(view, NOW);
+  assert.equal(rows[0].failureText, "外部服务请求超时");
+  assert.equal(rows[0].errorDetail, "failed to upload file /x/y.pdf");
+  assert.equal(rows[1].warningText, "16 个内容块保留原文");
+  assert.equal(rows[2].warningText, "", "0 块不提示");
+  assert.equal(rows[3].failureText, "", "成功任务没有失败原因");
+  // 原始错误和一句话原因一样时不重复给。
+  const same = jobRows({ ...view, jobs: [{ ...VIEW.jobs[0], failure_summary: "x", error_head: "x" }] }, NOW);
+  assert.equal(same[0].errorDetail, "");
+});
+
+test("旧后端没有新字段：任务记录照常，不出提示", () => {
+  const rows = jobRows(VIEW, NOW);
+  assert.ok(rows.every((row) => !row.warningText && !row.failureText && !row.errorDetail));
+});
+
+test("摘要：页数、拼成次数、最近一次的时间 / 用时 / 模型，只算真实数据", () => {
+  const view = { ...VIEW, jobs: [VIEW.jobs[0], { ...VIEW.jobs[1], kept_origin_blocks: 5 }, { ...VIEW.jobs[2], kept_origin_blocks: 2 }, VIEW.jobs[3]] };
+  const facts = processingFacts(view, NOW);
+  assert.deepEqual(facts.facts, [
+    "已翻译 4 / 6 页",
+    "由 2 次翻译拼成",
+    "最近 10月4日 09:00",
+    "用时 3 分 5 秒",
+    "glm-5.3-flash",
+  ]);
+  assert.equal(facts.keptOriginBlocks, 7, "两次仍在提供页面的翻译加起来");
+  // 最近一次翻译复用了 OCR：OCR 站就写复用，不去拿那次很久以前的 OCR 用时。
+  assert.equal(facts.stageMeta.ocr, "复用已有 OCR");
+  // 翻译站不写用时（整本任务的起止包含 OCR 和渲染）。
+  assert.equal(facts.stageMeta.translate, "第 3-4 页 · glm-5.3-flash");
+});
+
+test("摘要：被之后的翻译完全替换的任务，保留原文不再计入", () => {
+  const view = { ...VIEW, jobs: [{ ...VIEW.jobs[1], kept_origin_blocks: 3, supplied_pages: 0 }] };
+  assert.equal(processingFacts(view, NOW).keptOriginBlocks, 0);
+});
+
+test("摘要：没复用 OCR 时 OCR 站写页数和用时；没有覆盖数据时什么都不给", () => {
+  const view = { ...VIEW, jobs: [VIEW.jobs[2], VIEW.jobs[3]] };
+  assert.equal(processingFacts(view, NOW).stageMeta.ocr, "全部 6 页 · 用时 1 小时 2 分");
+  assert.deepEqual(processingFacts(null, NOW), { facts: [], keptOriginBlocks: 0, stageMeta: {} });
 });

@@ -8,6 +8,7 @@ import { btn } from "../ui.jsx";
 
 export type BookTranslateLaunchFormProps = {
   canTranslate: boolean;
+  /** 以前用来显示「左侧可直接对照阅读」，那句已去掉；保留字段免得调用方改动。 */
   readerAvailable?: boolean;
   isActive?: boolean;
   statusTone?: string;
@@ -19,6 +20,10 @@ export type BookTranslateLaunchFormProps = {
   ocrReuse?: { jobId: string } | null;
   /** 与「翻译整本」同排的附加动作（例如「仅 OCR」按钮），统一成一行。 */
   extraActions?: ReactNode;
+  /** 排在按钮行最前面的动作（重新翻译 / 重新渲染）。 */
+  leadingActions?: ReactNode;
+  /** 选项行里的附加选项（「OCR 指定页码」）。 */
+  extraOptions?: ReactNode;
   onRangeOnChange: (value: boolean) => void;
   onPageSpecChange: (value: string) => void;
   onTranslate: () => void;
@@ -26,8 +31,6 @@ export type BookTranslateLaunchFormProps = {
 
 export function BookTranslateLaunchForm({
   canTranslate,
-  readerAvailable = false,
-  isActive = false,
   statusTone = "",
   rangeOn,
   pageSpec,
@@ -36,12 +39,14 @@ export function BookTranslateLaunchForm({
   error = "",
   ocrReuse = null,
   extraActions = null,
+  leadingActions = null,
+  extraOptions = null,
   onRangeOnChange,
   onPageSpecChange,
   onTranslate,
 }: BookTranslateLaunchFormProps) {
   return (
-    <div className="book-translate-launch-form space-y-2.5">
+    <div className="book-translate-launch-form">
       {error ? (
         <p
           id="book-detail-translate-error"
@@ -52,40 +57,48 @@ export function BookTranslateLaunchForm({
         </p>
       ) : null}
 
-      {canTranslate ? (
-        <div className="book-detail-processing-actions flex flex-wrap items-center justify-between gap-2">
-          <div className="flex flex-wrap items-center gap-2">
-            {ocrReuse ? (
-              <span
-                className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-muted px-2 py-1 text-[11px] font-medium text-foreground"
-                data-ocr-reuse="true"
-                title={`复用 OCR 任务 ${ocrReuse.jobId}`}
-              >
-                <Check className="size-3" aria-hidden="true" />
-                复用已有 OCR
-              </span>
-            ) : null}
-            <label className="flex cursor-pointer select-none items-center gap-2 text-xs text-muted-foreground">
-              <input
-                type="checkbox"
-                className="h-4 w-4 rounded border-muted-foreground/40"
-                checked={rangeOn}
-                onChange={(e) => onRangeOnChange(e.target.checked)}
-              />
-              指定页码
-            </label>
-            {rangeOn ? (
-              <PageSpecInput
+      {canTranslate || extraOptions ? (
+        <div className="book-detail-processing-options">
+          {canTranslate && ocrReuse ? (
+            <span
+              className="book-detail-processing-option-chip"
+              data-ocr-reuse="true"
+              title={`复用 OCR 任务 ${ocrReuse.jobId}`}
+            >
+              <Check className="size-3" aria-hidden="true" />
+              复用已有 OCR
+            </span>
+          ) : null}
+          {canTranslate ? (
+            <div className="book-detail-translate-range">
+              <label className="book-detail-translate-range-toggle">
+                <input
+                  type="checkbox"
+                  checked={rangeOn}
+                  onChange={(e) => onRangeOnChange(e.target.checked)}
+                />
+                指定页码
+              </label>
+              {rangeOn ? (
+                <PageSpecInput
                   id="book-detail-translate-pages"
                   label="要翻译的页码"
                   value={pageSpec}
                   pageCount={pageCount}
                   onChange={onPageSpecChange}
                 />
-            ) : null}
-          </div>
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            {extraActions}
+              ) : null}
+            </div>
+          ) : null}
+          {extraOptions}
+        </div>
+      ) : null}
+
+      {canTranslate || leadingActions || extraActions ? (
+        <div className="book-detail-processing-actions" data-processing-actions="true">
+          {leadingActions}
+          {extraActions}
+          {canTranslate ? (
             <button
               id="book-detail-translate-btn"
               type="button"
@@ -102,17 +115,8 @@ export function BookTranslateLaunchForm({
                     ? "重新翻译整本"
                     : "翻译整本"}
             </button>
-          </div>
+          ) : null}
         </div>
-      ) : extraActions ? (
-        <div className="book-detail-processing-actions flex flex-wrap items-center justify-end gap-2">
-          {readerAvailable ? <p className="book-detail-processing-hint">左侧可直接对照阅读</p> : null}
-          {extraActions}
-        </div>
-      ) : readerAvailable ? (
-        <p className="book-detail-processing-hint">左侧可直接对照阅读</p>
-      ) : isActive ? (
-        null
       ) : null}
     </div>
   );

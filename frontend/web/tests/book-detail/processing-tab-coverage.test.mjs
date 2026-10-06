@@ -133,3 +133,66 @@ test("没有覆盖数据（接口失败 / mock）：两块都不出现，其余�
   assert.ok(host.querySelector(".book-detail-processing-card"), "处理卡不该受影响");
   root.unmount(); host.remove();
 });
+
+const DONE_TRANSLATION = {
+  ...idleTranslation,
+  item: { job_id: "redo", workflow: "translate", status: "succeeded", created_at: "2026-10-04T09:00:00Z" },
+  status: { label: "已完成", tone: "done" },
+  canTranslate: false,
+};
+
+test("完成且有保留原文：标题是状态、摘要有数字、给出提醒；没有满格进度条、没有「完成」站", async () => {
+  const dom = makeDom();
+  const coverage = { ...COVERAGE, jobs: [{ ...COVERAGE.jobs[0], kept_origin_blocks: 16 }, COVERAGE.jobs[1]] };
+  const { root, host } = await mountTab(dom, { loading: false, ocr: idleOcr, translation: DONE_TRANSLATION, coverage });
+  assert.equal(host.querySelector("[data-processing-unified-status]")?.textContent, "已完成");
+  assert.equal(host.querySelector(".book-detail-processing-head")?.getAttribute("data-tone"), "warn");
+  assert.match(host.querySelector("[data-processing-facts]")?.textContent || "", /已翻译 4 \/ 6 页/);
+  assert.doesNotMatch(host.querySelector("[data-processing-facts]")?.textContent || "", /保留原文/, "提醒条已经说了，摘要行不重复");
+  assert.match(host.querySelector(".book-detail-processing-warning")?.textContent || "", /16 个内容块保留了原文/);
+  assert.equal(host.querySelector(".book-detail-processing-progress"), null, "完成后不画进度条");
+  assert.equal(host.querySelector("[data-stage-key='done']"), null);
+  assert.match(host.querySelector("[data-stage-warning='translate']")?.textContent || "", /16 块保留原文/);
+  assert.equal(host.querySelector("[data-stage-meta='translate']")?.textContent, "第 3-4 页 · glm-5.3-flash");
+  assert.equal(host.textContent.includes("左侧可直接对照阅读"), false, "这句填充文案去掉了");
+  root.unmount(); host.remove();
+});
+
+test("完成且全部翻出来：没有提醒，图标是完成色", async () => {
+  const dom = makeDom();
+  const { root, host } = await mountTab(dom, { loading: false, ocr: idleOcr, translation: DONE_TRANSLATION, coverage: COVERAGE });
+  assert.equal(host.querySelector(".book-detail-processing-head")?.getAttribute("data-tone"), "done");
+  assert.equal(host.querySelector(".book-detail-processing-warning"), null);
+  root.unmount(); host.remove();
+});
+
+test("OCR 指定页码和翻译的指定页码在同一个选项行；按钮都在同一个动作行", async () => {
+  const dom = makeDom();
+  const { root, host } = await mountTab(dom, { loading: false, ocr: idleOcr, translation: idleTranslation, coverage: null });
+  const options = host.querySelector(".book-detail-processing-options");
+  assert.ok(options?.querySelector(".book-detail-ocr-range"), "OCR 指定页码在选项行里");
+  assert.ok(options?.querySelector(".book-detail-translate-range"), "翻译指定页码在选项行里");
+  const actions = host.querySelectorAll("[data-processing-actions]");
+  assert.equal(actions.length, 1, "只有一个动作行");
+  assert.ok(actions[0].querySelector("#book-detail-start-ocr-btn"));
+  assert.ok(actions[0].querySelector("#book-detail-translate-btn"));
+  root.unmount(); host.remove();
+});
+
+test("失败任务在任务记录里写原因，原始错误收在展开里", async () => {
+  const dom = makeDom();
+  const coverage = {
+    ...COVERAGE,
+    jobs: [
+      { job_id: "bad", workflow: "ocr", status: "failed", created_at: "2026-10-05T09:00:00", finished_at: "2026-10-05T09:05:00", model: "", pages: [], supplied_pages: 0, ocr_reused: false, failure_summary: "外部服务请求超时", error_head: "failed to upload file" },
+      ...COVERAGE.jobs,
+    ],
+  };
+  const { root, host } = await mountTab(dom, { loading: false, ocr: idleOcr, translation: DONE_TRANSLATION, coverage });
+  const row = host.querySelector(".book-detail-job-history-row[data-job-id='bad']");
+  assert.match(row?.querySelector("[data-job-failure]")?.textContent || "", /外部服务请求超时/);
+  const details = row?.querySelector("details");
+  assert.ok(details && !details.open, "原始错误默认收起");
+  assert.match(details.textContent, /failed to upload file/);
+  root.unmount(); host.remove();
+});

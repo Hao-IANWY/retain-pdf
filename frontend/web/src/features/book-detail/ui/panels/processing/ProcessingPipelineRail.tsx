@@ -1,10 +1,14 @@
-// 处理流水线轨道：把 OCR / 翻译 / 渲染 / 完成 画成同一条流程，
+// 处理流水线轨道：把 OCR / 翻译 / 渲染 画成同一条流程，
 // OCR 不再是与翻译并列的独立能力，而是流水线第一站。
 //
 // 承接原有 DOM 契约（测试与门禁依赖）：
-// - 根节点 data-translation-process="true"，四个站点各带 data-stage-key；
+// - 根节点 data-translation-process="true"，三个站点各带 data-stage-key；
 // - OCR 站带 data-processing-capability="ocr"，翻译站带 ="translation"；
-// - 两站内各有一个 .book-detail-status 显示该站状态，翻译站还带一句说明。
+// - 两站内各有一个 .book-detail-status 显示该站状态。
+//
+// 每站下面一行写这一站的真实结果（页数、模型、用时，来自覆盖接口），没有数据就不写。
+// 曾经还有第四站「完成」：渲染打勾就等于完成，它只是多一个勾；翻译站下面那句
+// 「复用已有 OCR，直接翻译并生成阅读产物」是固定说明、不是状态，只在还没翻译时保留。
 //
 // loading（首帧未知）：任务数据还没回来时，轨道只占位不下结论——四站显示
 // 「读取中…」，data-state="loading"，根节点带 data-loading="true"。
@@ -21,7 +25,6 @@ const STAGES = [
   { key: "ocr", label: "OCR" },
   { key: "translate", label: "翻译" },
   { key: "render", label: "渲染" },
-  { key: "done", label: "完成" },
 ] as const;
 
 type StageKey = (typeof STAGES)[number]["key"];
@@ -78,8 +81,12 @@ export type ProcessingPipelineRailProps = {
   hasTranslationJob?: boolean;
   ocrStatus?: StatusTone;
   translationStatus?: StatusTone;
-  /** 翻译站说明，例如"复用已有 OCR，直接翻译并生成阅读产物" */
+  /** 翻译站说明，例如"复用已有 OCR，直接翻译并生成阅读产物"。只在还没有翻译任务时显示。 */
   translationDescription?: string;
+  /** 各站一行真实结果（processingFacts().stageMeta）。 */
+  stageMeta?: { ocr?: string; translate?: string; render?: string };
+  /** 翻译站的提醒，例如「16 块保留原文」。 */
+  translateWarning?: string;
   /** 首帧未知：任务数据还没回来，轨道只占位，不给「未执行 / 尚未翻译」的结论。 */
   loading?: boolean;
 };
@@ -90,6 +97,8 @@ export function ProcessingPipelineRail({
   ocrStatus = {},
   translationStatus = {},
   translationDescription = "",
+  stageMeta = {},
+  translateWarning = "",
   loading = false,
 }: ProcessingPipelineRailProps) {
   const model = loading
@@ -99,7 +108,11 @@ export function ProcessingPipelineRail({
     ocr: loading ? "读取中…" : ocrStatus.label || "未执行",
     translate: loading ? "读取中…" : translationStatus.label || "未翻译",
     render: "",
-    done: "",
+  };
+  const metaOf = (key: StageKey): string => {
+    if (loading) return "";
+    if (key === "translate" && !hasTranslationJob) return translationDescription;
+    return stageMeta[key] || "";
   };
 
   return (
@@ -111,7 +124,7 @@ export function ProcessingPipelineRail({
       data-status={model.status}
       {...(loading ? { "data-loading": "true", "aria-busy": true } : {})}
     >
-      <ol className="book-detail-pipeline-track" aria-label="OCR、翻译、渲染、完成">
+      <ol className="book-detail-pipeline-track" aria-label="OCR、翻译、渲染">
         {STAGES.map((stage) => {
           const step = model.steps.find((entry) => entry.key === stage.key)
             || { key: stage.key, label: stage.label, state: "pending" as StepState };
@@ -143,8 +156,14 @@ export function ProcessingPipelineRail({
                     </span>
                   ) : null}
                 </span>
-                {stage.key === "translate" && translationDescription ? (
-                  <span className="book-detail-pipeline-desc">{translationDescription}</span>
+                {metaOf(stage.key) ? (
+                  <span className="book-detail-pipeline-desc" data-stage-meta={stage.key}>{metaOf(stage.key)}</span>
+                ) : null}
+                {stage.key === "translate" && translateWarning && !loading ? (
+                  <span className="book-detail-pipeline-warning" data-stage-warning="translate">
+                    <TriangleAlert aria-hidden="true" />
+                    {translateWarning}
+                  </span>
                 ) : null}
               </span>
             </li>

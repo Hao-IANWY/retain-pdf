@@ -247,6 +247,14 @@ export type TranslationCoverageJob = {
   /** 当前合并结果里取自它的页数。 */
   supplied_pages: number;
   ocr_reused: boolean;
+  /** 成功但有额外说明（「N 个内容块保留原文未翻译」）。旧后端没有这个字段。 */
+  note?: string | null;
+  /** 成功的翻译任务里保留原文的内容块数。 */
+  kept_origin_blocks?: number;
+  /** 失败原因一句话（中文）。只有失败任务有。 */
+  failure_summary?: string | null;
+  /** 原始错误第一行，展开看原因用。只有失败任务有。 */
+  error_head?: string | null;
 };
 export type TranslationCoverageView = {
   page_count: number;

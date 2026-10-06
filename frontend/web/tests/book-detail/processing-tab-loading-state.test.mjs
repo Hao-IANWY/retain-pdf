@@ -5,7 +5,7 @@
 //
 // 曾经的样子：BookDetailProcessingTab 里 loading 只控制一行
 // 「正在读取文档任务…」的提示文案，它下面整张 .book-detail-processing-card
-// （含 ProcessingPipelineRail 那条 OCR→翻译→渲染→完成 的轨道、以及「开始 OCR」
+// （含 ProcessingPipelineRail 那条 OCR→翻译→渲染 的轨道、以及「开始 OCR」
 // 按钮）是**无条件渲染**的。于是 GET /documents/:id/jobs 还在路上的那几百毫秒，
 // 界面同时喊出两句互相矛盾的话：
 //     正在读取文档任务…            （还不知道）

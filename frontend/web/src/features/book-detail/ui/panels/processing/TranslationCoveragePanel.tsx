@@ -63,6 +63,21 @@ export function JobHistoryPanel({ coverage }: { coverage: TranslationCoverageVie
                 </div>
               ) : null}
               {row.suppliedText ? <div className="book-detail-job-history-supplied">{row.suppliedText}</div> : null}
+              {row.warningText ? (
+                <div className="book-detail-job-history-warning" data-job-warning="true">{row.warningText}</div>
+              ) : null}
+              {/* 失败原因直接写出来；原始错误（多半是英文和路径）收在展开里。 */}
+              {row.failureText || row.errorDetail ? (
+                <div className="book-detail-job-history-failure" data-job-failure="true">
+                  {row.failureText ? <span>{row.failureText}</span> : null}
+                  {row.errorDetail ? (
+                    <details className="book-detail-job-history-error">
+                      <summary>原始错误</summary>
+                      <code>{row.errorDetail}</code>
+                    </details>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
             <span className="book-detail-job-history-status" data-status-tone={row.statusTone}>{row.statusLabel}</span>
           </li>

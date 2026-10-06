@@ -94,11 +94,11 @@ export function TranslationStageActions({
 
   return (
     <div
-      className="book-detail-stage-actions space-y-2"
+      className="book-detail-stage-actions"
       data-translation-stage-actions="true"
       aria-busy={checking || undefined}
     >
-      <div className="flex flex-wrap items-center justify-end gap-2">
+      <div className="book-detail-stage-actions-buttons">
         {visibleActions.map((action) => {
           const pending = pendingStage === action.stage;
           const disabled = checking || Boolean(pendingStage) || !action.can_retry;
@@ -124,7 +124,7 @@ export function TranslationStageActions({
           );
         })}
       </div>
-      {shownError ? <p className="rounded-md border border-foreground/20 bg-muted/40 px-3 py-2 text-xs text-foreground" role="alert">{shownError}</p> : null}
+      {shownError ? <p className="book-detail-stage-actions-error rounded-md border border-foreground/20 bg-muted/40 px-3 py-2 text-xs text-foreground" role="alert">{shownError}</p> : null}
       <ConfirmDialog
         id="book-detail-translation-risk-confirm"
         open={Boolean(confirmAction)}
