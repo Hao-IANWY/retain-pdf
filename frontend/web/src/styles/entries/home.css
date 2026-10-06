@@ -99,7 +99,11 @@
 @import "../../features/ingest/ui/components/upload/ProcessingChoicePanel.css";
 @import "../../features/ingest/ui/UploadWorkflowResponsive.css";
 @import "../pages/home/job-dialogs.css";
-@import "../pages/home/job-dialogs.utilities.css";
+/* 原 job-dialogs.utilities.css 按组件拆分（顺序与拆分前一致）。 */
+@import "../../features/library/ui/shell/RecentJobItem.css";
+@import "../../features/library/ui/RecentJobsDialog.css";
+@import "../../features/job-detail/ui/StatusDetailDialog.css";
+@import "../../features/job-detail/ui/StatusDetailTabs.css";
 /* 凭据 / 术语表：样式放在组件旁边（顺序与原 credential-settings.css 一致，普通规则的先后不能变）。 */
 @import "../pages/home/settings-dialogs.css";
 @import "../../features/credentials/ui/CredentialsWorkbench.css";
