@@ -6050,7 +6050,7 @@ function jc() {
     }
   };
 }
-const Uc = uo(() => import("./ReaderMarkdownPanel-DS1JxVLN.js").then((e) => ({ default: e.ReaderMarkdownPanel })));
+const Uc = uo(() => import("./ReaderMarkdownPanel-hZ96fU9Q.js").then((e) => ({ default: e.ReaderMarkdownPanel })));
 function Bc(e) {
   const t = e.sourceOnly || !e.translatedUrl, n = !!(e.overlayContentAvailable && e.liveTranslationVisible && !e.assistantOpen), o = e.assistantPdfPane || (e.assistantOpen && e.mode === "compare" ? "source" : e.mode), a = !t && (o === "translated" || o === "compare"), s = o === "compare" && a, l = n || o !== "translated" || !a, i = e.mode === "compare" && o !== "compare";
   return {
@@ -6262,4 +6262,4 @@ export {
   sl as r,
   it as u
 };
-//# sourceMappingURL=ReaderApp-CXGPE9U9.js.map
+//# sourceMappingURL=ReaderApp-BYwwcz7R.js.map

@@ -4,7 +4,7 @@
 // full.md 那条路共用同一套 markdown-render / markdown-math / markdown-images。
 
 import { useEffect, useRef, useState, type RefObject } from "react";
-import { fetchProtected } from "../../external.js";
+import { fetchProtected, resolveMarkdownAssetUrl } from "../../external.js";
 import { extractMarkdownMath, materializeMarkdownMathHtml } from "../../shared/content/markdown-math.js";
 import { buildMarkdownOutline, type MarkdownOutlineItem } from "../../shared/content/markdown-outline.js";
 import { startMarkdownImageLoading } from "../../shared/content/markdown-images.js";
@@ -19,6 +19,10 @@ export type ReaderMdView = ReaderMdLanguage | "bilingual";
 
 // 一批渲染多少块再让出主线程：几百块的书一次性 parse 会卡住面板打开的那一下。
 const BATCH = 40;
+
+// regions 里的图片地址是 /api/v1/jobs/... 这种根相对路径：直接当 src 会打到静态服务器
+// （开发栈里静态页和 API 不同端口，404）。和整篇 full.md 一样交给宿主补上 API 地址。
+const ASSETS = { resolveAssetUrl: resolveMarkdownAssetUrl };
 
 export function useReaderBlockMarkdown(
   contentRef: RefObject<HTMLElement | null>,
@@ -60,13 +64,13 @@ export function useReaderBlockMarkdown(
     ): Promise<HTMLImageElement[]> => {
       if (block.kind === "figure") {
         const html = block.assetUrls.map((url) => `<img src="${escapeAttribute(url)}" alt="">`).join("");
-        return mountRenderedMarkdown(host, html, "");
+        return mountRenderedMarkdown(host, html, "", ASSETS);
       }
       let html = await renderMarkdown(readerMdBlockMarkdown(block, language), parse);
       if (block.kind === "formula" && block.label) {
         html += `<span class="reader-md-formula-label">${escapeText(block.label)}</span>`;
       }
-      return mountRenderedMarkdown(host, html, "");
+      return mountRenderedMarkdown(host, html, "", ASSETS);
     };
 
     (async () => {
@@ -103,6 +107,8 @@ export function useReaderBlockMarkdown(
           container.classList.remove("hidden");
           imageCleanups.push(startMarkdownImageLoading(images, {
             root: scrollRoot,
+            // 受保护的判断要以 API 地址为准（它可能是局域网 IP，和静态页不同源）。
+            protectedBaseUrl: resolveMarkdownAssetUrl("", "/api/v1/"),
             fetchImage: fetchProtected,
             signal: controller.signal,
             onObjectUrl: (url) => objectUrls.push(url),
@@ -111,7 +117,9 @@ export function useReaderBlockMarkdown(
           await new Promise((resolve) => setTimeout(resolve, 0));
         }
         if (cancelled) return;
-        setOutline(buildMarkdownOutline(container));
+        // 双语时每个标题原文、译文各一份，目录只列译文那份，不然条目翻倍。
+        setOutline(buildMarkdownOutline(container).filter((item) =>
+          !container.querySelector(`#${CSS.escape(item.id)}`)?.closest(".reader-md-block-source")));
         setStatus(`${blocks.length} 块`);
         setRenderedRevision((value) => value + 1);
       } catch (err) {

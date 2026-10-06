@@ -67,13 +67,18 @@
 }
 
 /* 公式编号贴在公式右侧，和论文里一样。 */
-.reader-md-block.is-formula {
+.reader-md-block.is-formula > div {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.reader-md-block.is-formula > * {
+/* marked 会在行间公式前后各留一个空 <p>：不藏的话三个 flex 子项平分宽度，公式被压成三分之一。 */
+.reader-md-block p:empty {
+  display: none;
+}
+
+.reader-md-block.is-formula > div > :not(.reader-md-formula-label) {
   min-width: 0;
   flex: 1;
   overflow-x: auto;
