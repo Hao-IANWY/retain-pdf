@@ -107,13 +107,14 @@ def test_paddle_does_not_treat_body_bullets_as_metadata() -> None:
             },
             {
                 "block_label": "text",
-                "block_content": "• Keywords: document parsing; translation; layout analysis",
+                "block_content": "• DOI: 10.1000/xyz123",
             },
         ]
     )
 
     assert classified[0][:2] == ("text", "body")
     assert classified[1][:2] == ("text", "body")
+    # 关键词已改为翻译（见 test_paddle_keywords_line_is_translated_like_mineru），这里用 DOI 守住项目符号元数据。
     assert classified[2][:2] == ("text", "metadata")
 
 
@@ -156,11 +157,11 @@ def test_paddle_metadata_cues_must_appear_at_start() -> None:
             },
             {
                 "block_label": "text",
-                "block_content": "Keywords: translation; layout; parsing",
+                "block_content": "DOI: 10.1000/xyz123",
             },
             {
                 "block_label": "text",
-                "block_content": "• Keywords: translation; layout; parsing",
+                "block_content": "• DOI: 10.1000/xyz123",
             },
         ]
     )
@@ -210,17 +211,62 @@ def test_paddle_long_body_paragraph_mentioning_copyright_stays_body() -> None:
     assert classified[3][:2] == ("text", "metadata")
 
 
-def test_paddle_classifies_ancillary_tail_headings_as_metadata() -> None:
+def test_paddle_translates_ancillary_tail_headings_but_keeps_reference_heading_metadata() -> None:
+    """文末小标题下面的正文都翻译了，小标题本身也要翻译，否则同一页中英混杂。
+
+    实测（BMC Neurol 2021, 21:433 第 7–8 页）："Authors' contributions"、"Competing interests"
+    判成 metadata 留英文，同页 "Acknowledgements"（英式拼写）、"Funding"、"Declarations" 却翻译了。
+    MinerU 对这些标题一律判 heading 并翻译。参考文献区的标题仍按原设计留原文（条目本身不翻译）。
+    """
     classified = classify_page_blocks(
         [
             {"block_label": "paragraph_title", "block_content": "Competing interests"},
             {"block_label": "paragraph_title", "block_content": "Acknowledgments"},
+            {"block_label": "paragraph_title", "block_content": "Acknowledgements"},
+            {"block_label": "paragraph_title", "block_content": "Authors' contributions"},
+            {"block_label": "paragraph_title", "block_content": "Funding"},
+            {"block_label": "paragraph_title", "block_content": "Declarations"},
             {"block_label": "paragraph_title", "block_content": "References"},
+            {"block_label": "paragraph_title", "block_content": "Bibliography"},
             {"block_label": "paragraph_title", "block_content": "Introduction"},
         ]
     )
 
-    assert classified[0][:2] == ("text", "metadata")
-    assert classified[1][:2] == ("text", "metadata")
-    assert classified[2][:2] == ("text", "metadata")
-    assert classified[3][:2] == ("text", "heading")
+    for index in range(6):
+        assert classified[index][:2] == ("text", "heading"), classified[index]
+    assert classified[6][:2] == ("text", "metadata")
+    assert classified[7][:2] == ("text", "metadata")
+    assert classified[8][:2] == ("text", "heading")
+
+
+def test_paddle_keywords_line_is_translated_like_mineru() -> None:
+    """"Keywords: …" 和 MinerU 对齐判 body、要翻译。
+
+    实测（BMC Neurol 2021, 21:433 第 2 页 p002-b0004，27 词）：摘要续页之后、"Background"
+    之前的关键词行被 front_matter_text 判成 metadata；MinerU 对同类块（b343d1 p001-b0017、
+    80509d p011-b0009、f1143c p001-b0012）判 body 并翻译。
+    """
+    keywords = (
+        "Keywords: Cognitive dysfunction, Cognitive impairment, Cognitive decline, Hypertension, "
+        "Blood pressure variability, Dementia, Tanzania, Africa"
+    )
+    front_matter = classify_page_blocks(
+        [
+            {"block_label": "abstract", "block_content": "Conclusion: cognitive decline is common."},
+            {"block_label": "text", "block_content": keywords},
+            {"block_label": "paragraph_title", "block_content": "Background"},
+            {"block_label": "text", "block_content": "Systemic arterial hypertension is the leading cause of mortality."},
+        ]
+    )
+    assert front_matter[1][:2] == ("text", "body")
+    assert front_matter[2][:2] == ("text", "heading")
+
+    standalone = classify_page_blocks(
+        [
+            {"block_label": "text", "block_content": keywords},
+            {"block_label": "text", "block_content": "KEYWORDS: translation; layout; parsing"},
+            {"block_label": "text", "block_content": "Key words: translation; layout; parsing"},
+            {"block_label": "text", "block_content": "• Keywords: document parsing; translation; layout analysis"},
+        ]
+    )
+    assert [item[:2] for item in standalone] == [("text", "body")] * 4
