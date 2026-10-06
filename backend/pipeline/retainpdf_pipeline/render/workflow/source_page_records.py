@@ -88,6 +88,11 @@ PRIMARY_TRANSLATABLE_STRUCTURE_ROLES = {
     ROLE_HEADING,
     ROLE_CAPTION,
     ROLE_FIGURE_CAPTION,
+    # 和翻译侧 json_extractor 那份保持一致（render 不能 import translate，只能复制；
+    # devtools/tests/rendering/test_render_caption_roles.py 守着两份不漂移）。
+    ROLE_TABLE_CAPTION,
+    ROLE_IMAGE_CAPTION,
+    ROLE_CODE_CAPTION,
     ROLE_FOOTNOTE,
     ROLE_IMAGE_FOOTNOTE,
     ROLE_TABLE_FOOTNOTE,
