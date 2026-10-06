@@ -81,7 +81,13 @@ test("ReaderAppReactPdf restores and persists reading mode with a sourceViewOnly
     "../../../../frontend/packages/reader/src/ReaderAppReactPdf.tsx",
   );
   assert.match(app, /modeScopeRef/);
-  assert.match(app, /sourceViewOnly \? "source" : saved\?\.mode/);
+  // 「存档优先 + sourceViewOnly 只许原文 + 窄屏默认译文」收进了 resolveReaderInitialMode，
+  // 行为本身见 reader-narrow-viewport.test.mjs；这里只守 App 确实经它恢复。
+  assert.match(app, /resolveReaderInitialMode\(\{\s*savedMode: saved\?\.mode,\s*sourceViewOnly,/);
+  const initialMode = readerSource(
+    "../../../../frontend/packages/reader/src/hooks/reader-initial-mode.ts",
+  );
+  assert.match(initialMode, /if \(input\.sourceViewOnly\) return \{ mode: "source"/);
   assert.match(app, /saveReaderViewState\(c\.viewStateKey, \{ mode: c\.mode \}\)/);
 });
 

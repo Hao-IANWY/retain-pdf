@@ -16,6 +16,9 @@ import type { ReaderAssistantPanel, ReaderWorkspaceMode } from "./components/rea
 import { useReaderAssistantPanel } from "./hooks/use-reader-assistant-panel.js";
 import { DownloadToastHost } from "./shared/react/DownloadToastHost.jsx";
 import { READER_ROOT_CLASS } from "./pdf/reader-dom-contract.js";
+import { readerViewportWidth } from "./pdf/reader-zoom.js";
+import { resolveReaderInitialMode, shouldPersistReaderMode } from "./hooks/reader-initial-mode.js";
+import type { ReaderMode } from "./hooks/use-reader-session.js";
 import {
   loadReaderViewState,
   saveReaderViewState,
@@ -161,6 +164,7 @@ export function ReaderAppReactPdf() {
   const [boardFile, setBoardFile] = useState<string | null>(null);
   const [liveTranslationVisible, setLiveTranslationVisible] = useState(false);
   const modeScopeRef = useRef<string | null>(null);
+  const autoModeRef = useRef<ReaderMode | null>(null);
 
   const assistantOpen = assistantPanel !== null;
   // 是否有「可叠加到原文 PDF 上的流式译文内容」：进行中（available）或已完成
@@ -217,17 +221,26 @@ export function ReaderAppReactPdf() {
   }, [assistant.scope]);
 
   // 阅读模式恢复/持久化：与 anchor/zoom 对齐。sourceViewOnly 时只允许 source。
+  // 窄屏没有存档时自动进译文（resolveReaderInitialMode）；停在这个自动默认上时
+  // 不写存档，用户换过模式之后照常写（shouldPersistReaderMode）。
   useEffect(() => {
     if (boot.loading || boot.failed) return;
     if (modeScopeRef.current !== c.viewStateKey) {
       modeScopeRef.current = c.viewStateKey;
       const saved = loadReaderViewState(c.viewStateKey);
-      const target = sourceViewOnly ? "source" : saved?.mode;
-      if (target && target !== c.mode) {
-        c.setModeKeepingPage(target);
+      const initial = resolveReaderInitialMode({
+        savedMode: saved?.mode,
+        sourceViewOnly,
+        viewportWidth: readerViewportWidth(),
+      });
+      autoModeRef.current = initial.auto ? initial.mode : null;
+      if (initial.mode && initial.mode !== c.mode) {
+        c.setModeKeepingPage(initial.mode);
       }
       return;
     }
+    if (!shouldPersistReaderMode(c.mode, autoModeRef.current)) return;
+    autoModeRef.current = null;
     saveReaderViewState(c.viewStateKey, { mode: c.mode });
   }, [boot.failed, boot.loading, c.mode, c.setModeKeepingPage, c.viewStateKey, sourceViewOnly]);
   const workspaceView = assistantPanel || (c.mode === "compare" ? "compare" : "reading");

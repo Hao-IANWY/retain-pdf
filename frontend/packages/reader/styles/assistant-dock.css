@@ -295,6 +295,13 @@
     pointer-events: none;
   }
 
+  /* 面板铺满全屏时 PDF 栏整个藏掉了，HUD 控制的东西看不见；它还按「PDF 栏中心」
+   * 定位，正好压在 Markdown 面板底部的「译文/原文/双语」和搜索框上，375 宽时
+   * 页码按钮直接跑到屏幕外（left=-29）。关面板 HUD 就回来。 */
+  .reader-react-root.is-assistant-open .reader-react-hud {
+    display: none;
+  }
+
   .reader-react-root.is-assistant-open .reader-notes-panel--workspace,
   .reader-react-root.is-assistant-open .reader-float-ai.reader-notes-panel--workspace {
     inset: 106px 0 0;

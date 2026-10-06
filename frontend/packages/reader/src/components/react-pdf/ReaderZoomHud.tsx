@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import {
+  readerViewportWidth,
   READER_ZOOM_DEFAULT,
   READER_ZOOM_MAX,
   READER_ZOOM_MIN,
@@ -39,8 +40,9 @@ export function ReaderZoomHud(props: ReaderZoomHudProps) {
   const percent = zoomToDisplayPercent(userZoom);
   const canZoomOut = userZoom > READER_ZOOM_MIN + 0.001;
   const canZoomIn = userZoom < READER_ZOOM_MAX - 0.001;
-  const resetZoom = defaultZoomForMode(mode);
-  const resetLabel = "50%（半屏，对照铺满）";
+  const resetZoom = defaultZoomForMode(mode, readerViewportWidth());
+  // 窄屏单栏的默认是铺满（见 reader-zoom.ts 的 READER_NARROW_VIEWPORT_PX）。
+  const resetLabel = resetZoom >= READER_ZOOM_MAX ? "100%（铺满阅读区）" : "50%（半屏，对照铺满）";
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(`${currentPage}`);

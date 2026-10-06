@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import type { ReaderMode } from "./use-reader-session.js";
 import {
   defaultZoomForMode,
+  readerViewportWidth,
   stepReaderZoom,
 } from "../pdf/reader-zoom.js";
 import { clampPageNumber } from "../pdf/scroll-to-page.js";
@@ -119,7 +120,7 @@ export function useReaderKeyboard(api: ReaderKeyboardApi) {
           onZoomChange(stepReaderZoom(userZoom, -1));
           return;
         case "zoom-reset":
-          onZoomChange(defaultZoomForMode(mode));
+          onZoomChange(defaultZoomForMode(mode, readerViewportWidth()));
           return;
         case "next-page":
           goToPage(clampPageNumber(currentPage + 1, numPages));

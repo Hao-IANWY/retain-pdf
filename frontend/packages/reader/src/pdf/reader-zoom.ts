@@ -19,7 +19,33 @@ const READER_PANE_FIT_GUTTER = 8;
 
 export type ReaderZoomMode = "source" | "translated" | "compare";
 
-export function defaultZoomForMode(_mode?: ReaderZoomMode | string): number {
+/** 视口窄于这个宽度算「手机」：单栏默认铺满、默认进译文模式（见 reader-initial-mode.ts）。
+ *
+ * 375 宽对照时每页只有 163px；只切单栏也不够 —— 默认 50% 是「半个阅读区」，单栏
+ * 页宽照样 163px。所以窄屏单栏的默认缩放是 100%（页宽 = 阅读区宽）。
+ *
+ * READER_ZOOM_MAX 没有放宽：窄屏上 100% 已经铺满，再大只能横向拖着看；真要放大
+ * 细节，手机浏览器原生双指缩放（reader.html 的 viewport 没禁 user-scalable）更顺手。 */
+export const READER_NARROW_VIEWPORT_PX = 720;
+
+/** 当前视口宽度；拿不到（SSR / 测试无 window）时按宽屏处理。 */
+export function readerViewportWidth(): number {
+  const width = typeof window === "undefined" ? NaN : Number(window.innerWidth);
+  return Number.isFinite(width) && width > 0 ? width : Number.POSITIVE_INFINITY;
+}
+
+export function isNarrowReaderViewport(viewportWidth: number): boolean {
+  return Number.isFinite(viewportWidth) && viewportWidth < READER_NARROW_VIEWPORT_PX;
+}
+
+/** 模式默认缩放。不传 viewportWidth 时就是旧的 50%。 */
+export function defaultZoomForMode(
+  mode?: ReaderZoomMode | string,
+  viewportWidth: number = Number.POSITIVE_INFINITY,
+): number {
+  if (isNarrowReaderViewport(viewportWidth) && (mode === "source" || mode === "translated")) {
+    return READER_ZOOM_MAX;
+  }
   return READER_ZOOM_DEFAULT;
 }
 
