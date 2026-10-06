@@ -1,4 +1,4 @@
-// 阅读器键盘快捷键（输入框内不抢键）。
+// 阅读器键盘快捷键（输入框内、阅读辅助面板内不抢键）。
 // 键位定义见 reader-keyboard-map.ts（实现与说明浮层共用同一份）。
 
 import { useEffect } from "react";
@@ -36,6 +36,23 @@ function isEditableTarget(target: EventTarget | null): boolean {
   return Boolean(target.closest("input, textarea, select, [contenteditable='true']"));
 }
 
+/** 焦点落在阅读辅助面板（Markdown / AI / 批注 / 终端…）里时，全局快捷键一律不处理。
+ *
+ * 所有 dock 面板都经 ReaderPanelShell 渲染，外壳类名是 `.reader-notes-panel`。
+ * Markdown 的块是 tabIndex=0 的 div、AI 回答区是普通可滚动容器 —— 不在
+ * isEditableTarget 的白名单里，原来 ↓ / PgDn / Home / End 被这里拦下去翻 PDF，
+ * 面板自己反而滚不动。面板内的 Esc 关闭由 ReaderPanelShell 自己监听，不受影响；
+ * 块上的 Enter / 空格（跳到对应页）由面板自己的监听处理。
+ */
+export const READER_PANEL_FOCUS_SELECTOR = ".reader-notes-panel";
+
+export function isReaderPanelTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) {
+    return false;
+  }
+  return Boolean(target.closest(READER_PANEL_FOCUS_SELECTOR));
+}
+
 export function resolveReaderModeShortcut(
   key: string,
   sourceOnly: boolean,
@@ -68,7 +85,7 @@ export function useReaderKeyboard(api: ReaderKeyboardApi) {
       if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) {
         return;
       }
-      if (isEditableTarget(event.target)) {
+      if (isEditableTarget(event.target) || isReaderPanelTarget(event.target)) {
         return;
       }
 
