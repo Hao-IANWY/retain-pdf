@@ -1,6 +1,6 @@
 import test, { afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { wait, waitFor } from "../helpers/async.mjs";
+import { waitFor } from "../helpers/async.mjs";
 import { makeDom } from "../helpers/dom.mjs";
 import { bootHomeApp } from "../helpers/home-app.mjs";
 
@@ -15,6 +15,18 @@ const NAV_DOM = {
   ],
   computedStyle: false,
 };
+
+// 用 act 渲染，保证 useAppEvent 的订阅 effect 已挂上；只在这一次渲染期间打开 act 环境，
+// 免得同文件里不走 act 的整页用例刷「not wrapped in act」警告。
+async function renderFlushingEffects(React, root, element) {
+  const previous = globalThis.IS_REACT_ACT_ENVIRONMENT;
+  globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+  try {
+    await React.act(async () => root.render(element));
+  } finally {
+    globalThis.IS_REACT_ACT_ENVIRONMENT = previous;
+  }
+}
 
 afterEach(async () => {
   const { setReaderNavigateForTests } = await import(
@@ -41,7 +53,8 @@ test("openReaderRequested：一本书翻译过多次时，打开后端给的合�
   const host = dom.window.document.createElement("div");
   dom.window.document.body.appendChild(host);
   const root = createRoot(host);
-  root.render(
+  // 等 useAppEvent 的订阅 effect 真的挂上再派发事件（固定 wait 在全量并发跑时会丢事件）。
+  await renderFlushingEffects(React, root,
     React.createElement(ReaderNavigation, {
       fetchReading: async (documentId) => {
         asked.push(documentId);
@@ -49,7 +62,6 @@ test("openReaderRequested：一本书翻译过多次时，打开后端给的合�
       },
     }),
   );
-  await wait(20);
   dom.window.document.dispatchEvent(
     new dom.window.CustomEvent(APP_EVENTS.openReaderRequested, {
       detail: { jobId: "job-latest-range", documentId: "doc-1", pageIdx: null, blockId: "" },
@@ -60,6 +72,46 @@ test("openReaderRequested：一本书翻译过多次时，打开后端给的合�
   assert.deepEqual(asked, ["doc-1"]);
   assert.match(hits.assign[0], new RegExp(`job_id=${merged}`));
   assert.doesNotMatch(hits.assign[0], /job-latest-range/);
+
+  root.unmount();
+  host.remove();
+});
+
+test("openReaderRequested：pinJob 点名的任务原样打开，不去问 /documents/:id/reading", async () => {
+  const dom = makeDom("", NAV_DOM);
+  const hits = { assign: [], replace: [] };
+  const asked = [];
+  const { setReaderNavigateForTests } = await import("../../src/features/reader/domain.ts");
+  setReaderNavigateForTests((url, { replace } = {}) => {
+    if (replace) hits.replace.push(url);
+    else hits.assign.push(url);
+  });
+  const { createRoot } = await import("react-dom/client");
+  const React = await import("react");
+  const { ReaderNavigation } = await import("../../src/features/reader/index.js");
+  const { APP_EVENTS } = await import("@/platform/contracts/app-contract.js");
+
+  const host = dom.window.document.createElement("div");
+  dom.window.document.body.appendChild(host);
+  const root = createRoot(host);
+  await renderFlushingEffects(React, root,
+    React.createElement(ReaderNavigation, {
+      fetchReading: async (documentId) => {
+        asked.push(documentId);
+        return { job_id: "job-translate-old" };
+      },
+    }),
+  );
+  dom.window.document.dispatchEvent(
+    new dom.window.CustomEvent(APP_EVENTS.openReaderRequested, {
+      detail: { jobId: "job-ocr-1", documentId: "doc-1", pageIdx: null, blockId: "", pinJob: true },
+    }),
+  );
+
+  await waitFor(() => hits.assign.length > 0, "应导航到阅读页");
+  assert.deepEqual(asked, [], "点名任务时不该去问后端");
+  assert.match(hits.assign[0], /job_id=job-ocr-1/);
+  assert.doesNotMatch(hits.assign[0], /job-translate-old/, "被换成了整本最新译文");
 
   root.unmount();
   host.remove();

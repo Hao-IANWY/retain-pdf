@@ -43,6 +43,8 @@ export interface BookTranslateProgressPanelProps {
   active?: boolean;
   dialogOpen?: boolean;
   onOpenLiveReader?: (jobId: string) => void;
+  /** 本书的任务 id（documentJobs.jobs）。全局卡片的 jobId 不在里面就不用它。 */
+  documentJobIds?: string[];
 }
 
 export function BookTranslateProgressPanel({
@@ -50,6 +52,7 @@ export function BookTranslateProgressPanel({
   active = true,
   dialogOpen = true,
   onOpenLiveReader,
+  documentJobIds = [],
 }: BookTranslateProgressPanelProps) {
   const library = useHomeLibrary();
   const actions = library?.actions;
@@ -157,7 +160,8 @@ export function BookTranslateProgressPanel({
         <button
           type="button"
           className="home-book-live-translation-entry w-full rounded-lg bg-foreground px-4 py-2.5 text-sm font-medium text-background hover:opacity-90"
-          onClick={() => onOpenLiveReader(cardJobId || jobId)}
+          // 全局卡片可能在播另一本书的任务；只有它属于本书（如刚提交的重试）才跟它。
+          onClick={() => onOpenLiveReader(cardJobId && documentJobIds.includes(cardJobId) ? cardJobId : jobId)}
           aria-label="在阅读器中查看实时译文"
         >
           <span className="home-book-live-translation-entry-icon" aria-hidden="true">

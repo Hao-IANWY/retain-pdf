@@ -30,7 +30,8 @@ export type {
 export type RecentJobActions = {
   selectJob: (jobId: string) => unknown;
   deleteJob: (jobId: string) => Promise<unknown> | unknown;
-  openJobReader: (jobId: string, documentId?: string) => unknown;
+  /** options.pinJob：点名看这个任务，阅读器不按整本改写。看这本书的入口不传。 */
+  openJobReader: (jobId: string, documentId?: string, options?: { pinJob?: boolean }) => unknown;
   recoverActiveJob: (items?: unknown[]) => unknown;
 };
 

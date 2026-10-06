@@ -69,3 +69,24 @@ test("没有 documentId：没法问，用调用方给的", async () => {
   assert.equal(jobId, "job-x");
   assert.equal(asked, false);
 });
+
+test("点名打开某个任务（pinJob）不换：OCR「查看」、实时译文要的就是那个任务", async () => {
+  let asked = false;
+  const jobId = await resolveReadingJobId(
+    { jobId: "job-ocr-1", documentId: "doc-1", anchor: null, pinJob: true },
+    async () => {
+      asked = true;
+      return { job_id: "job-translate-old" };
+    },
+  );
+  assert.equal(jobId, "job-ocr-1", "点名的任务被换成了整本最新译文");
+  assert.equal(asked, false, "点名任务时不该去问后端");
+});
+
+test("pinJob 但调用方没给 job_id：照常按整本挑（不能因此读不到译文）", async () => {
+  const jobId = await resolveReadingJobId(
+    { jobId: "", documentId: "doc-1", anchor: null, pinJob: true },
+    async () => ({ job_id: "job-whole" }),
+  );
+  assert.equal(jobId, "job-whole");
+});

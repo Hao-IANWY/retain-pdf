@@ -76,13 +76,15 @@ export function createRecentJobActions({
     renderCurrentRecentJobs({ reset: true });
   }
 
-  function openJobReader(jobId, documentId = "") {
+  // options.pinJob：调用方点名要看这个任务（产物「查看」、实时译文），阅读器不按整本改写。
+  // 书卡 / 封面「对照阅读」不传，由 ReaderNavigation 问后端这本书该打开哪个任务。
+  function openJobReader(jobId, documentId = "", options: { pinJob?: boolean } = {}) {
     const normalizedJobId = `${jobId || ""}`.trim();
     if (!normalizedJobId) {
       renderRecentJobsError("该任务缺少 job_id，无法打开对照阅读。", { reset: false });
       return;
     }
-    navigationPort.openReader(normalizedJobId, `${documentId || ""}`.trim());
+    navigationPort.openReader(normalizedJobId, `${documentId || ""}`.trim(), pinJobOptions(options));
   }
 
   function recoverActiveJob(items = []) {
@@ -107,4 +109,9 @@ export function createRecentJobActions({
     recoverActiveJob,
     selectJob,
   };
+}
+
+/** 只认显式的 pinJob: true —— 书卡把 onReader 当事件回调用时，第三个参数可能是别的东西。 */
+function pinJobOptions(options: unknown): { pinJob?: boolean } {
+  return (options as { pinJob?: unknown } | null)?.pinJob === true ? { pinJob: true } : {};
 }

@@ -42,9 +42,10 @@ export function ReaderNavigation({ fetchReading = fetchReadingFromApi }: { fetch
     const documentId = `${detail.documentId || ""}`.trim();
     const anchor = anchorFromEventDetail(detail);
     // 一本书可能翻译过好几次、每次只翻几页：先问后端该打开哪个任务（整本的那个，或
-    // 合并结果），再进阅读器。带锚点的跳转和接口失败都退回调用方给的 job_id。
+    // 合并结果），再进阅读器。带锚点的跳转、点名某个任务（pinJob）和接口失败都用
+    // 调用方给的 job_id。
     const jobId = await resolveReadingJobId(
-      { jobId: `${detail.jobId || ""}`.trim(), documentId, anchor },
+      { jobId: `${detail.jobId || ""}`.trim(), documentId, anchor, pinJob: detail.pinJob === true },
       fetchReading,
     );
     // A real job is the canonical Reader session: live translation, Markdown,

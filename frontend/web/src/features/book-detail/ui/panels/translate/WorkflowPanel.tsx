@@ -40,6 +40,8 @@ export type BookTranslationWorkflowPanelProps = {
   onPageSpecChange: (value: string) => void;
   onTranslate: () => void;
   onOpenLiveReader?: (jobId: string) => void;
+  /** 本书的任务 id，透传给进度区：全局状态卡的任务不属于本书时不跟它。 */
+  documentJobIds?: string[];
   onRetryStage: (
     stage: JobRetryStage,
     options?: { acceptDuplicateRisk?: boolean },
@@ -74,6 +76,7 @@ export function BookTranslationWorkflowPanel({
   onPageSpecChange,
   onTranslate,
   onOpenLiveReader,
+  documentJobIds = [],
   onRetryStage,
 }: BookTranslationWorkflowPanelProps) {
   const jobId = `${item.job_id || item.active_job_id || ""}`.trim();
@@ -112,6 +115,7 @@ export function BookTranslationWorkflowPanel({
             active={tabActive}
             dialogOpen={dialogOpen}
             onOpenLiveReader={isActive ? onOpenLiveReader : undefined}
+            documentJobIds={documentJobIds}
           />
         </section>
       ) : null}

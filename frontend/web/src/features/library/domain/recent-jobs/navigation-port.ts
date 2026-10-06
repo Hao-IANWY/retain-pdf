@@ -32,13 +32,13 @@ export function createRecentJobsNavigationPort({
       return jobRuntimePort.openJob?.(normalizedJobId) !== false;
     },
 
-    openReader(jobId, documentId = "") {
+    openReader(jobId, documentId = "", options: { pinJob?: boolean } = {}) {
       const normalizedJobId = `${jobId || ""}`.trim();
       if (!normalizedJobId) {
         return false;
       }
       closeDialog?.();
-      return readerPort.openReader?.(normalizedJobId, null, `${documentId || ""}`.trim()) !== false;
+      return readerPort.openReader?.(normalizedJobId, null, `${documentId || ""}`.trim(), options) !== false;
     },
 
     recoverJob(jobId) {

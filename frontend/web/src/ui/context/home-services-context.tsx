@@ -137,7 +137,7 @@ export type HomeUploadStatePortValue = {
 
 /** 主页阅读入口（跳独立 reader.html）。 */
 export type HomeReaderValue = {
-  openReader: (jobId: string, anchor?: unknown, documentId?: string) => unknown;
+  openReader: (jobId: string, anchor?: unknown, documentId?: string, options?: { pinJob?: boolean }) => unknown;
 };
 
 /** app 侧映射出的窄口聚合；HomeShellProviders 按此一次灌入全部窄 Context。 */

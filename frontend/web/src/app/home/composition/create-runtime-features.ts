@@ -91,12 +91,12 @@ type RecentJobsRuntimePort = {
 };
 
 type RecentJobsReaderPort = {
-  openReader: (jobId: string, anchor?: unknown, documentId?: string) => unknown;
+  openReader: (jobId: string, anchor?: unknown, documentId?: string, options?: { pinJob?: boolean }) => unknown;
 };
 
 type RecentJobsNavigationPort = {
   openJob: (jobId: string) => unknown;
-  openReader: (jobId: string, documentId?: string) => unknown;
+  openReader: (jobId: string, documentId?: string, options?: { pinJob?: boolean }) => unknown;
   recoverJob: (jobId: string) => unknown;
   currentJobId: () => string;
 };

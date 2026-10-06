@@ -35,6 +35,7 @@ import {
   isDocumentJobActive,
   useDocumentJobs,
 } from "./use-document-jobs.js";
+import { jobIdOf } from "../domain/document-jobs-model.js";
 import { canStartTranslation, useBookDetailCover } from "./use-book-detail-cover.js";
 import { useBookDetailTab } from "./use-book-detail-tab.js";
 import { useBookDetailArtifactCenter } from "./use-book-detail-artifact-center.js";
@@ -174,6 +175,18 @@ export function BookDetailDialog() {
     close();
   };
 
+  // 「点名看某个任务」：产物「查看」、进度页「查看实时译文」。带 pinJob，阅读器原样打开
+  // 这个任务，不按整本挑（后端只挑成功的翻译任务——OCR 会被换成翻译、在跑的重翻会被换成
+  // 旧译文）。封面「对照阅读」是「看这本书」，不走这里。
+  const openPinnedJob = (pinnedJobId: string) => {
+    actions.openJobReader(pinnedJobId, documentId, { pinJob: true });
+    close();
+  };
+
+  // 本书的任务 id。全局 statusCard 只有一张、可能在播另一本书的任务，读它的地方
+  // （结果操作行、实时译文入口）只认这里面的。
+  const documentJobIds = documentJobs.jobs.map(jobIdOf).filter(Boolean);
+
   return (
     <BookDetailShell
       open={open}
@@ -260,7 +273,7 @@ export function BookDetailDialog() {
               error={documentJobs.error}
               // 结果操作行读全局 statusCard store，注入点放在这里（对话框本身
               // 长在 HomeShellProviders 内），让「进度」Tab 组件保持纯展示。
-              resultActionsSlot={<ProcessingResultActions />}
+              resultActionsSlot={<ProcessingResultActions documentJobIds={documentJobIds} />}
               coverage={coverage}
               ocr={{
                 job: documentJobs.ocrStatusJob,
@@ -305,10 +318,8 @@ export function BookDetailDialog() {
                 onTranslate: async () => {
                   await translateState.handleTranslate();
                 },
-                onOpenLiveReader: (activeJobId) => {
-                  actions.openJobReader(activeJobId, documentId);
-                  close();
-                },
+                documentJobIds,
+                onOpenLiveReader: openPinnedJob,
                 onRetryStage: stageActionState.retry,
               }}
             />
@@ -317,10 +328,7 @@ export function BookDetailDialog() {
             <BookDetailArtifactsTab
               onOpenSource={openSource}
               artifactCenter={artifactCenter}
-              onOpenJob={(artifactJobId) => {
-                actions.openJobReader(artifactJobId, documentId);
-                close();
-              }}
+              onOpenJob={openPinnedJob}
             />
           )}
         />

@@ -85,7 +85,7 @@ export function createLibraryDomain({ features, documentRef }: CreateLibraryDoma
   });
 
   const recentJobsReaderPort = createRecentJobsReaderPort({
-    openReader: (jobId: string, anchor: ReaderAnchor = null, documentId = "") => {
+    openReader: (jobId: string, anchor: ReaderAnchor = null, documentId = "", options: { pinJob?: boolean } = {}) => {
       const normalizedJobId = `${jobId || ""}`.trim();
       if (!normalizedJobId) return;
       // Reader 会在自己的 iframe/session 内读取 job、产物和 live translation。
@@ -97,6 +97,8 @@ export function createLibraryDomain({ features, documentRef }: CreateLibraryDoma
           documentId: `${documentId || ""}`.trim(),
           pageIdx: Number.isFinite(anchor?.pageIdx) ? anchor.pageIdx : null,
           blockId: anchor?.blockId || "",
+          // 点名看某个任务（产物「查看」、实时译文）：ReaderNavigation 不再按整本改写 job_id。
+          pinJob: options?.pinJob === true,
         },
       }));
     },
