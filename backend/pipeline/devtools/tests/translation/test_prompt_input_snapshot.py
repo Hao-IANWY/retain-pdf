@@ -30,13 +30,16 @@ _BUILDERS = [build_single_item_fallback_messages, lambda item: build_messages([i
 #
 # placeholder 那组一字未动,正说明改动只落在 direct_typst 路径上——重录时要一并
 # 确认这一点,否则就是改宽了。
+#
+# 第二次重录:引用规则从「论文引用统一输出 $^{117}$」改成「行内方括号 [n] 原样、原文是上标才
+# 输出上标」(模型曾把行内 [n] 改上标且只改一部分,同篇混排)。placeholder 那组同样一字未动。
 _DIGESTS = {
     False: ["92f286faeba1db6ce9a76cf68360a3a3fe1c4806ea528d8258d879677fe7b4c0",
             "517126bb63dbde134291b00af08c9892b901f623335067179400430a24ecaf27",
             "5e819e5e3685f7a25bb9d7360d34537933633ab035287c3ed85daaa8e8539a59"],
-    True: ["47b3870e63d9fcaa35e531da60c62013cc3b02025555fa6e762febe484bf0ab9",
-           "0760237ce536bab523d0d490bb4f79eaa92dda405ed56811a735acaa1906eb8d",
-           "cf5fbb8b3a35d20d0c63a65a6f88259ad495eb3bac030def152904153193c217"],
+    True: ["3f61f097537f0a531d1dc83ce426ddf5c2fc513ff2f50ffc1b350b8cb5adb4c1",
+           "066795e7d9be537822b90d07439ee51f9d69d13652a3cc1e6e51965e6c5aab4f",
+           "5ec0d319f0356da30ddeff0e5440e8dfaea57e192e1f97f1dfecb183efa5bd1a"],
 }
 
 

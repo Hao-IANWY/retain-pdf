@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from retainpdf_pipeline.services.pipeline_shared.direct_typst_math import normalize_direct_typst_translation
+from retainpdf_pipeline.translate.llm.citation_style import restore_bracket_citations
 from retainpdf_pipeline.translate.llm.placeholder_transform import repair_safe_duplicate_placeholders
 from retainpdf_pipeline.translate.llm.result_payload import KEEP_ORIGIN_LABEL
 from retainpdf_pipeline.translate.llm.result_payload import normalize_decision
@@ -36,11 +37,24 @@ def canonicalize_batch_result(batch: list[dict], result: dict[str, dict[str, str
             # 文本,先做会破坏 translated_text == source_text 的原样检测。
             if decision != KEEP_ORIGIN_LABEL and translated_text and is_direct_math_mode(item):
                 translated_text = normalize_direct_typst_translation(translated_text)
+            # 原文行内 [n] 被模型改成上标时还原，同一篇只留一种引用样式（见 citation_style）。
+            if decision != KEEP_ORIGIN_LABEL and translated_text:
+                translated_text = restore_bracket_citations(source_text, translated_text)
         canonical[item_id] = result_entry(decision, translated_text)
         if isinstance(payload, dict) and payload.get("final_status"):
             canonical[item_id]["final_status"] = str(payload.get("final_status", "") or canonical[item_id]["final_status"])
         if isinstance(payload, dict) and isinstance(payload.get("member_translations"), list):
-            canonical[item_id]["member_translations"] = payload["member_translations"]
+            members = payload["member_translations"]
+            if item is not None and decision != KEEP_ORIGIN_LABEL:
+                # 成员分段要和整组译文一起还原，否则 apply 层「分段能拼回整组」的校验对不上。
+                group_source = unit_source_text(item).strip()
+                members = [
+                    {**entry, "translated_text": restore_bracket_citations(group_source, str(entry.get("translated_text", "") or ""))}
+                    if isinstance(entry, dict) and entry.get("translated_text")
+                    else entry
+                    for entry in members
+                ]
+            canonical[item_id]["member_translations"] = members
     return canonical
 
 

@@ -45,7 +45,9 @@ def test_shared_layout_resolves_probes_and_unchanged_baseline():
     assert (HERE / "support/production_translation_probe.py").is_file()
     # 基线文件的哈希是第二道守卫:改基线必须同时改这里,防止为了让重构测试变绿
     # 而顺手重生成(见 README「不要为了通过重构测试重新生成基线」)。
-    # 上次更新:公式指引改成明确要求 LaTeX 并去掉降级要求后,逐例审阅过范围——
+    # 更早一次:公式指引改成明确要求 LaTeX 并去掉降级要求后,逐例审阅过范围——
     # 12 个 direct_typst 用例的消息变了,16 个 placeholder 用例只有 prompt_hash 变。
+    # 最近一次:引用规则改成「行内方括号 [n] 原样、原文是上标才输出上标」。同样逐例审阅:
+    # 12 个用例的消息变化只落在那一行引用规则上,其余 16 个只有 prompt_hash 变,成员与其它指纹不变。
     baseline = HERE / "fixtures/refactor_baseline.json"
-    assert hashlib.sha256(baseline.read_bytes()).hexdigest() == "e245975b49b4a042c766c79e1a39f3cd69bf6a260f47d512f9796a25ed4942a9"
+    assert hashlib.sha256(baseline.read_bytes()).hexdigest() == "3b0630fde4c88481aa4545af02e4e0bea097eb133bcf7aec5d7c4cf15d36e2b0"
