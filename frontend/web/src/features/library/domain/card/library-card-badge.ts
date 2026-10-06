@@ -7,6 +7,7 @@
 // | status                | stage(stageKey/raw)              | 转圈 | 角标      |
 // | library_only 馆藏      | —                                | 无   | 馆藏      |
 // | failed                | failed                           | 无   | 失败      |
+// | failed + has_translation（旧译文可读） | failed              | 无   | 更新失败（次要样式） |
 // | canceled/cancelled    | canceled                         | 无   | 已取消    |
 // | queued/running/pending/processing/validating | ocr/translate/render/queued/processing/validating | 转圈 | 无（中央 loading 代替） |
 // | succeeded + OCR-only  | done                             | 无   | OCR 完成  |
@@ -22,7 +23,7 @@ import {
   isRecentJobActive,
   stageKeyForRecentJobLabel,
 } from "./recent-job-card-presenter.js";
-import { isOcrOnlyItem } from "./library-card-semantics.js";
+import { hasReadableTranslation, isOcrOnlyItem } from "./library-card-semantics.js";
 import { isCanceledStatus, isFailedStatus } from "@/platform/contracts/job-status.js";
 
 function ocrDoneBadge(): LibraryCardBadge {
@@ -58,6 +59,15 @@ export function libraryCardBadge(item: LibraryCardItem = {}): LibraryCardBadge |
   const stageKey = stageKeyForRecentJobLabel(item);
 
   if (isFailedStatus(status) || stageKey === "failed") {
+    // 失败只说明「最近一次处理失败」。书本身还有能读的旧译文时，醒目的「失败」会让人以为
+    // 书坏了 —— 降成次要提示：白底、红字、细边框，阅读入口照旧是对照阅读。
+    if (hasReadableTranslation(item)) {
+      return {
+        label: "更新失败",
+        icon: "alert",
+        cls: "border border-destructive/25 bg-white/95 text-destructive",
+      };
+    }
     return {
       label: "失败",
       icon: "alert",

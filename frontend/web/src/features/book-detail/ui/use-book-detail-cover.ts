@@ -32,7 +32,26 @@ export type UseBookDetailCoverOptions = {
   statusCardState?: any;
   /** 可选透传：若调用方已算好 isActive 则复用，否则内部重算 */
   isActive?: boolean;
+  /** 这本书有没有可读的译文（见 bookDetailHasTranslation）；缺省只看 item.has_translation。 */
+  hasTranslation?: boolean;
 };
+
+/**
+ * 详情页判断「能不能对照阅读」：有过任何成功的带译文任务。
+ *
+ * 两个来源，任一成立即可：书库列表带来的 `has_translation`，以及详情已经拉到的
+ * translation-coverage（translated_pages > 0，和阅读器同一套「全部成功任务」的规则）。
+ * 不看当前任务的状态 —— 重新翻译 / 重新渲染在跑或失败时，旧译文照样能读。
+ */
+export function bookDetailHasTranslation({
+  item = {},
+  coverage = null,
+}: {
+  item?: any;
+  coverage?: { translated_pages?: number } | null;
+} = {}): boolean {
+  return item?.has_translation === true || Number(coverage?.translated_pages || 0) > 0;
+}
 
 /**
  * 详情左栏和处理 Tab 共用的纯派生状态。
@@ -44,6 +63,7 @@ export function deriveBookDetailCoverState({
   item = {},
   statusCardState = null,
   isActive: isActiveProp,
+  hasTranslation: hasTranslationProp,
 }: UseBookDetailCoverOptions = {}) {
   const snapshot = statusCardState?.snapshot ?? statusCardState ?? {};
   const cardStatus = `${snapshot?.status ?? statusCardState?.status ?? ""}`.trim().toLowerCase();
@@ -54,10 +74,16 @@ export function deriveBookDetailCoverState({
   const status = statusOf(item);
   const libraryOnly = isLibraryOnlyItem(item);
   const itemStatus = `${item.status || ""}`.trim().toLowerCase();
-  const readPresentation = resolveLibraryReadPresentation(item);
+  const hasTranslation = Boolean(hasTranslationProp) || bookDetailHasTranslation({ item });
+  // 有译文：和书卡同一条规则（resolveLibraryReadPresentation 按 has_translation 给对照阅读），
+  // coverage 来源的再显式并进去。
+  const readPresentation = resolveLibraryReadPresentation(
+    hasTranslation ? { ...item, has_translation: true } : item,
+  );
+  // 当前任务在跑时藏掉阅读入口，只适用于「还没有任何译文」：有旧译文就照样能读。
   const readerAvailable =
     readPresentation.target === "job" &&
-    !(cardMatchesItem && ["running", "queued", "pending"].includes(cardStatus));
+    (hasTranslation || !(cardMatchesItem && ["running", "queued", "pending"].includes(cardStatus)));
   const canTranslate =
     Boolean(libraryOnly) ||
     itemStatus === "failed" ||
@@ -75,6 +101,7 @@ export function deriveBookDetailCoverState({
 
   return {
     status,
+    hasTranslation,
     libraryOnly,
     cardStatus,
     cardJobId,
@@ -120,13 +147,15 @@ export function useBookDetailCover({
   item = {},
   statusCardState = null,
   isActive: isActiveProp,
+  hasTranslation,
 }: UseBookDetailCoverOptions = {}) {
   return useMemo(
     () => deriveBookDetailCoverState({
       item,
       statusCardState,
       isActive: isActiveProp,
+      hasTranslation,
     }),
-    [item, statusCardState, isActiveProp],
+    [item, statusCardState, isActiveProp, hasTranslation],
   );
 }

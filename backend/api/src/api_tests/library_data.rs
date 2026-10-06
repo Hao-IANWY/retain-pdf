@@ -2495,3 +2495,87 @@ async fn a_job_without_a_document_still_falls_back_to_the_upload_file_name() {
     let book = books["data"]["items"].as_array().unwrap().iter().find(|item| item["job_id"] == "job-untitled").expect("book item");
     assert_eq!(book["title"], "光谱综述.pdf");
 }
+
+/// 书库列表带 `has_translation`：有没有任何成功的、带译文（非纯 OCR）的任务。
+///
+/// 书卡原来只看当前任务（active_job）成没成功；早已翻译完的书一旦重新翻译失败或正在跑，
+/// 书卡就降级成「读原文 / 失败」，而阅读器（resolve_reading_target）一直能打开旧译文。
+/// 这个字段只查数据库（成功的非 OCR 任务是否存在），不解析 PDF —— 列表每本书都要算。
+#[tokio::test]
+async fn documents_list_exposes_has_translation_independent_of_the_active_job() {
+    let state = test_state("library-documents-has-translation");
+    let app = build_app(state.clone());
+
+    let seed_job = |document_id: &str, job_id: &str, workflow: WorkflowKind, status: JobStatusKind| {
+        let mut input = CreateJobInput::default();
+        input.workflow = workflow;
+        let mut job = JobSnapshot::new(job_id.to_string(), input, vec!["python".to_string()]);
+        job.status = status;
+        job.sync_runtime_state();
+        state.db.save_job(&job).expect("save job");
+        let conn = rusqlite::Connection::open(state.config.jobs_db_path.clone()).expect("open db");
+        conn.execute(
+            "UPDATE jobs SET document_id = ?1 WHERE job_id = ?2",
+            rusqlite::params![document_id, job_id],
+        )
+        .expect("link job to document");
+    };
+
+    // 旧译文成功、最新一次重新翻译失败，当前任务指向失败的那个。
+    let retranslated = seed_document(&state, b"has-translation-old-success");
+    seed_job(&retranslated, "job-old-book", WorkflowKind::Book, JobStatusKind::Succeeded);
+    seed_job(&retranslated, "job-new-book", WorkflowKind::Book, JobStatusKind::Failed);
+    state
+        .db
+        .set_document_active_job(&retranslated, "job-new-book", None)
+        .expect("point active job at the failed retry");
+
+    // 只有成功的 OCR + 失败的翻译：没有译文。
+    let ocr_only = seed_document(&state, b"has-translation-ocr-only");
+    seed_job(&ocr_only, "job-ocr", WorkflowKind::Ocr, JobStatusKind::Succeeded);
+    seed_job(&ocr_only, "job-failed-book", WorkflowKind::Book, JobStatusKind::Failed);
+
+    // 只收藏、从没处理过。
+    let library_only = seed_document(&state, b"has-translation-library-only");
+
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/documents?limit=10&offset=0")
+                .header("X-API-Key", "test-key")
+                .body(Body::empty())
+                .expect("list request"),
+        )
+        .await
+        .expect("list response");
+    assert_eq!(response.status(), StatusCode::OK);
+    let payload = json_response(response).await;
+    let flag = |document_id: &str| {
+        payload["data"]["documents"]
+            .as_array()
+            .expect("documents array")
+            .iter()
+            .find(|doc| doc["document_id"] == document_id)
+            .map(|doc| doc["has_translation"].clone())
+            .expect("document listed")
+    };
+    assert_eq!(flag(&retranslated), serde_json::json!(true), "旧译文可读，当前任务失败不影响");
+    assert_eq!(flag(&ocr_only), serde_json::json!(false), "纯 OCR 不算译文");
+    assert_eq!(flag(&library_only), serde_json::json!(false));
+
+    // 详情接口同一个字段、同一条规则。
+    let detail = app
+        .oneshot(
+            Request::builder()
+                .uri(format!("/api/v1/documents/{retranslated}"))
+                .header("X-API-Key", "test-key")
+                .body(Body::empty())
+                .expect("detail request"),
+        )
+        .await
+        .expect("detail response");
+    let detail = json_response(detail).await;
+    assert_eq!(detail["data"]["has_translation"], serde_json::json!(true));
+    assert_eq!(detail["data"]["active_job_id"], "job-new-book");
+}

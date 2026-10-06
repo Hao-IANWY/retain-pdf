@@ -81,6 +81,8 @@ export function shapeDocumentCardItem(document: any = {}, jobProjection = null) 
     bytes: document.bytes,
     added_at: document.added_at || "",
     last_opened_at: document.last_opened_at || null,
+    // 文档级事实：有没有任何成功的带译文任务（后端列表字段，老后端不带 → false）。
+    has_translation: document.has_translation === true,
   };
 
   if (activeJobId && jobProjection && typeof jobProjection === "object") {

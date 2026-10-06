@@ -50,6 +50,16 @@ Because `total` reflects the same filter, clients can paginate search results
 normally. Before `q` existed, clients had to fetch a large first page and
 filter locally, which silently dropped matches beyond that page.
 
+Each document (list items and `GET /api/v1/documents/:document_id`) carries
+`has_translation: bool` — whether the document has **any** succeeded job that is
+not OCR-only. It answers "can this book be read side by side" and is independent
+of `active_job_id`: while a re-translation or re-render is running, or after it
+failed, an earlier translation is still readable, and `GET
+/api/v1/documents/:document_id/reading` still resolves to it. The flag is a
+database-only check (one indexed lookup per row); it does not open output PDFs,
+so the reading endpoint remains the authority on what actually opens. Older
+clients can ignore the field.
+
 Book display metadata:
 
 - list items expose `display_name`, `page_count`, `source_file_name`, `cover_url`,

@@ -36,7 +36,7 @@ import {
   useDocumentJobs,
 } from "./use-document-jobs.js";
 import { jobIdOf } from "../domain/document-jobs-model.js";
-import { canStartTranslation, useBookDetailCover } from "./use-book-detail-cover.js";
+import { bookDetailHasTranslation, canStartTranslation, useBookDetailCover } from "./use-book-detail-cover.js";
 import { useBookDetailTab } from "./use-book-detail-tab.js";
 import { useBookDetailArtifactCenter } from "./use-book-detail-artifact-center.js";
 import { useStoreSnapshot } from "@/ui/hooks/use-store.js";
@@ -58,26 +58,7 @@ export function BookDetailDialog() {
   const item = useBookDetailLiveItem(payloadItem);
   const statusCardState = useStoreSnapshot(statusCardStore);
   const documentId = `${item.document_id || ""}`.trim();
-  const {
-    coverProcessing,
-    readPresentation,
-    readerAvailable,
-    canTranslate,
-    isActive,
-    cardJobId,
-  } =
-    useBookDetailCover({ item, statusCardState });
-  const jobId = `${item.job_id || item.active_job_id || cardJobId || ""}`.trim();
   const coverUrl = useRecentJobCover(item);
-
-  // 点「翻译整本」/ 网格选中活跃任务：强制处理 Tab，进度在 bd-job-status-inner
-  const { preferTranslateTab, defaultTab, setPreferTranslateTab } = useBookDetailTab({
-    open,
-    payloadItem,
-    item,
-    readerAvailable,
-    isActive,
-  });
 
   const close = () => dialogStore.close();
 
@@ -102,6 +83,27 @@ export function BookDetailDialog() {
     },
   });
   const coverage = useTranslationCoverage({ open, documentId, jobs: documentJobs.jobs });
+  // 能不能对照阅读看「有没有任何成功的带译文任务」，不看当前任务：重新翻译 / 重新渲染在跑
+  // 或失败时旧译文照样能读（阅读器按全部成功任务合并）。coverage 已经拉了，直接用。
+  const {
+    coverProcessing,
+    readPresentation,
+    readerAvailable,
+    canTranslate,
+    isActive,
+    cardJobId,
+  } =
+    useBookDetailCover({ item, statusCardState, hasTranslation: bookDetailHasTranslation({ item, coverage }) });
+  const jobId = `${item.job_id || item.active_job_id || cardJobId || ""}`.trim();
+
+  // 点「翻译整本」/ 网格选中活跃任务：强制处理 Tab，进度在 bd-job-status-inner
+  const { preferTranslateTab, defaultTab, setPreferTranslateTab } = useBookDetailTab({
+    open,
+    payloadItem,
+    item,
+    readerAvailable,
+    isActive,
+  });
   const translateState = useBookDetailTranslate({
     open,
     documentId,

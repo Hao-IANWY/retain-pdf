@@ -38,6 +38,13 @@ pub struct DocumentRecord {
     /// 缩略图 URL（列表/详情由 API 层填充，不入库）
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub thumbnail_url: String,
+    /// 有没有任何成功的、带译文（非纯 OCR）的任务 —— 「这本书能不能对照阅读」。
+    ///
+    /// 和 `active_job_id` 指向的任务状态无关：重新翻译 / 重新渲染在跑或失败时，旧译文照样
+    /// 能读（阅读器按全部成功任务合并）。读时由 SQL 现算（不入库），只查任务表，不解析 PDF；
+    /// 不保证输出 PDF 仍在磁盘上，那由阅读入口 `/documents/:id/reading` 兜底。
+    #[serde(default)]
+    pub has_translation: bool,
 }
 
 fn default_document_title_source() -> String {
