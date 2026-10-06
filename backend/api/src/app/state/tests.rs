@@ -1,6 +1,4 @@
-use std::collections::HashSet;
 use std::fs;
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use rusqlite::{params, Connection};
@@ -8,92 +6,44 @@ use rusqlite::{params, Connection};
 use super::*;
 use crate::models::domain::{now_iso, JobSnapshot, JobStatusKind, WorkflowKind};
 use crate::models::request::CreateJobInput;
+use crate::test_support::config::TestDirs;
 
-struct TestStateFs {
-    root: PathBuf,
-    data_root: PathBuf,
-    jobs_db_path: PathBuf,
-    output_root: PathBuf,
-    rust_api_root: PathBuf,
-    scripts_dir: PathBuf,
-    uploads_dir: PathBuf,
-    downloads_dir: PathBuf,
-}
+/// 共享目录树外再包一层：build_state 的测试要在结束时清掉临时目录。
+struct TestStateFs(TestDirs);
 
 impl TestStateFs {
     fn new(test_name: &str) -> Self {
-        let root = std::env::temp_dir().join(format!(
+        Self(TestDirs::create(&format!(
             "rust-api-build-state-{test_name}-{}-{}",
             std::process::id(),
             now_iso().replace([':', '.'], "-")
-        ));
-        let data_root = root.join("data");
-        let output_root = data_root.join("jobs");
-        let uploads_dir = data_root.join("uploads");
-        let downloads_dir = data_root.join("downloads");
-        let jobs_db_path = data_root.join("db").join("jobs.db");
-        let rust_api_root = root.join("rust_api");
-        let scripts_dir = root.join("scripts");
-        fs::create_dir_all(&output_root).expect("create output root");
-        fs::create_dir_all(&uploads_dir).expect("create uploads dir");
-        fs::create_dir_all(&downloads_dir).expect("create downloads dir");
-        fs::create_dir_all(jobs_db_path.parent().expect("db dir")).expect("create db dir");
-        fs::create_dir_all(&rust_api_root).expect("create rust_api root");
-        fs::create_dir_all(&scripts_dir).expect("create scripts dir");
-        Self {
-            root,
-            data_root,
-            jobs_db_path,
-            output_root,
-            rust_api_root,
-            scripts_dir,
-            uploads_dir,
-            downloads_dir,
-        }
+        )))
     }
 
     fn config(&self) -> Arc<AppConfig> {
+        // 这组用例一直按 4 个并发槽写，和共享默认（1）不同，显式保留
         Arc::new(AppConfig {
-            project_root: self.root.clone(),
-            rust_api_root: self.rust_api_root.clone(),
-            data_root: self.data_root.clone(),
-            scripts_dir: self.scripts_dir.clone(),
-            uploads_dir: self.uploads_dir.clone(),
-            downloads_dir: self.downloads_dir.clone(),
-            jobs_db_path: self.jobs_db_path.clone(),
-            output_root: self.output_root.clone(),
-            python_bin: "python3".to_string(),
-            pipeline_command: "retainpdf-pipeline".to_string(),
-            bind_host: "127.0.0.1".to_string(),
-            port: 41000,
-            simple_port: 42000,
-            upload_max_bytes: 0,
-            upload_max_pages: 0,
-            upload_processing: Default::default(),
-            api_keys: HashSet::from(["test-key".to_string()]),
             max_running_jobs: 4,
-            provider_limits: crate::config::ProviderLimitsConfig::default(),
-            provider_runtime: crate::config::ProviderRuntimeConfig::default(),
-            job_runner: crate::config::JobRunnerConfig::default(),
-            ai_service: crate::config::AiServiceConfig::default(),
-            jobs_service: crate::config::JobsServiceConfig::default(),
-            asset: crate::config::AssetConfig::default(),
-            cleanup: crate::config::CleanupConfig::default(),
-            db: crate::config::DbConfig::default(),
-            ai_proxy: crate::config::AiProxyConfig::default(),
-            reader_llm: crate::config::ReaderLlmConfig::default(),
-            rag: crate::config::RagConfig::default(),
+            ..self.0.config()
         })
     }
 
     fn db(&self) -> Db {
-        Db::new(self.jobs_db_path.clone(), self.data_root.clone())
+        Db::new(self.0.jobs_db_path.clone(), self.0.data_root.clone())
+    }
+}
+
+impl std::ops::Deref for TestStateFs {
+    type Target = TestDirs;
+
+    fn deref(&self) -> &TestDirs {
+        &self.0
     }
 }
 
 impl Drop for TestStateFs {
     fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.root);
+        let _ = fs::remove_dir_all(&self.0.root);
     }
 }
 

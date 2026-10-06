@@ -272,27 +272,7 @@ with unit_scope('domain', ['document-preview']):
 assert text == 'translated', text
 print('bridge-ok')
 "#;
-    let python_relative = if cfg!(windows) {
-        ".venv/Scripts/python.exe"
-    } else {
-        ".venv/bin/python"
-    };
-    // UV_PROJECT_ENVIRONMENT 优先 —— worktree 里环境不在 `<repo>/backend/.venv`
-    // （那个带绝对路径的符号链接已撤出仓库，见 ops/development/dev_stack.py 的注释）。
-    let relative_to_venv = if cfg!(windows) { "Scripts/python.exe" } else { "bin/python" };
-    let python = std::env::var_os("UV_PROJECT_ENVIRONMENT")
-        .map(PathBuf::from)
-        .map(|venv| venv.join(relative_to_venv))
-        .into_iter()
-        .chain([
-            root.join("backend").join(python_relative),
-            root.join(python_relative),
-        ])
-        .find(|path| path.is_file())
-        .expect(
-            "a project Python environment is required for the worker bridge test \
-             (set UV_PROJECT_ENVIRONMENT or create <repo>/backend/.venv)",
-        );
+    let python = crate::test_support::python::project_venv_bin("python");
     let output = tokio::time::timeout(
         Duration::from_secs(20),
         tokio::process::Command::new(python)

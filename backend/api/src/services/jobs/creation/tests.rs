@@ -2,15 +2,15 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 use retain_data::credentials::resolve_credential;
-use tokio::sync::{RwLock, Semaphore};
 
 use crate::config::AppConfig;
-use crate::db::Db;
 use crate::error::AppError;
 use crate::models::{now_iso, CreateJobInput, JobSnapshot, UploadRecord, WorkflowKind};
 use crate::services::credentials::api::{create_credential, CreateCredentialInput};
 use crate::services::job_launcher::JobLaunchDeps;
 use crate::services::runtime_gateway::JobRuntimeLauncher;
+use crate::test_support::config::TestDirs;
+use crate::test_support::state::assemble_app_state;
 use crate::AppState;
 
 use super::bundle::create_translation_bundle_job;
@@ -20,94 +20,17 @@ use crate::services::jobs::deps::{JobSubmitDeps, SnapshotBuildDeps};
 use crate::services::uploads::UploadedPdfInput;
 
 fn test_state(test_name: &str) -> AppState {
-    let root = std::env::temp_dir().join(format!(
+    // 服务层测试按服务层的旧约定：python 而非 python3、无 API key。
+    let dirs = TestDirs::create(&format!(
         "rust-api-creation-{test_name}-{}",
         fastrand::u64(..)
     ));
-    let data_root = root.join("data");
-    let output_root = data_root.join("jobs");
-    let downloads_dir = data_root.join("downloads");
-    let uploads_dir = data_root.join("uploads");
-    let rust_api_root = root.join("rust_api");
-    let scripts_dir = root.join("scripts");
-    std::fs::create_dir_all(&output_root).expect("create output root");
-    std::fs::create_dir_all(&downloads_dir).expect("create downloads dir");
-    std::fs::create_dir_all(&uploads_dir).expect("create uploads dir");
-    std::fs::create_dir_all(&rust_api_root).expect("create rust_api root");
-    std::fs::create_dir_all(&scripts_dir).expect("create scripts dir");
-
-    let config = Arc::new(AppConfig {
-        project_root: root.clone(),
-        rust_api_root,
-        data_root: data_root.clone(),
-        scripts_dir: scripts_dir.clone(),
-        uploads_dir,
-        downloads_dir,
-        jobs_db_path: data_root.join("db").join("jobs.db"),
-        output_root,
+    assemble_app_state(Arc::new(AppConfig {
         python_bin: "python".to_string(),
-        pipeline_command: "retainpdf-pipeline".to_string(),
-        bind_host: "127.0.0.1".to_string(),
-        port: 41000,
         simple_port: 41001,
-        upload_max_bytes: 0,
-        upload_max_pages: 0,
-        upload_processing: Default::default(),
         api_keys: HashSet::new(),
-        max_running_jobs: 1,
-        provider_limits: crate::config::ProviderLimitsConfig::default(),
-        provider_runtime: crate::config::ProviderRuntimeConfig::default(),
-        job_runner: crate::config::JobRunnerConfig::default(),
-        ai_service: crate::config::AiServiceConfig::default(),
-        jobs_service: crate::config::JobsServiceConfig::default(),
-        asset: crate::config::AssetConfig::default(),
-        cleanup: crate::config::CleanupConfig::default(),
-        db: crate::config::DbConfig::default(),
-        ai_proxy: crate::config::AiProxyConfig::default(),
-        reader_llm: crate::config::ReaderLlmConfig::default(),
-        rag: crate::config::RagConfig::default(),
-    });
-
-    let db = Arc::new(Db::new(
-        config.jobs_db_path.clone(),
-        config.data_root.clone(),
-    ));
-    let uploads = Arc::new(crate::services::uploads::UploadService::new(
-        db.clone(),
-        crate::services::uploads::UploadServiceConfig {
-            uploads_dir: config.uploads_dir.clone(),
-            python_bin: config.python_bin.clone(),
-            upload_max_bytes: config.upload_max_bytes,
-            upload_max_pages: config.upload_max_pages,
-            processing: config.upload_processing.clone(),
-        },
-    ));
-    AppState {
-        ai_gateway: Arc::new(
-            crate::services::ai::AiGateway::new(
-                &config.ai_proxy,
-                config.ai_service.base_url(),
-                || 0,
-            )
-            .unwrap(),
-        ),
-        model_executor: None,
-        config: config.clone(),
-        db,
-        uploads,
-        download_generation: Arc::default(),
-        query_execution: Arc::default(),
-        canceled_jobs: Arc::new(RwLock::new(HashSet::new())),
-        job_slots: Arc::new(Semaphore::new(1)),
-        job_drivers: Arc::default(),
-        job_runtime: Arc::new(crate::services::runtime_gateway::JobRuntime::in_process(
-            Arc::new(RwLock::new(HashSet::new())),
-        )),
-        agent_capabilities: Arc::new(
-            crate::services::agent_capabilities::AgentCapabilityAuthority::new_random()
-                .expect("agent capability authority"),
-        ),
-    }
+        ..dirs.config()
+    }))
 }
 
 fn snapshot_context<'a>(state: &'a AppState) -> SnapshotBuildDeps<'a> {

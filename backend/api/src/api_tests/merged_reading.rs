@@ -2,7 +2,7 @@
 //! 阅读器调用的读接口都认它，写接口都拒绝它。调用真正的 `retainpdf-pipeline`。
 
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
 use std::sync::Arc;
 
@@ -18,18 +18,7 @@ use crate::db::documents::sha256_hex;
 use crate::models::domain::{
     now_iso, CreateJobInput, JobArtifacts, JobSnapshot, JobStatusKind, UploadRecord, WorkflowKind,
 };
-
-/// 和其它调真 Python 的测试同一套找法：环境缺了就红，不静默跳过。
-fn venv_bin(name: &str) -> PathBuf {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    std::env::var_os("UV_PROJECT_ENVIRONMENT")
-        .map(PathBuf::from)
-        .into_iter()
-        .chain([root.join("backend/.venv"), root.join(".venv")])
-        .map(|venv| venv.join("bin").join(name))
-        .find(|path| path.is_file())
-        .expect("a project Python environment is required (set UV_PROJECT_ENVIRONMENT or create <repo>/backend/.venv)")
-}
+use crate::test_support::python::project_venv_bin as venv_bin;
 
 fn make_pdf(path: &Path, texts: &[&str]) {
     fs::create_dir_all(path.parent().unwrap()).unwrap();

@@ -1,4 +1,4 @@
-use super::jobs_common::test_state;
+use super::jobs_common::{read_json, test_state};
 use crate::app::build_app;
 
 #[tokio::test]
@@ -59,7 +59,7 @@ async fn upload_domain_errors_preserve_http_envelopes() {
         let response = crate::error::AppError::from(error).into_response();
         assert_eq!(response.status().as_u16(), status);
         assert_eq!(
-            response_json(response).await,
+            read_json(response).await,
             serde_json::json!({
                 "code": u32::from(status) * 100, "message": message,
                 "error": {"code": code, "http_status": status, "details": {}}
@@ -121,7 +121,7 @@ async fn all_upload_consumers_use_the_injected_processing_budget() {
         let response = app.oneshot(request).await.unwrap();
         assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE, "{uri}");
         assert_eq!(
-            response_json(response).await["message"],
+            read_json(response).await["message"],
             "PDF exceeds processing buffer budget",
             "{uri}"
         );
@@ -130,9 +130,8 @@ async fn all_upload_consumers_use_the_injected_processing_budget() {
         assert!(db.list_jobs(10, 0, None, None).unwrap().is_empty());
     }
 }
-use axum::body::{to_bytes, Body};
+use axum::body::Body;
 use axum::http::{header, Request, StatusCode};
-use serde_json::Value;
 use std::sync::Arc;
 use tower::util::ServiceExt;
 
@@ -159,7 +158,7 @@ async fn upload_route_preserves_success_view_and_document_deduplication() {
             .unwrap();
         let response = app.clone().oneshot(request).await.unwrap();
         assert_eq!(response.status(), StatusCode::OK);
-        let payload = response_json(response).await;
+        let payload = read_json(response).await;
         let view = &payload["data"];
         assert_eq!(view["filename"], filename);
         assert_eq!(view["bytes"], pdf.len());
@@ -221,7 +220,7 @@ async fn upload_route_repair_unavailable_preserves_safe_error_and_cleanup() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
-    let payload = response_json(response).await;
+    let payload = read_json(response).await;
     assert_eq!(payload["code"], 50300);
     assert_eq!(payload["message"], "PDF repair tool unavailable");
     assert_eq!(payload["error"]["code"], "SERVICE_UNAVAILABLE");
@@ -252,15 +251,6 @@ fn upload_request(body: String) -> Request<Body> {
         .unwrap()
 }
 
-async fn response_json(response: axum::response::Response) -> Value {
-    serde_json::from_slice(
-        &to_bytes(response.into_body(), usize::MAX)
-            .await
-            .expect("read response body"),
-    )
-    .expect("parse response JSON")
-}
-
 #[tokio::test]
 async fn upload_route_enforces_configured_stream_limit_without_content_length() {
     let mut state = test_state("upload-route-stream-limit");
@@ -279,7 +269,7 @@ async fn upload_route_enforces_configured_stream_limit_without_content_length() 
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
-    let payload = response_json(response).await;
+    let payload = read_json(response).await;
     assert_eq!(payload["code"], 41300);
     assert_eq!(payload["message"], "request body is too large");
     assert_eq!(payload["error"]["code"], "PAYLOAD_TOO_LARGE");
@@ -308,7 +298,7 @@ async fn upload_route_rejects_duplicate_file_before_reading_second_body() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-    let payload = response_json(response).await;
+    let payload = read_json(response).await;
     assert_eq!(payload["code"], 40000);
     assert_eq!(payload["message"], "duplicate multipart field: file");
     assert_eq!(payload["error"]["code"], "BAD_REQUEST");

@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_support::python::project_venv_bin;
 
 struct Dir(PathBuf);
 
@@ -164,18 +165,6 @@ fn old_merged_directories_and_crash_leftovers_are_pruned_by_age() {
     assert!(!old.exists() && !recent.exists(), "超过 24 小时的旧合并目录该删");
     assert!(keep.is_dir());
     assert!(unknown.is_dir(), "不认识的目录不该碰");
-}
-
-/// 和 `model_executor` 那个 worker bridge 测试同一套找法：环境缺了就红，不静默跳过。
-fn project_venv_bin(name: &str) -> PathBuf {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    std::env::var_os("UV_PROJECT_ENVIRONMENT")
-        .map(PathBuf::from)
-        .into_iter()
-        .chain([root.join("backend/.venv"), root.join(".venv")])
-        .map(|venv| venv.join("bin").join(name))
-        .find(|path| path.is_file())
-        .expect("a project Python environment is required (set UV_PROJECT_ENVIRONMENT or create <repo>/backend/.venv)")
 }
 
 fn python(script: &str, args: &[&Path]) -> String {
