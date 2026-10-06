@@ -11,7 +11,7 @@ from retainpdf_pipeline.foundation.config import RENDER_TYPOGRAPHY_MEMORY_DIR
 
 
 TYPOGRAPHY_MEMORY_SCHEMA_VERSION = "typography_memory_v1"
-TYPOGRAPHY_MEMORY_ALGORITHM_VERSION = "font_leading_stats_v1"
+TYPOGRAPHY_MEMORY_ALGORITHM_VERSION = "font_leading_stats_v2_default_off"
 MIN_OBSERVATIONS = 3
 MAX_FONT_STD_PT = 0.45
 MAX_LEADING_STD_EM = 0.12
@@ -33,8 +33,12 @@ class TypographyMemory:
 
     @property
     def enabled(self) -> bool:
-        value = os.environ.get("RETAIN_RENDER_TYPOGRAPHY_MEMORY", "1").strip().lower()
-        return value not in {"0", "false", "no", "off"}
+        # 默认关闭，只有显式开启才读写。记录的是 unify / collision 等后处理压缩
+        # 之后的最终字号，下一次渲染拿它当种子再压一轮，会形成单向变小的反馈环
+        # （同一份输入连跑 6 次 10.43 → 9.65pt）；特征 key 也不含原文字号，A 文档
+        # 的历史会影响 B 文档。在这两点解决之前不能默认参与渲染。
+        value = os.environ.get("RETAIN_RENDER_TYPOGRAPHY_MEMORY", "0").strip().lower()
+        return value in {"1", "true", "yes", "on"}
 
     def lookup(self, feature_key: str) -> TypographyMemoryDecision | None:
         if not self.enabled or not feature_key:

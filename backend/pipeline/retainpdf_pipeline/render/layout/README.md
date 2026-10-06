@@ -36,5 +36,6 @@
 
 开关：
 
-- `RETAIN_RENDER_TYPOGRAPHY_MEMORY=0` 可关闭读写。
+- 默认关闭；`RETAIN_RENDER_TYPOGRAPHY_MEMORY=1` 才开启读写。它记录的是后处理压缩后的最终字号，开启后同一份输入会越渲越小（反馈环），且不同文档会互相影响，只用于实验。
+- 改动统计口径时升级 `TYPOGRAPHY_MEMORY_ALGORITHM_VERSION`，旧版本的行不会再被读到。
 - `RETAIN_RENDER_TYPOGRAPHY_MEMORY_MIN_OBS` 可调命中所需最小样本数。
