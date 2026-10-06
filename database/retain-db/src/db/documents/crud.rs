@@ -9,6 +9,16 @@ use crate::storage_paths::resolve_data_path;
 use super::rows::{default_title_from_filename, query_document, row_to_document, DOCUMENT_COLUMNS};
 use crate::db::Db;
 
+/// 「这本书该展示哪个成功任务」的统一规则(相关子查询,外层必须是 `documents`):
+/// 非 OCR 优先,同类取最近完成的。悬空修复、失败回退、启动回填共用这一条。
+pub(super) const BEST_SUCCEEDED_JOB_SQL: &str = r#"
+    SELECT j.job_id FROM jobs j
+    WHERE j.document_id = documents.document_id
+      AND j.status_json = '"succeeded"'
+    ORDER BY CASE WHEN j.workflow = '"ocr"' THEN 1 ELSE 0 END, j.finished_at DESC
+    LIMIT 1
+"#;
+
 struct DocumentFilterQuery {
     where_sql: String,
     args: Vec<String>,
@@ -509,21 +519,40 @@ impl Db {
     pub fn reconcile_document_active_job(&self, document_id: &str) -> Result<()> {
         let conn = self.connect()?;
         conn.execute(
-            r#"
-            UPDATE documents SET active_job_id = (
-                SELECT j.job_id FROM jobs j
-                WHERE j.document_id = documents.document_id
-                  AND j.status_json = '"succeeded"'
-                ORDER BY CASE WHEN j.workflow = '"ocr"' THEN 1 ELSE 0 END, j.finished_at DESC
-                LIMIT 1
-            ), updated_at = ?2
-            WHERE documents.document_id = ?1
-              AND documents.active_job_id IS NOT NULL
-              AND documents.active_job_id NOT IN (SELECT job_id FROM jobs)
-            "#,
+            &format!(
+                r#"
+                UPDATE documents SET active_job_id = ({BEST_SUCCEEDED_JOB_SQL}), updated_at = ?2
+                WHERE documents.document_id = ?1
+                  AND documents.active_job_id IS NOT NULL
+                  AND documents.active_job_id NOT IN (SELECT job_id FROM jobs)
+                "#
+            ),
             params![document_id, now_iso()],
         )?;
         Ok(())
+    }
+
+    /// 书卡还指着一个**没成功**结束的任务(失败 / 取消)时,按同一条规则
+    /// (`BEST_SUCCEEDED_JOB_SQL`)退回这本书最好的成功任务。
+    ///
+    /// 重试 / 重跑 / 重新渲染提交时就把指针给了新任务(要立刻看到进度);新任务失败了,
+    /// 指针原来就停在失败任务上,书卡显示失败,而这本书明明有成功的译文。
+    /// 指针已经被别的任务接走(用户又提交了一个)就不动;这本书一个成功任务都没有时也不动
+    /// —— 那时展示失败任务(能看到错误、能重试)比空卡有用。返回是否改了。
+    pub fn release_document_active_job(&self, document_id: &str, job_id: &str) -> Result<bool> {
+        let conn = self.connect()?;
+        let changed = conn.execute(
+            &format!(
+                r#"
+                UPDATE documents SET active_job_id = ({BEST_SUCCEEDED_JOB_SQL}), updated_at = ?3
+                WHERE documents.document_id = ?1
+                  AND documents.active_job_id = ?2
+                  AND ({BEST_SUCCEEDED_JOB_SQL}) IS NOT NULL
+                "#
+            ),
+            params![document_id, job_id, now_iso()],
+        )?;
+        Ok(changed > 0)
     }
 
     pub fn set_document_active_job(

@@ -149,6 +149,12 @@ fn persist_failed_job(
         let _ = deps
             .db
             .finish_latest_pipeline_attempt(&job.job_id, "failed")?;
+        maintain_document_after_terminal(
+            deps,
+            &job.job_id,
+            job.upload_id.as_deref(),
+            &JobStatusKind::Failed,
+        );
     }
     Ok(())
 }
@@ -192,6 +198,12 @@ fn persist_canceled_job(deps: &ProcessRuntimeDeps, job_id: &str) -> Result<()> {
         let _ = deps
             .db
             .finish_latest_pipeline_attempt(&job.job_id, "canceled")?;
+        maintain_document_after_terminal(
+            deps,
+            &job.job_id,
+            job.upload_id.as_deref(),
+            &JobStatusKind::Canceled,
+        );
     }
     Ok(())
 }
@@ -265,26 +277,30 @@ where
 /// 该文档的 FTS 全文索引。全部尽力而为——FTS 是可重建的派生索引,
 /// 这里失败只记日志,绝不影响任务状态。
 fn update_document_after_job(deps: &ProcessRuntimeDeps, job: &JobRuntimeState) {
-    let Some(upload_id) = job.upload_id.as_deref().filter(|id| !id.is_empty()) else {
+    maintain_document_after_terminal(deps, &job.job_id, job.upload_id.as_deref(), &job.status);
+}
+
+/// 所有终态出口(成功 / 失败 / driver 报错 / 取消)共用的图书馆维护。
+fn maintain_document_after_terminal(
+    deps: &ProcessRuntimeDeps,
+    job_id: &str,
+    upload_id: Option<&str>,
+    status: &JobStatusKind,
+) {
+    let Some(document_id) = job_document(deps, job_id, upload_id) else {
         return;
     };
-    let document_id = match deps.db.link_job_to_document(&job.job_id, upload_id) {
-        Ok(Some(document_id)) => document_id,
-        Ok(None) => return,
-        Err(error) => {
-            error!(
-                "library: link job {} to document failed: {error}",
-                job.job_id
-            );
-            return;
+    if *status != JobStatusKind::Succeeded {
+        // 提交时指针已经给了它;它没成功,书卡别停在失败任务上(规则见
+        // `release_document_active_job`)。
+        if let Err(error) = deps.db.release_document_active_job(&document_id, job_id) {
+            error!("library: release active job {job_id} for {document_id} failed: {error}");
         }
-    };
-    if job.status != JobStatusKind::Succeeded {
         return;
     }
     // 书卡该展示哪个任务：不再无条件覆盖（旧任务后完成会顶掉正在跑的新任务，纯 OCR 会顶掉
     // 翻译好的任务）。规则见 `active_job::active_job_after_success`。
-    if let Some(next) = next_active_job(deps, &document_id, &job.job_id) {
+    if let Some(next) = next_active_job(deps, &document_id, job_id) {
         if let Err(error) = deps.db.set_document_active_job(&document_id, &next, None) {
             error!("library: set active job for {document_id} failed: {error}");
         }
@@ -293,6 +309,26 @@ fn update_document_after_job(deps: &ProcessRuntimeDeps, job: &JobRuntimeState) {
     // 1-5 页再翻 6-10 页，前 5 页就搜不到了。
     if let Err(error) = deps.db.rebuild_document_fts(&document_id) {
         error!("library: fts rebuild for {document_id} failed: {error}");
+    }
+}
+
+/// 任务属于哪本书:有 upload_id 就按它关联(并写回 jobs.document_id);没有 —— 重新渲染、
+/// 重试、继续/重跑这些派生任务只带 artifact_job_id —— 就用提交时继承下来的 jobs.document_id。
+/// 以前没有 upload_id 直接跳过,这些任务成功后不纠正书卡、不重建全文索引。
+fn job_document(deps: &ProcessRuntimeDeps, job_id: &str, upload_id: Option<&str>) -> Option<String> {
+    if let Some(upload_id) = upload_id.filter(|id| !id.is_empty()) {
+        match deps.db.link_job_to_document(job_id, upload_id) {
+            Ok(Some(document_id)) => return Some(document_id),
+            Ok(None) => {}
+            Err(error) => error!("library: link job {job_id} to document failed: {error}"),
+        }
+    }
+    match deps.db.document_id_for_job(job_id) {
+        Ok(document_id) => document_id,
+        Err(error) => {
+            error!("library: resolve document for job {job_id} failed: {error}");
+            None
+        }
     }
 }
 

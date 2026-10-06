@@ -646,3 +646,46 @@ fn a_page_translated_twice_is_indexed_once_from_the_newer_job() {
     assert_eq!(db.search_blocks("旧的第一页", 10, None).unwrap()[0].job_id, "job-whole");
 }
 
+
+/// 索引停在旧任务上、而有更新的任务成功了(老代码对没有 upload_id 的任务结束时不重建):
+/// 启动回填要把它补上。原来只补「完全没有索引行」的书,过期的永不自愈。
+#[test]
+fn startup_backfill_rebuilds_an_index_older_than_the_newest_successful_job() {
+    let fs = TestDbFs::new("fts-stale-backfill");
+    let db = fs.db();
+    db.init().expect("init");
+    let document_id = seed_document(&db, "up-1", b"stale index book");
+    seed_fts_job(&db, &fs.data_root, &document_id, "job-whole", "2026-10-01T00:00:00", "job-whole",
+        &[1, 2], &[("one", "旧的第一页"), ("two", "旧的第二页")]);
+    db.rebuild_document_fts(&document_id).expect("initial index");
+    // 更新的任务成功了，但没有触发重建。
+    seed_fts_job(&db, &fs.data_root, &document_id, "job-redo", "2026-10-02T00:00:00", "job-redo",
+        &[2], &[("two", "新的第二页")]);
+    db.set_document_active_job(&document_id, "job-redo", None).expect("active");
+    assert!(db.search_blocks("新的第二页", 10, None).unwrap().is_empty());
+
+    backfill::run(&db).expect("run library backfill");
+
+    assert_eq!(
+        db.search_blocks("新的第二页", 10, None).unwrap().first().map(|hit| hit.job_id.clone()),
+        Some("job-redo".to_string()),
+        "启动回填没有重建过期的全文索引"
+    );
+    assert!(db.search_blocks("旧的第二页", 10, None).unwrap().is_empty());
+}
+
+/// 书卡停在失败任务上:有成功任务就按统一规则退回;指针已被接走或没有成功任务时不动。
+#[test]
+fn release_active_job_falls_back_only_when_the_card_still_points_at_the_job() {
+    let fs = TestDbFs::new("release-active-job");
+    let db = fs.db();
+    db.init().expect("init");
+    let document_id = seed_document(&db, "up-release", b"release active job");
+    db.set_document_active_job(&document_id, "job-failed", None).expect("active");
+    assert!(!db.release_document_active_job(&document_id, "job-failed").unwrap(), "没有成功任务时不动");
+    insert_succeeded_job(&db, &document_id, "job-book", WorkflowKind::Book, "2026-01-01T00:00:00Z");
+    insert_succeeded_job(&db, &document_id, "job-ocr", WorkflowKind::Ocr, "2026-02-01T00:00:00Z");
+    assert!(!db.release_document_active_job(&document_id, "job-other").unwrap());
+    assert!(db.release_document_active_job(&document_id, "job-failed").unwrap());
+    assert_eq!(db.get_document(&document_id).unwrap().active_job_id.as_deref(), Some("job-book"));
+}

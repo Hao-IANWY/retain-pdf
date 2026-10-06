@@ -3,6 +3,7 @@ use rusqlite::params;
 
 use crate::storage_paths::resolve_data_path;
 
+use super::crud::BEST_SUCCEEDED_JOB_SQL;
 use super::sha256_hex;
 use crate::db::Db;
 
@@ -58,21 +59,45 @@ fn cleanup_orphan_documents(db: &Db) -> Result<()> {
     Ok(())
 }
 
+/// 启动时补全文索引:没有索引行的书,以及**索引过期**的书 —— 有成功的非 OCR 任务比
+/// 索引里最新的那个任务更新。
+///
+/// 任务结束时 lifecycle 会重建索引,但老代码对没有 upload_id 的任务(重新渲染 / 重试 /
+/// 重跑)直接跳过,索引停在更早的任务上;原来这里只补「完全没索引」的书,过期的永不自愈。
+/// 判断只用一次 blocks_fts 扫描 + jobs 上的比较,稳态启动不读任何产物文件;只有判定过期的书
+/// 才真正重建。纯 OCR 任务不参与判定:它可能一页都不拥有(翻译优先),参与会让那本书
+/// 每次启动都重建。
 fn backfill_fts_indexes(db: &Db) -> Result<()> {
     let conn = db.connect()?;
-    let pending: Vec<(String, String)> = {
+    let pending: Vec<String> = {
         let mut stmt = conn.prepare(
             r#"
-            SELECT d.document_id, d.active_job_id FROM documents d
+            WITH indexed AS (
+                SELECT f.document_id, COALESCE(MAX(j.created_at), '') AS newest
+                FROM (SELECT DISTINCT document_id, job_id FROM blocks_fts) f
+                LEFT JOIN jobs j ON j.job_id = f.job_id
+                GROUP BY f.document_id
+            )
+            SELECT d.document_id FROM documents d
+            LEFT JOIN indexed i ON i.document_id = d.document_id
             WHERE d.active_job_id IS NOT NULL
-              AND NOT EXISTS (SELECT 1 FROM blocks_fts f WHERE f.document_id = d.document_id)
+              AND (
+                i.document_id IS NULL
+                OR EXISTS (
+                    SELECT 1 FROM jobs j
+                    WHERE j.document_id = d.document_id
+                      AND j.status_json = '"succeeded"'
+                      AND j.workflow <> '"ocr"'
+                      AND j.created_at > i.newest
+                )
+              )
             "#,
         )?;
-        let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?;
+        let rows = stmt.query_map([], |row| row.get(0))?;
         rows.collect::<std::result::Result<Vec<_>, _>>()?
     };
     drop(conn);
-    for (document_id, _active_job_id) in pending {
+    for document_id in pending {
         // 按这本书所有成功任务建索引，不只是 active_job：范围翻译之后前面翻过的页也要搜得到；
         // 复用 OCR 的书原来按 job_root/ocr 找不到 OCR 文档、一行都建不出来，每次启动都重试。
         if let Err(error) = db.rebuild_document_fts(&document_id) {
@@ -160,22 +185,12 @@ fn backfill_job_document_links(db: &Db) -> Result<()> {
 pub(super) fn backfill_active_jobs(db: &Db) -> Result<()> {
     let conn = db.connect()?;
     conn.execute(
-        r#"
-        UPDATE documents SET active_job_id = (
-            SELECT j.job_id FROM jobs j
-            WHERE j.document_id = documents.document_id
-              AND j.status_json = '"succeeded"'
-            ORDER BY CASE WHEN j.workflow = '"ocr"' THEN 1 ELSE 0 END, j.finished_at DESC
-            LIMIT 1
-        )
-        WHERE documents.active_job_id IS NOT (
-            SELECT j.job_id FROM jobs j
-            WHERE j.document_id = documents.document_id
-              AND j.status_json = '"succeeded"'
-            ORDER BY CASE WHEN j.workflow = '"ocr"' THEN 1 ELSE 0 END, j.finished_at DESC
-            LIMIT 1
-        )
-        "#,
+        &format!(
+            r#"
+            UPDATE documents SET active_job_id = ({BEST_SUCCEEDED_JOB_SQL})
+            WHERE documents.active_job_id IS NOT ({BEST_SUCCEEDED_JOB_SQL})
+            "#
+        ),
         [],
     )?;
     Ok(())

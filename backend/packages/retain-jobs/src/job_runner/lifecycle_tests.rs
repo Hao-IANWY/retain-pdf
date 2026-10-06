@@ -386,3 +386,83 @@ fn a_newer_job_finishing_takes_the_card_as_before() {
 
     assert_eq!(active(&fx, &document_id).as_deref(), Some("new"));
 }
+
+// ── 没有 upload_id 的派生任务（重新渲染 / 重试 / 继续）结束后的维护 ──────────────
+
+/// 派生任务只带 artifact_job_id；提交时已经继承了 jobs.document_id（job_launcher）。
+fn derived_job(fx: &Fixture, document_id: &str, id: &str, created_at: &str, status: JobStatusKind) -> JobSnapshot {
+    let mut job = JobSnapshot::new(id.into(), CreateJobInput::default(), vec!["fake-worker".into()]);
+    job.status = status;
+    job.workflow = WorkflowKind::Render;
+    job.created_at = created_at.into();
+    job.upload_id = None;
+    job.request_payload.source.artifact_job_id = "old".into();
+    fx.deps.db.save_job(&job).unwrap();
+    fx.deps.db.set_job_document_id(id, document_id).unwrap();
+    job
+}
+
+#[test]
+fn a_derived_job_without_upload_id_still_takes_the_card_and_rebuilds_the_index() {
+    let fx = Fixture::new(1);
+    let document_id = seed_document(&fx);
+    document_job(&fx, "old", "2026-10-01T00:00:00", WorkflowKind::Book, JobStatusKind::Succeeded);
+    fx.deps.db.set_document_active_job(&document_id, "old", None).unwrap();
+    // 旧任务留下的索引行：派生任务成功后必须按整本书重建（这里没有产物文件，重建后为空）。
+    fx.deps
+        .db
+        .replace_document_fts(
+            &document_id,
+            "old",
+            &[crate::models::api::FtsBlockRow {
+                page_idx: 0,
+                block_id: "p001-b0000".into(),
+                source_text: "stale source".into(),
+                translated_text: "过期的旧索引".into(),
+            }],
+        )
+        .unwrap();
+    let render = derived_job(&fx, &document_id, "render", "2026-10-02T00:00:00", JobStatusKind::Succeeded);
+
+    update_document_after_job(&fx.deps, &render.into_runtime());
+
+    assert_eq!(active(&fx, &document_id).as_deref(), Some("render"), "没有 upload_id 的任务成功后没纠正书卡");
+    assert!(
+        fx.deps.db.search_blocks("过期的旧索引", 10, None).unwrap().is_empty(),
+        "没有 upload_id 的任务成功后没重建全文索引"
+    );
+}
+
+#[tokio::test]
+async fn a_failed_derived_job_hands_the_card_back_to_the_last_success() {
+    let fx = Fixture::new(1);
+    let document_id = seed_document(&fx);
+    let mut old = document_job(&fx, "old", "2026-10-01T00:00:00", WorkflowKind::Book, JobStatusKind::Succeeded);
+    old.finished_at = Some("2026-10-01T01:00:00".into());
+    fx.deps.db.save_job(&old).unwrap();
+
+    // 1) workflow 正常返回 Failed（run_job 的出口）。
+    let failed = derived_job(&fx, &document_id, "retry-a", "2026-10-02T00:00:00", JobStatusKind::Failed);
+    fx.deps.db.set_document_active_job(&document_id, "retry-a", None).unwrap();
+    update_document_after_job(&fx.deps, &failed.into_runtime());
+    assert_eq!(active(&fx, &document_id).as_deref(), Some("old"), "失败的重试把书卡留在了失败任务上");
+
+    // 2) workflow 报错（spawn_job_with_workflow → persist_failed_job 的出口）。
+    derived_job(&fx, &document_id, "retry-b", "2026-10-03T00:00:00", JobStatusKind::Queued);
+    fx.deps.db.set_document_active_job(&document_id, "retry-b", None).unwrap();
+    spawn_job_with_workflow(fx.deps.clone(), "retry-b".into(), |_, _| async {
+        anyhow::bail!("synthetic failure")
+    })
+    .unwrap()
+    .await
+    .unwrap();
+    assert_eq!(fx.deps.db.get_job("retry-b").unwrap().status, JobStatusKind::Failed);
+    assert_eq!(active(&fx, &document_id).as_deref(), Some("old"), "报错退出的重试把书卡留在了失败任务上");
+
+    // 3) 指针已被别的任务接走时不动。
+    derived_job(&fx, &document_id, "retry-c", "2026-10-04T00:00:00", JobStatusKind::Failed);
+    derived_job(&fx, &document_id, "newer", "2026-10-05T00:00:00", JobStatusKind::Running);
+    fx.deps.db.set_document_active_job(&document_id, "newer", None).unwrap();
+    update_document_after_job(&fx.deps, &fx.deps.db.get_job("retry-c").unwrap().into_runtime());
+    assert_eq!(active(&fx, &document_id).as_deref(), Some("newer"));
+}
