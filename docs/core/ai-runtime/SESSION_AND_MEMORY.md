@@ -193,7 +193,10 @@ regenerate 不再重复写 user，只追加一个以指定 user message 为 pare
 ```bash
 uv run --project backend python -m pytest \
   backend/ai/tests/test_memory.py \
-  backend/ai/tests/test_tools_and_app.py \
+  backend/ai/tests/test_reading_tools.py \
+  backend/ai/tests/test_app_ask_routes.py \
+  backend/ai/tests/test_app_conversations.py \
+  backend/ai/tests/test_app_operations.py \
   backend/ai/tests/test_streaming.py -q
 
 uv run --project backend python -m pytest backend/ai/tests -q
