@@ -38,10 +38,27 @@ Reader 样式只改 `frontend/packages/reader/styles/*`。`src/styles/reader/` �
 |------|----------|
 | `book-detail-shell.css` | 弹窗双栏、封面区、顶部 Tabs 与滚动容器 |
 | `book-detail-overview.css` | 概览主视觉、元信息、阅读与活动 |
-| `book-detail-processing.css` | OCR、翻译、阶段进度与内嵌任务状态 |
+| `book-detail-processing/` | 「进度」分区，按组件一个文件（见下表） |
 | `book-detail-artifacts.css` | 文件分组、产物卡片、预览和下载动作 |
 
 跨 Tab 的结构规则只放入 shell；业务卡片只能修改自己的文件，避免重新形成相互覆盖的巨型样式表。
+
+`book-detail-processing/` 内部同样按组件拆分，`entries/home.css` 按下表顺序逐个引入：
+
+| 文件 | 负责范围 |
+|------|----------|
+| `layout.css` | 分区根布局；**共享变量**（卡片底色 / 圆角、墨色深浅色阶）与小节标题。必须最先引入 |
+| `processing-card.css` | 「处理」卡片：标题、总状态、总进度条、细化区 |
+| `pipeline-rail.css` | OCR / 翻译 / 渲染 / 完成 流水线轨道 |
+| `ocr-range.css` | OCR 指定页码 |
+| `translation-controls.css` | 翻译段的摘要、动作行、提示、阶段动作、状态卡容器 |
+| `live-translation-entry.css` | 「实时译文」入口 |
+| `job-status-card.css` | 内嵌任务状态卡（`bd-job-status-*`） |
+| `failure-card.css` | 失败诊断卡片 |
+| `coverage.css` | 翻译覆盖条 |
+| `job-history.css` | 任务记录 |
+
+卡片之间共享的值只在 `layout.css` 里定义成变量，其它文件引用变量，不复制数值、不借用别的组件的类名。响应式规则跟着组件走，放在各自文件末尾。
 
 ## 归属规则
 

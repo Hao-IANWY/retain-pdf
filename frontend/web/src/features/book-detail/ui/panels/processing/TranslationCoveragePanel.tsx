@@ -9,9 +9,9 @@ export function TranslationCoveragePanel({ coverage }: { coverage: TranslationCo
   const translatedPercent = Math.round((coverage.translated_pages / coverage.page_count) * 100);
   return (
     <section className="book-detail-coverage" data-processing-region="coverage" aria-label="翻译覆盖">
-      <div className="book-detail-coverage-head">
-        <span className="book-detail-coverage-title">翻译覆盖</span>
-        <span className="book-detail-coverage-summary" data-coverage-headline="true">{coverageHeadline(coverage)}</span>
+      <div className="book-detail-processing-section-head">
+        <span className="book-detail-processing-section-title">翻译覆盖</span>
+        <span className="book-detail-processing-section-summary" data-coverage-headline="true">{coverageHeadline(coverage)}</span>
         {coverage.translated_pages > 0 ? (
           <span className="book-detail-coverage-percent">{translatedPercent}%</span>
         ) : null}
@@ -40,9 +40,9 @@ export function JobHistoryPanel({ coverage }: { coverage: TranslationCoverageVie
   if (!rows.length) return null;
   return (
     <section className="book-detail-job-history" data-processing-region="history" aria-label="任务记录">
-      <div className="book-detail-coverage-head">
-        <span className="book-detail-coverage-title">任务记录</span>
-        <span className="book-detail-coverage-summary">共 {rows.length} 次</span>
+      <div className="book-detail-processing-section-head">
+        <span className="book-detail-processing-section-title">任务记录</span>
+        <span className="book-detail-processing-section-summary">共 {rows.length} 次</span>
       </div>
       <ol className="book-detail-job-history-list">
         {rows.map((row) => (

@@ -1,0 +1,76 @@
+/* 「处理」卡片：标题、总状态、总进度条，以及卡内的细化区。（BookDetailProcessingTab） */
+
+.book-detail-processing-card {
+  display: grid;
+  gap: 12px;
+  padding: 15px;
+  border: 0;
+  border-radius: var(--book-detail-processing-radius);
+  background: var(--book-detail-processing-surface);
+}
+
+/* 卡片头：唯一的「处理」标题 + 一句话总状态。 */
+.book-detail-processing-head {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  gap: 12px;
+}
+
+.book-detail-processing-head-icon {
+  display: inline-flex;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 15px;
+  color: var(--ink);
+  background: var(--paper);
+  box-shadow: 0 5px 16px color-mix(in srgb, var(--ink) 5%, transparent);
+}
+
+.book-detail-processing-head-icon svg {
+  width: 23px;
+  height: 23px;
+  stroke-width: 1.6;
+}
+
+.book-detail-processing-head-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.book-detail-processing-head-copy h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.book-detail-processing-unified-status {
+  margin: 0;
+  color: var(--muted);
+  font-size: 10.5px;
+  line-height: 1.4;
+}
+
+.book-detail-processing-progress {
+  height: 6px;
+}
+
+/* 细化区：轨道之下只放当前阶段的进度/动作。 */
+.book-detail-processing-segment {
+  display: grid;
+  gap: 12px;
+}
+
+@media (max-width: 719px) {
+  .book-detail-processing-card {
+    gap: 10px;
+    padding: 12px;
+    border-radius: 18px;
+  }
+}

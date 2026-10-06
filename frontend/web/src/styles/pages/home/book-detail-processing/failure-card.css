@@ -1,0 +1,91 @@
+/* 失败诊断卡片。
+ *
+ * 用警示色但**不用红底**：失败在这个产品里是常态（真实数据 17/61），整块红会让
+ * 书籍详情页看起来像出了大事；而真正要让人注意的是「该怎么办」那一行。 */
+.book-detail-failure-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--destructive) 28%, var(--border));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--destructive) 5%, var(--card));
+}
+
+.book-detail-failure-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.book-detail-failure-icon {
+  display: inline-flex;
+  flex: none;
+  margin-top: 1px;
+  color: var(--destructive);
+}
+
+.book-detail-failure-icon > svg {
+  width: 16px;
+  height: 16px;
+}
+
+.book-detail-failure-copy h4 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--foreground);
+}
+
+.book-detail-failure-subtitle {
+  margin: 2px 0 0;
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+
+.book-detail-failure-action {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--foreground);
+}
+
+/* 上游原样抛回来的那句。常常比我们的分类更具体，但也常常是英文，
+   所以压一级字重、不抢「该怎么办」那一行。 */
+.book-detail-failure-cause {
+  margin: 0;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--foreground) 5%, transparent);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+  word-break: break-word;
+}
+
+.book-detail-failure-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.book-detail-failure-detail {
+  margin: 0;
+  padding: 10px;
+  max-height: 260px;
+  overflow: auto;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.book-detail-failure-detail-error {
+  margin: 0;
+  font-size: 11px;
+  color: var(--destructive);
+}

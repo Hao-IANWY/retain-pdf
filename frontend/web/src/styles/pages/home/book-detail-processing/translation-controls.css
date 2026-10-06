@@ -1,0 +1,48 @@
+/* 翻译段的摘要、动作行、提示、阶段动作和状态卡容器。
+ * （WorkflowPanel / TranslateForm / TranslationStageActions / ProcessingJobSummary） */
+
+.book-detail-processing-summary {
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--paper);
+}
+
+.book-detail-processing-actions {
+  min-height: 50px;
+  padding: 8px 9px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--paper);
+}
+
+.book-detail-processing-actions button {
+  min-height: 34px;
+  font-size: 11px;
+}
+
+.book-detail-processing-hint {
+  margin: 0;
+  padding: 9px 11px;
+  border-radius: 14px;
+  color: var(--muted);
+  background: var(--paper);
+  font-size: 10.5px;
+}
+
+.book-detail-stage-actions {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.book-detail-status-card-host {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+@media (max-width: 719px) {
+  .book-detail-processing-actions {
+    min-height: 44px;
+  }
+}

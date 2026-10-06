@@ -1,0 +1,144 @@
+/* 处理流水线轨道：OCR / 翻译 / 渲染 / 完成。（ProcessingPipelineRail） */
+
+.book-detail-pipeline {
+  min-width: 0;
+}
+
+.book-detail-pipeline-track {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* 竖直卡片：每站一行，左侧圆点 + 连接线。 */
+.book-detail-pipeline-stage {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  min-width: 0;
+}
+
+.book-detail-pipeline-rail {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-self: stretch;
+}
+
+.book-detail-pipeline-rail::after {
+  content: "";
+  position: absolute;
+  top: 28px;
+  bottom: 0;
+  width: 2px;
+  background: color-mix(in srgb, var(--line) 78%, transparent);
+}
+
+.book-detail-pipeline-stage:last-child .book-detail-pipeline-rail::after {
+  display: none;
+}
+
+.book-detail-pipeline-dot {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  width: 26px;
+  height: 26px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  background: var(--bg);
+}
+
+.book-detail-pipeline-dot svg {
+  width: 14px;
+  height: 14px;
+}
+
+.book-detail-pipeline-mark-idle {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.4;
+}
+
+/* 完成：墨色描边 + 对勾（不用绿色）。 */
+.book-detail-pipeline-stage.is-done .book-detail-pipeline-dot {
+  border-color: var(--ink);
+  color: var(--ink);
+  background: var(--paper);
+}
+
+.book-detail-pipeline-stage.is-active .book-detail-pipeline-dot {
+  border-color: var(--ink);
+  color: var(--paper);
+  background: var(--ink);
+}
+
+.book-detail-pipeline-stage.is-failed .book-detail-pipeline-dot {
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--line));
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, var(--paper));
+}
+
+.book-detail-pipeline-copy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+  padding-bottom: 14px;
+}
+
+.book-detail-pipeline-head {
+  display: flex;
+  min-width: 0;
+  min-height: 26px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.book-detail-pipeline-label {
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 620;
+}
+
+.book-detail-pipeline-stage.is-pending .book-detail-pipeline-label {
+  color: var(--muted);
+}
+
+.book-detail-pipeline-status {
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.book-detail-pipeline-status.is-done {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 9%, transparent);
+}
+
+.book-detail-pipeline-status.is-active {
+  color: var(--paper);
+  background: var(--ink);
+}
+
+.book-detail-pipeline-status.is-failed {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+}
+
+.book-detail-pipeline-desc {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.4;
+}

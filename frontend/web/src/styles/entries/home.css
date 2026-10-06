@@ -67,6 +67,16 @@
 /* 书籍详情按职责拆分：壳层 → 概览 → 处理 → 文件产物。 */
 @import "../pages/home/book-detail-shell.css" layer(pages);
 @import "../pages/home/book-detail-overview.css" layer(pages);
-@import "../pages/home/book-detail-processing.css" layer(pages);
+/* 「进度」分区按组件拆分；layout 定义共享变量，必须在最前。 */
+@import "../pages/home/book-detail-processing/layout.css" layer(pages);
+@import "../pages/home/book-detail-processing/processing-card.css" layer(pages);
+@import "../pages/home/book-detail-processing/pipeline-rail.css" layer(pages);
+@import "../pages/home/book-detail-processing/ocr-range.css" layer(pages);
+@import "../pages/home/book-detail-processing/translation-controls.css" layer(pages);
+@import "../pages/home/book-detail-processing/live-translation-entry.css" layer(pages);
+@import "../pages/home/book-detail-processing/job-status-card.css" layer(pages);
+@import "../pages/home/book-detail-processing/failure-card.css" layer(pages);
+@import "../pages/home/book-detail-processing/coverage.css" layer(pages);
+@import "../pages/home/book-detail-processing/job-history.css" layer(pages);
 @import "../pages/home/book-detail-artifacts.css" layer(pages);
 @import "../pages/home/mojia-ornaments.css" layer(pages);

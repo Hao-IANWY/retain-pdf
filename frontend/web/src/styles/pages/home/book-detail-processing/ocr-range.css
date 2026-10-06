@@ -1,0 +1,26 @@
+/* OCR 指定页码：一行内联。（BookDetailProcessingTab 的 OCR 段） */
+
+.book-detail-ocr-range {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 16px;
+  background: var(--paper);
+}
+
+.book-detail-ocr-range-toggle {
+  display: flex;
+  cursor: pointer;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.book-detail-ocr-range-inputs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
