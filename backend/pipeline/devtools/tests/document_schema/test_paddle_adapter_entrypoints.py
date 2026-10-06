@@ -10,12 +10,9 @@ from retainpdf_pipeline.ocr.document_schema import adapt_path_to_document_v1_wit
 from retainpdf_pipeline.ocr.document_schema.provider_adapters.paddle import looks_like_paddle_layout
 from retainpdf_pipeline.foundation.shared.job_dirs import ensure_job_dirs
 from retainpdf_pipeline.foundation.shared.job_dirs import resolve_job_dirs
-from devtools.tests.document_schema.fixtures.registry import PADDLE_FIXTURES_ROOT
+from devtools.tests.document_schema.fixtures.registry import PADDLE_FIXTURE_JSON, PADDLE_FIXTURE_PDF
 
 
-PADDLE_FIXTURE_JSON = PADDLE_FIXTURES_ROOT / "json_full.json"
-PADDLE_SCI_FIXTURE_JSON = PADDLE_FIXTURES_ROOT / "json_sci.json"
-PADDLE_FIXTURE_PDF = PADDLE_FIXTURES_ROOT / "paddle_ocr_json_split.pdf"
 NORMALIZE_ENTRYPOINT_MODULE = "retainpdf_pipeline.entrypoints.run_normalize_ocr"
 
 def test_paddle_adapter_builds_document_v1_from_sample() -> None:

@@ -1,16 +1,5 @@
-from pathlib import Path
-
-
-REPO_SCRIPTS_ROOT = Path(__file__).resolve().parents[3]
-
 from retainpdf_pipeline.ocr.document_schema.provider_adapters.paddle.content_extract import build_lines
-from devtools.tests.document_schema.fixtures.registry import PADDLE_FIXTURES_ROOT
 
-
-PADDLE_FIXTURE_JSON = PADDLE_FIXTURES_ROOT / "json_full.json"
-PADDLE_SCI_FIXTURE_JSON = PADDLE_FIXTURES_ROOT / "json_sci.json"
-PADDLE_FIXTURE_PDF = PADDLE_FIXTURES_ROOT / "paddle_ocr_json_split.pdf"
-NORMALIZE_ENTRYPOINT = REPO_SCRIPTS_ROOT / "retainpdf_pipeline" / "entrypoints" / "run_normalize_ocr.py"
 
 def test_paddle_build_lines_splits_tall_body_block_into_pseudo_lines() -> None:
     bbox = [53.48, 640.259, 292.39, 699.736]

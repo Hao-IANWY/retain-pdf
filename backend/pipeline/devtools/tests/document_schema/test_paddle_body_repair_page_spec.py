@@ -1,6 +1,3 @@
-
-
-
 from retainpdf_pipeline.ocr.document_schema.provider_adapters.paddle.page_reader import build_page_spec
 
 
