@@ -1,9 +1,5 @@
 import base64
 import json
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from retainpdf_ai.agent_broker_commands import parse_broker_command
 from retainpdf_ai.agent_broker_contracts import BrokerScope

@@ -3,19 +3,17 @@
 从原 test_tools_and_app.py 拆出，用例原样搬移。
 """
 
-import json
 
 from fastapi.testclient import TestClient
 from retainpdf_ai.app import build_app
-from retainpdf_ai.config import Settings
 from retainpdf_ai.request_control import AIRequestCancelled
 
-from app_fakes import FakeAgent, FakeRust
+from app_fakes import FakeAgent, FakeRust, api_settings, sse_events
 
 
 def test_ask_auto_creates_conversation_and_persists_history():
     """B1: 无 conversation_id 时 auto-create;第二轮注入 history 并回传同一 id。"""
-    settings = Settings(api_keys=frozenset({"test-key"}), llm_api_key="env-llm-key")
+    settings = api_settings(llm_api_key="env-llm-key")
     rust = FakeRust()
     agent = FakeAgent()
     client = TestClient(build_app(settings, agent=agent, rust=rust))
@@ -54,7 +52,7 @@ def test_ask_auto_creates_conversation_and_persists_history():
 
 
 def test_ask_stream_done_includes_conversation_id():
-    settings = Settings(api_keys=frozenset({"test-key"}), llm_api_key="env-llm-key")
+    settings = api_settings(llm_api_key="env-llm-key")
     rust = FakeRust()
     client = TestClient(build_app(settings, agent=FakeAgent(), rust=rust))
 
@@ -64,10 +62,7 @@ def test_ask_stream_done_includes_conversation_id():
         json={"question": "流式会话?", "stream": True, "document_id": "doc-a"},
         headers={"X-API-Key": "test-key"},
     ) as response:
-        events = []
-        for line in response.iter_lines():
-            if line.startswith("data: "):
-                events.append(json.loads(line[len("data: "):]))
+        events = sse_events(response)
     done = events[-1]
     assert done["type"] == "done"
     assert done["conversation_id"].startswith("conv-")
@@ -79,8 +74,7 @@ def test_summary_lands_on_head_path_and_feeds_next_turn():
 
     关键:seed 与两次 ask 都显式传 parent 链(模拟真实前端),否则 FakeRust 的
     空 parent 线性合成会掩盖死分支。"""
-    settings = Settings(
-        api_keys=frozenset({"test-key"}),
+    settings = api_settings(
         llm_api_key="env-llm-key",
         memory_window_turns=2,
         memory_compress_after_turns=2,
@@ -133,7 +127,7 @@ def test_summary_lands_on_head_path_and_feeds_next_turn():
 
 def test_persist_failure_surfaces_in_done_payload():
     """审计 C2 回归锁:回写失败必须经 persisted=false 告知前端,不再静默丢轮。"""
-    settings = Settings(api_keys=frozenset({"test-key"}), llm_api_key="env-llm-key")
+    settings = api_settings(llm_api_key="env-llm-key")
 
     class BrokenPersistRust(FakeRust):
         def append_conversation_message(self, conversation_id, **kwargs):
@@ -167,8 +161,7 @@ def test_persist_failure_surfaces_in_done_payload():
 
 def test_ask_force_compress_emits_compress_event_and_summary():
     """B2: force_compress 时 SSE 先 compress，再 tool/done；摘要落库。"""
-    settings = Settings(
-        api_keys=frozenset({"test-key"}),
+    settings = api_settings(
         llm_api_key="env-llm-key",
         memory_window_turns=2,
         memory_compress_after_turns=100,
@@ -200,10 +193,7 @@ def test_ask_force_compress_emits_compress_event_and_summary():
         },
         headers={"X-API-Key": "test-key"},
     ) as response:
-        events = []
-        for line in response.iter_lines():
-            if line.startswith("data: "):
-                events.append(json.loads(line[len("data: "):]))
+        events = sse_events(response)
 
     types = [e.get("type") for e in events]
     assert "compress" in types
@@ -251,7 +241,7 @@ def test_ask_injects_conversation_history_and_persists_turn():
             calls["appended"].append((conversation_id, role, content[:20], kwargs.get("citations_json", "")))
             return {"message_id": f"msg-{role}"}
 
-    settings = Settings(api_keys=frozenset({"test-key"}))
+    settings = api_settings()
     app = build_app(settings, agent=HistoryAgent(), rust=ConvRust())
     client = TestClient(app)
     response = client.post(
@@ -317,7 +307,7 @@ def test_persisted_answer_remembers_that_it_was_cut_short():
     只活在当前这一轮的话,刷新回来就看不出它没做完——而它写出来的话和正常回答
     没有区别,用户拿到的是一个看上去正常、其实提前收尾的答案。
     """
-    settings = Settings(api_keys=frozenset({"test-key"}), llm_api_key="env-llm-key")
+    settings = api_settings(llm_api_key="env-llm-key")
     rust = FakeRust()
     client = TestClient(build_app(settings, agent=_CutShortAgent(), rust=rust))
     res = client.post(
@@ -334,7 +324,7 @@ def test_persisted_answer_remembers_that_it_was_cut_short():
 
 def test_a_complete_answer_is_persisted_without_a_reason():
     """"完整"是默认,不该在每条消息上都写一遍。"""
-    settings = Settings(api_keys=frozenset({"test-key"}), llm_api_key="env-llm-key")
+    settings = api_settings(llm_api_key="env-llm-key")
     rust = FakeRust()
     client = TestClient(build_app(settings, agent=FakeAgent(), rust=rust))
     res = client.post(
@@ -353,7 +343,7 @@ def test_a_cancelled_agent_leaves_nothing_behind():
 
     注意这条只覆盖「抛在落库之前」这一种;真正的顺序不变式由下面那条源码测试钉。
     """
-    settings = Settings(api_keys=frozenset({"test-key"}), llm_api_key="env-llm-key")
+    settings = api_settings(llm_api_key="env-llm-key")
     rust = FakeRust()
 
     class _StoppedAgent(FakeAgent):

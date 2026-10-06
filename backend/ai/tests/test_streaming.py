@@ -1,8 +1,4 @@
 import json
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import httpx
 import pytest
@@ -17,6 +13,8 @@ from retainpdf_ai.app import build_app
 from retainpdf_ai.config import Settings
 from retainpdf_ai.request_control import AIRequestTimeout
 from retainpdf_ai.tools import ToolRegistry
+
+from app_fakes import api_settings, sse_events
 
 
 def _sse(obj) -> str:
@@ -154,7 +152,7 @@ def test_ask_endpoint_streams_answer_deltas(monkeypatch):
     monkeypatch.setattr(app_module, "build_deepseek_chat_fn", fake_build)
 
     agent = RetrievalAgent(ToolRegistry([]), lambda m, t: {"content": "", "tool_calls": []})
-    settings = Settings(api_keys=frozenset({"test-key"}), llm_api_key="env-llm-key")
+    settings = api_settings(llm_api_key="env-llm-key")
     client = TestClient(build_app(settings, agent=agent))
 
     with client.stream(
@@ -164,10 +162,7 @@ def test_ask_endpoint_streams_answer_deltas(monkeypatch):
         headers={"X-API-Key": "test-key"},
     ) as response:
         assert response.status_code == 200
-        events = []
-        for line in response.iter_lines():
-            if line.startswith("data: "):
-                events.append(json.loads(line[len("data: "):]))
+        events = sse_events(response)
 
     deltas = [event for event in events if event["type"] == "answer_delta"]
     assert [event["text"] for event in deltas] == pieces

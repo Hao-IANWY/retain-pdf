@@ -1,10 +1,6 @@
 import json
 import os
 import stat
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pytest
 from fastapi.testclient import TestClient
@@ -29,10 +25,7 @@ from retainpdf_ai.runtime_credentials import (
 )
 from retainpdf_ai.runtimes.contracts import RuntimeCapabilities
 
-
-class UnusedAgent:
-    def ask(self, *_args, **_kwargs):  # pragma: no cover - settings routes only
-        raise AssertionError("agent should not run")
+from app_fakes import UnusedAgent, api_settings
 
 
 class HostChatRuntime:
@@ -65,7 +58,7 @@ def _write_shared_credential_vault(tmp_path, credentials):
         path.chmod(0o600)
 
 
-def test_runtime_credentials_are_private_and_overlay_environment(tmp_path, monkeypatch):
+def test_runtime_credentials_are_private_and_overlay_environment(tmp_path, service_env):
     save_runtime_credentials(
         tmp_path,
         {
@@ -84,9 +77,6 @@ def test_runtime_credentials_are_private_and_overlay_environment(tmp_path, monke
         assert stat.S_IMODE(path.stat().st_mode) == 0o600
         assert stat.S_IMODE(path.parent.stat().st_mode) == 0o700
 
-    monkeypatch.setenv("RETAIN_AI_DATA_ROOT", str(tmp_path))
-    monkeypatch.setenv("RETAIN_API_KEYS", "test-key")
-    monkeypatch.setenv("RETAIN_AI_RUST_API_KEY", "rust-key")
     loaded = load_settings()
     assert loaded.agent_runtime == "python"
     assert loaded.agent_confirmation_mode == "green_light"
@@ -137,8 +127,7 @@ def test_runtime_credentials_reject_group_readable_file(tmp_path):
 
 def test_runtime_config_returns_editable_local_keys_to_authenticated_settings(tmp_path):
     restarts: list[str] = []
-    settings = Settings(
-        api_keys=frozenset({"test-key"}),
+    settings = api_settings(
         llm_api_key="old-model-key",
         data_root=tmp_path,
     )
@@ -207,8 +196,7 @@ def test_runtime_config_uses_shared_credential_refs_without_copying_secrets(tmp_
             },
         },
     )
-    settings = Settings(
-        api_keys=frozenset({"test-key"}),
+    settings = api_settings(
         llm_api_key="legacy-startup-key",
         data_root=tmp_path,
     )
@@ -259,8 +247,7 @@ def test_runtime_config_rejects_wrong_kind_and_ambiguous_credential_sources(tmp_
     )
     client = TestClient(
         build_app(
-            Settings(
-                api_keys=frozenset({"test-key"}),
+            api_settings(
                 llm_api_key="startup-key",
                 data_root=tmp_path,
             ),
@@ -342,8 +329,7 @@ def test_missing_referenced_credential_has_diagnostic_readiness_and_config_error
     )
     client = TestClient(
         build_app(
-            Settings(
-                api_keys=frozenset({"test-key"}),
+            api_settings(
                 llm_api_key="startup-key",
                 data_root=tmp_path,
             ),
@@ -375,8 +361,7 @@ def test_missing_referenced_credential_has_diagnostic_readiness_and_config_error
 
 
 def test_runtime_config_partial_updates_preserve_latest_persisted_values(tmp_path):
-    settings = Settings(
-        api_keys=frozenset({"test-key"}),
+    settings = api_settings(
         llm_api_key="startup-key",
         llm_model="startup-model",
         data_root=tmp_path,
@@ -407,8 +392,7 @@ def test_runtime_config_partial_updates_preserve_latest_persisted_values(tmp_pat
 
 
 def test_runtime_config_persists_green_light_mode_and_rejects_unknown_mode(tmp_path):
-    settings = Settings(
-        api_keys=frozenset({"test-key"}),
+    settings = api_settings(
         llm_api_key="startup-key",
         data_root=tmp_path,
     )
@@ -436,8 +420,7 @@ def test_runtime_config_persists_green_light_mode_and_rejects_unknown_mode(tmp_p
 
 
 def test_runtime_config_expected_revision_rejects_stale_writer(tmp_path):
-    settings = Settings(
-        api_keys=frozenset({"test-key"}),
+    settings = api_settings(
         llm_api_key="startup-key",
         data_root=tmp_path,
     )
@@ -478,7 +461,7 @@ def test_runtime_config_store_has_compare_and_swap(tmp_path):
 
 
 def test_empty_saved_fx_url_uses_official_default_instead_of_environment(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, service_env
 ):
     save_runtime_credentials(
         tmp_path,
@@ -488,9 +471,6 @@ def test_empty_saved_fx_url_uses_official_default_instead_of_environment(
             "fx_gateway_base_url_mode": "official_default",
         },
     )
-    monkeypatch.setenv("RETAIN_AI_DATA_ROOT", str(tmp_path))
-    monkeypatch.setenv("RETAIN_API_KEYS", "test-key")
-    monkeypatch.setenv("RETAIN_AI_RUST_API_KEY", "rust-key")
     monkeypatch.setenv(
         "RETAIN_AI_FX_GATEWAY_BASE_URL", "http://127.0.0.1:43231/from-env"
     )
@@ -501,7 +481,9 @@ def test_empty_saved_fx_url_uses_official_default_instead_of_environment(
     assert loaded.fx_gateway_base_url_mode == "official_default"
 
 
-def test_empty_saved_keys_do_not_fall_back_to_environment(tmp_path, monkeypatch):
+def test_empty_saved_keys_do_not_fall_back_to_environment(
+    tmp_path, monkeypatch, service_env
+):
     save_runtime_credentials(
         tmp_path,
         {
@@ -510,9 +492,6 @@ def test_empty_saved_keys_do_not_fall_back_to_environment(tmp_path, monkeypatch)
             "fx_gateway_api_key": "",
         },
     )
-    monkeypatch.setenv("RETAIN_AI_DATA_ROOT", str(tmp_path))
-    monkeypatch.setenv("RETAIN_API_KEYS", "test-key")
-    monkeypatch.setenv("RETAIN_AI_RUST_API_KEY", "rust-key")
     monkeypatch.setenv("RETAIN_AI_LLM_API_KEY", "environment-llm-key")
     monkeypatch.setenv("RETAIN_AI_FX_GATEWAY_API_KEY", "environment-fx-key")
 
@@ -523,8 +502,7 @@ def test_empty_saved_keys_do_not_fall_back_to_environment(tmp_path, monkeypatch)
 
 
 def test_readyz_reports_persisted_config_waiting_for_restart(tmp_path):
-    settings = Settings(
-        api_keys=frozenset({"test-key"}),
+    settings = api_settings(
         llm_api_key="startup-key",
         data_root=tmp_path,
     )
@@ -576,8 +554,7 @@ def test_fx_gateway_url_derives_the_actual_chat_endpoint():
 
 
 def test_runtime_config_rejects_remote_fx_gateway_without_persisting(tmp_path):
-    settings = Settings(
-        api_keys=frozenset({"test-key"}),
+    settings = api_settings(
         llm_api_key="old-model-key",
         data_root=tmp_path,
     )
@@ -595,8 +572,7 @@ def test_runtime_config_rejects_remote_fx_gateway_without_persisting(tmp_path):
 
 
 def test_runtime_config_accepts_openai_document_agent_with_custom_url(tmp_path):
-    settings = Settings(
-        api_keys=frozenset({"test-key"}),
+    settings = api_settings(
         llm_api_key="old-model-key",
         data_root=tmp_path,
     )

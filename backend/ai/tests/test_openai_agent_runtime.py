@@ -3,8 +3,6 @@ import stat
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
 from retainpdf_ai.config import Settings
 from retainpdf_ai.openai_agent_runtime import (
     OPENAI_AGENT_RUNTIME_ID,

@@ -1,15 +1,11 @@
 """Offline regression for completion, deadlines, and request-owned cleanup."""
 
 import json
-import sys
 import threading
 import time
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from retainpdf_ai.agent_llm import assemble_streaming_message, friendly_llm_error, build_deepseek_chat_fn
 from retainpdf_ai.api_contracts import AskInput

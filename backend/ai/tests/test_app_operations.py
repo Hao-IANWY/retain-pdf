@@ -6,10 +6,9 @@
 from fastapi.testclient import TestClient
 from retainpdf_ai.agent import AskResult
 from retainpdf_ai.app import _confirmation_requests, build_app
-from retainpdf_ai.config import Settings
 from retainpdf_ai.runtime import RuntimeCapabilities
 
-from app_fakes import FakeAgent, FakeRust
+from app_fakes import FakeAgent, FakeRust, api_settings
 
 
 def test_fx_request_message_is_durable_before_runtime_and_not_duplicated():
@@ -61,8 +60,7 @@ def test_fx_request_message_is_durable_before_runtime_and_not_duplicated():
                 ],
             )
 
-    settings = Settings(
-        api_keys=frozenset({"test-key"}),
+    settings = api_settings(
         llm_api_key="llm-test-key",
         llm_model="reading-model",
         fx_gateway_api_key="gateway-test-key",

@@ -14,14 +14,8 @@ selected 为空，于是走兜底。结果是正文写着 `[42]`、脚注却列�
 from __future__ import annotations
 
 import inspect
-import sys
-from pathlib import Path
 
-AI_ROOT = Path(__file__).resolve().parents[1]
-if str(AI_ROOT) not in sys.path:
-    sys.path.insert(0, str(AI_ROOT))
-
-from retainpdf_ai.agent_evidence import Citation, referenced_citations  # noqa: E402
+from retainpdf_ai.agent_evidence import Citation, referenced_citations
 
 
 def _citation(ref: int, page_idx: int) -> Citation:

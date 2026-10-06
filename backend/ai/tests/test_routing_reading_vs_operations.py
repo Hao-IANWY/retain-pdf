@@ -20,16 +20,9 @@ reading 分支生效，误判之后那条保护被整段跳过；工具轮数预
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
 import pytest
 
-AI_ROOT = Path(__file__).resolve().parents[1]
-if str(AI_ROOT) not in sys.path:
-    sys.path.insert(0, str(AI_ROOT))
-
-from retainpdf_ai.request_routing import resolve_assistant_mode  # noqa: E402
+from retainpdf_ai.request_routing import resolve_assistant_mode
 
 READING_QUESTIONS = [
     "文档里提取了哪些关键结论？",

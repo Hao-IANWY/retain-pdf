@@ -3,7 +3,6 @@
 从原 test_tools_and_app.py 拆出，用例原样搬移。
 """
 
-import json
 import time
 
 from fastapi.testclient import TestClient
@@ -13,7 +12,7 @@ from retainpdf_ai.config import Settings
 from retainpdf_ai.runtime import RuntimeCapabilities
 from retainpdf_ai.tools import build_default_registry
 
-from app_fakes import FakeAgent, FakeRust
+from app_fakes import FakeAgent, FakeRust, api_settings, sse_events
 
 
 def test_reading_request_fails_before_model_when_no_content_source_exists(tmp_path):
@@ -29,8 +28,7 @@ def test_reading_request_fails_before_model_when_no_content_source_exists(tmp_pa
     agent = RetrievalAgent(registry, chat)
     client = TestClient(
         build_app(
-            Settings(
-                api_keys=frozenset({"test-key"}),
+            api_settings(
                 llm_api_key="env-llm-key",
                 data_root=tmp_path,
             ),
@@ -50,7 +48,7 @@ def test_reading_request_fails_before_model_when_no_content_source_exists(tmp_pa
 
 
 def test_ask_endpoint_requires_api_key_and_returns_citations():
-    settings = Settings(api_keys=frozenset({"test-key"}), llm_api_key="env-llm-key")
+    settings = api_settings(llm_api_key="env-llm-key")
     app = build_app(settings, agent=FakeAgent())
     client = TestClient(app)
 
@@ -75,7 +73,7 @@ def test_ask_endpoint_requires_api_key_and_returns_citations():
 
 
 def test_ask_endpoint_streams_sse_events():
-    settings = Settings(api_keys=frozenset({"test-key"}), llm_api_key="env-llm-key")
+    settings = api_settings(llm_api_key="env-llm-key")
     app = build_app(settings, agent=FakeAgent())
     client = TestClient(app)
 
@@ -87,10 +85,7 @@ def test_ask_endpoint_streams_sse_events():
     ) as response:
         assert response.status_code == 200
         assert response.headers["content-type"].startswith("text/event-stream")
-        events = []
-        for line in response.iter_lines():
-            if line.startswith("data: "):
-                events.append(json.loads(line[len("data: "):]))
+        events = sse_events(response)
     assert events[0] == {
         "type": "progress",
         "stage": "routing",
@@ -152,7 +147,7 @@ def test_ask_routes_reading_and_operations_without_changing_global_runtime():
             observed.append(question)
             return AskResult(answer=f"operation:{question}", rounds=1)
 
-    settings = Settings(api_keys=frozenset({"test-key"}), llm_api_key="env-llm-key")
+    settings = api_settings(llm_api_key="env-llm-key")
     client = TestClient(
         build_app(
             settings,
@@ -221,8 +216,7 @@ def test_stream_timeout_emits_heartbeats_and_one_structured_terminal():
     # 跑时红、单独跑时绿。现在 1.0 秒约产出 5 条心跳,留够 5 倍余量。
     #
     # 要调小请先量:把 deadline 降到 0.4 以下就只剩 2 条,再降就归零。
-    settings = Settings(
-        api_keys=frozenset({"test-key"}),
+    settings = api_settings(
         llm_api_key="env-llm-key",
         ai_request_deadline_s=1.0,
         ai_heartbeat_interval_s=0.05,
@@ -240,11 +234,7 @@ def test_stream_timeout_emits_heartbeats_and_one_structured_terminal():
         },
         headers={"X-API-Key": "test-key"},
     ) as response:
-        events = [
-            json.loads(line[len("data: "):])
-            for line in response.iter_lines()
-            if line.startswith("data: ")
-        ]
+        events = sse_events(response)
 
     assert any(event["type"] == "heartbeat" for event in events), (
         "长操作期间必须发心跳,否则中间的代理会把连接当死连接掐掉;"
@@ -271,7 +261,7 @@ def test_stream_rejects_empty_done_answer_with_structured_error():
 
     client = TestClient(
         build_app(
-            Settings(api_keys=frozenset({"test-key"}), llm_api_key="env-llm-key"),
+            api_settings(llm_api_key="env-llm-key"),
             agent=EmptyAgent(),
         )
     )
@@ -281,11 +271,7 @@ def test_stream_rejects_empty_done_answer_with_structured_error():
         json={"question": "总结", "stream": True},
         headers={"X-API-Key": "test-key"},
     ) as response:
-        events = [
-            json.loads(line[len("data: "):])
-            for line in response.iter_lines()
-            if line.startswith("data: ")
-        ]
+        events = sse_events(response)
 
     assert events[-1] == {
         "type": "error",
@@ -297,7 +283,7 @@ def test_stream_rejects_empty_done_answer_with_structured_error():
 
 def test_ask_endpoint_requires_llm_key_from_env_or_request():
     # env 与请求都无 LLM key:提前 400,不打到上游
-    settings = Settings(api_keys=frozenset({"test-key"}))
+    settings = api_settings()
     client = TestClient(build_app(settings, agent=FakeAgent()))
     missing = client.post(
         "/v1/ask",
@@ -338,8 +324,7 @@ def test_fx_auto_with_document_scope_fails_closed_before_runtime_call():
 
     client = TestClient(
         build_app(
-            Settings(
-                api_keys=frozenset({"test-key"}),
+            api_settings(
                 fx_gateway_api_key="gateway-test-key",
             ),
             rust=FakeRust(),
@@ -380,7 +365,7 @@ def test_ask_resolves_document_id_from_job_id():
             assert job_id == "job-old"
             return {"document_id": "doc-a"}
 
-    settings = Settings(api_keys=frozenset({"test-key"}))
+    settings = api_settings()
     app = build_app(settings, agent=RecordingAgent(), rust=JobAwareRust())
     client = TestClient(app)
     response = client.post(
@@ -408,7 +393,7 @@ def test_ask_keeps_explicit_document_id_over_job_id():
                 chat_fn=chat_fn,
             )
 
-    settings = Settings(api_keys=frozenset({"test-key"}))
+    settings = api_settings()
     app = build_app(settings, agent=RecordingAgent(), rust=FakeRust())
     client = TestClient(app)
     client.post(

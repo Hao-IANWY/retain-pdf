@@ -7,8 +7,6 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
 from retainpdf_ai.config import Settings
 from retainpdf_ai.openai_agent_runtime import OpenAICompatibleAgentRuntime as OpenAIImpl
 from retainpdf_ai.runtime import (

@@ -12,8 +12,6 @@ fx 0.0.5 的网关协议只发 prompt / tools / toolChoice —— 没有 tempera
 
 from __future__ import annotations
 
-import os
-
 import pytest
 
 from retainpdf_ai.config import _env_json_object

@@ -22,14 +22,8 @@ sanitize-answer.ts 早就加了围栏/行内 code 抽出（注释写着「Python
 from __future__ import annotations
 
 import inspect
-import sys
-from pathlib import Path
 
-AI_ROOT = Path(__file__).resolve().parents[1]
-if str(AI_ROOT) not in sys.path:
-    sys.path.insert(0, str(AI_ROOT))
-
-from retainpdf_ai.agent_evidence import Citation, sanitize_answer_text  # noqa: E402
+from retainpdf_ai.agent_evidence import Citation, sanitize_answer_text
 
 
 def _citation(ref: int, block_id: str) -> Citation:

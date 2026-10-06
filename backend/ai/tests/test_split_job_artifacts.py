@@ -20,17 +20,12 @@ document_id 照样返回全部 42 条。
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 
 import pytest
 
-AI_ROOT = Path(__file__).resolve().parents[1]
-if str(AI_ROOT) not in sys.path:
-    sys.path.insert(0, str(AI_ROOT))
-
-from retainpdf_ai.config import Settings  # noqa: E402
-from retainpdf_ai.tools import build_default_registry  # noqa: E402
+from retainpdf_ai.config import Settings
+from retainpdf_ai.tools import build_default_registry
 
 DOCUMENT_ID = "doc-split"
 TRANSLATE_JOB = "20260918070141-be37aa"

@@ -1,27 +1,20 @@
 """Lock the Python runtime-config producer to the shared v1 contract."""
 
 import json
-import sys
 from pathlib import Path
 
 import pytest
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 from retainpdf_ai.api_contracts import RuntimeConfigUpdate
 from retainpdf_ai.app import build_app
-from retainpdf_ai.config import Settings
+
+from app_fakes import UnusedAgent, api_settings
 
 CONTRACT_PATH = (
     Path(__file__).resolve().parents[2] / "contracts" / "runtime-config.v1.schema.json"
 )
-
-
-class _UnusedAgent:
-    def ask(self, *_args, **_kwargs):  # pragma: no cover - config route only
-        raise AssertionError("agent should not run")
 
 
 def _contract() -> dict:
@@ -64,13 +57,12 @@ def _assert_view_contract(view: dict) -> None:
 def test_runtime_config_view_matches_visible_local_key_contract(tmp_path, llm_key, gateway_key):
     client = TestClient(
         build_app(
-            Settings(
-                api_keys=frozenset({"test-key"}),
+            api_settings(
                 llm_api_key=llm_key,
                 fx_gateway_api_key=gateway_key,
                 data_root=tmp_path,
             ),
-            agent=_UnusedAgent(),
+            agent=UnusedAgent(),
             restart_callback=lambda: None,
         )
     )
@@ -90,13 +82,12 @@ def test_runtime_config_view_matches_visible_local_key_contract(tmp_path, llm_ke
 @pytest.mark.parametrize("headers", [{}, {"X-API-Key": "wrong-fixture-key"}])
 def test_runtime_config_key_views_still_require_api_authentication(tmp_path, method, headers):
     client = TestClient(build_app(
-        Settings(
-            api_keys=frozenset({"test-key"}),
+        api_settings(
             llm_api_key="fixture-model-key",
             fx_gateway_api_key="fixture-gateway-key",
             data_root=tmp_path,
         ),
-        agent=_UnusedAgent(),
+        agent=UnusedAgent(),
         restart_callback=lambda: None,
     ))
     kwargs = {"json": {}} if method == "put" else {}
@@ -108,12 +99,11 @@ def test_runtime_config_key_views_still_require_api_authentication(tmp_path, met
 
 def test_runtime_config_put_and_reread_return_saved_keys_and_keep_clear_semantics(tmp_path):
     client = TestClient(build_app(
-        Settings(
-            api_keys=frozenset({"test-key"}),
+        api_settings(
             llm_api_key="fixture-startup-key",
             data_root=tmp_path,
         ),
-        agent=_UnusedAgent(),
+        agent=UnusedAgent(),
         restart_callback=lambda: None,
     ))
     headers = {"X-API-Key": "test-key"}
@@ -154,8 +144,8 @@ def test_runtime_config_put_and_reread_return_saved_keys_and_keep_clear_semantic
 def test_runtime_config_http_rejects_unknown_fields_without_persisting(tmp_path):
     client = TestClient(
         build_app(
-            Settings(api_keys=frozenset({"test-key"}), data_root=tmp_path),
-            agent=_UnusedAgent(),
+            api_settings(data_root=tmp_path),
+            agent=UnusedAgent(),
             restart_callback=lambda: None,
         )
     )

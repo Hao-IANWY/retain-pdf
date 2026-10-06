@@ -20,17 +20,11 @@ document scope 下带一个别的 job_id 就能读出那个文档的正文;更�
 from __future__ import annotations
 
 import inspect
-import sys
-from pathlib import Path
 
 import httpx
 
-AI_ROOT = Path(__file__).resolve().parents[1]
-if str(AI_ROOT) not in sys.path:
-    sys.path.insert(0, str(AI_ROOT))
-
-from retainpdf_ai import rust_client as rust_client_module  # noqa: E402
-from retainpdf_ai.config import Settings  # noqa: E402
+from retainpdf_ai import rust_client as rust_client_module
+from retainpdf_ai.config import Settings
 
 
 def _client_with_transport(recorder: list[str]):

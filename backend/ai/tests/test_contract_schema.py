@@ -6,11 +6,8 @@ frontend/tests/ai-ask-contract.test.mjs 锁消费侧。改契约先改 schema,�
 """
 
 import json
-import sys
 from dataclasses import fields
 from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from retainpdf_ai.agent import Citation
 from retainpdf_ai.app import AskInput

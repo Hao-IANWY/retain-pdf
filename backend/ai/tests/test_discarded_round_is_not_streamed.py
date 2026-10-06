@@ -15,15 +15,8 @@ reset-step，前端只能追加）。用户看到的就是那段没有依据的�
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
-AI_ROOT = Path(__file__).resolve().parents[1]
-if str(AI_ROOT) not in sys.path:
-    sys.path.insert(0, str(AI_ROOT))
-
-from retainpdf_ai.retrieval_agent import RetrievalAgent  # noqa: E402
-from retainpdf_ai.tools import Tool, ToolRegistry  # noqa: E402
+from retainpdf_ai.retrieval_agent import RetrievalAgent
+from retainpdf_ai.tools import Tool, ToolRegistry
 
 
 class _Recorder:

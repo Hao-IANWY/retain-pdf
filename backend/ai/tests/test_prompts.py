@@ -1,8 +1,3 @@
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
 from retainpdf_ai.prompts import (
     build_operation_system_prompt,
     build_reading_system_prompt,

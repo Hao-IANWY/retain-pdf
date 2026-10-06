@@ -19,17 +19,11 @@
 from __future__ import annotations
 
 import json
-import sys
 import threading
 import time
-from pathlib import Path
 
-AI_ROOT = Path(__file__).resolve().parents[1]
-if str(AI_ROOT) not in sys.path:
-    sys.path.insert(0, str(AI_ROOT))
-
-from retainpdf_ai.runtimes.contracts import AskResult  # noqa: E402
-from test_stream_reliability import Runtime, make_stream  # noqa: E402
+from retainpdf_ai.runtimes.contracts import AskResult
+from test_stream_reliability import Runtime, make_stream
 
 
 def _drain(stream) -> list[dict]:
