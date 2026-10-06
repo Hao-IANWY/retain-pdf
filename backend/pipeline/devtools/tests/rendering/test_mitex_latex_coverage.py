@@ -18,16 +18,13 @@ Unicode 的重写规则——`\\mathscr` → `\\mathcal` 更是直接把手写�
 
 from __future__ import annotations
 
-
-import pytest
-
-
-from retainpdf_pipeline.render.layout.inline_content import (  # noqa: E402
+from retainpdf_pipeline.render.layout.inline_content import (
     build_direct_typst_passthrough_markdown,
 )
-from devtools.tests.rendering.mitex_probe import TYPST_BIN  # noqa: E402
 
-@pytest.mark.skipif(not TYPST_BIN, reason="没有可用的 typst 二进制")
+
+# 这条只检查清洗器的字符串产出，从不调用 typst；以前挂着的
+# skipif(not TYPST_BIN) 只会让它在「装 typst 之前」那一步 CI 里白白跳过。
 def test_sanitizer_no_longer_degrades_supported_commands() -> None:
     """降级规则删干净了没有——这些命令应当原样送进 mitex。
 

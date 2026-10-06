@@ -33,7 +33,16 @@ from retainpdf_pipeline.foundation.shared.latex_commands import supported_comman
 from retainpdf_pipeline.foundation.shared.latex_commands import unsupported_commands  # noqa: E402
 
 STATES = {"supported", "unsupported"}
-needs_typst = pytest.mark.skipif(not TYPST_BIN, reason="没有可用的 typst 二进制")
+_skip_without_typst = pytest.mark.skipif(not TYPST_BIN, reason="没有可用的 typst 二进制")
+
+
+def needs_typst(test):
+    """真编译的用例：打登记过的 needs_typst marker，再叠一层 skipif。
+
+    以前这里只有一个同名的 skipif，`-m "not needs_typst"` 根本选不中它们；marker
+    让 CI 那一步能按约定挑掉，skipif 让本机没装 typst 时跳过而不是红。
+    """
+    return pytest.mark.needs_typst(_skip_without_typst(test))
 
 
 # ---------------------------------------------------------------- 一致性闸

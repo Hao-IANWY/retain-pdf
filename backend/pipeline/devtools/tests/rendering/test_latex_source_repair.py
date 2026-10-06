@@ -65,6 +65,7 @@ def test_translation_side_uses_the_same_rule() -> None:
     assert r"\\b" in normalize_direct_typst_translation(text), "翻译侧仍在合并换行符"
 
 
+@pytest.mark.needs_typst
 @pytest.mark.skipif(not TYPST_BIN, reason="没有可用的 typst 二进制")
 @pytest.mark.parametrize("expr", ROW_SEPARATOR_CASES, ids=lambda s: s[:26])
 def test_row_separators_really_compile(expr: str) -> None:
