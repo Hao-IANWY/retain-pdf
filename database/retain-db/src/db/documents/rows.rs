@@ -1,7 +1,7 @@
 use anyhow::Result;
 use rusqlite::{params, Connection, OptionalExtension};
 
-use crate::models::api::{BlockSearchHit, DocumentRecord, FavoriteRecord};
+use crate::models::api::{BlockSearchHit, DocumentRecord};
 
 pub(in crate::db) const DOCUMENT_COLUMNS: &str = "d.document_id, d.title, COALESCE((SELECT ts.source FROM document_title_state ts WHERE ts.document_id = d.document_id), 'filename'), COALESCE((SELECT ts.locked FROM document_title_state ts WHERE ts.document_id = d.document_id), 0), d.authors_json, d.year, d.doi, d.source_filename, d.page_count, d.bytes, d.active_job_id, d.active_version_id, d.reading_status, d.added_at, d.last_opened_at, d.updated_at";
 
@@ -37,7 +37,7 @@ pub(in crate::db) fn query_document(
             row_to_document,
         )
         .optional()?;
-    let Some(mut record) = record else {
+    let Some(record) = record else {
         return Ok(None);
     };
     Ok(Some(record))
@@ -79,22 +79,3 @@ pub(super) fn row_to_search_hit(row: &rusqlite::Row<'_>) -> rusqlite::Result<Blo
     })
 }
 
-pub(super) fn row_to_favorite(row: &rusqlite::Row<'_>) -> rusqlite::Result<FavoriteRecord> {
-    Ok(FavoriteRecord {
-        favorite_id: row.get(0)?,
-        document_id: row.get(1)?,
-        job_id: row.get(2)?,
-        page_idx: row.get(3)?,
-        block_id: row.get(4)?,
-        char_start: row.get(5)?,
-        char_end: row.get(6)?,
-        kind: row.get(7)?,
-        quote_text: row.get(8)?,
-        translated_quote_text: row.get(9)?,
-        note: row.get(10)?,
-        asset_id: row.get(11)?,
-        rect_json: row.get(12)?,
-        created_at: row.get(13)?,
-        updated_at: row.get(14)?,
-    })
-}

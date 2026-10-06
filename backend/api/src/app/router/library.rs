@@ -2,7 +2,7 @@ use axum::routing::{get, post};
 use axum::Router;
 
 use crate::app::AppState;
-use crate::routes::{library, library_data};
+use crate::routes::library;
 
 pub(super) fn routes() -> Router<AppState> {
     Router::new()

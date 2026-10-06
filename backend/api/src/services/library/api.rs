@@ -16,13 +16,12 @@ use crate::models::api::{
     AssetRecord, CollectionListView, CollectionMutationResult, CollectionRecord,
     ConversationDetailView, ConversationListView, ConversationMutationResult, ConversationRecord,
     CreateCollectionInput, CreateConversationInput, CreateDocumentMetadataSuggestionInput,
-    CreateFavoriteInput, DocumentDeleteResultView, DocumentMetadataSuggestionApplyView,
-    DocumentMetadataSuggestionListView, DocumentMetadataSuggestionView, FavoriteListView,
-    FavoriteMutationResult, FavoriteRecord, FavoritesClearedResult, JobSubmissionView,
+    DocumentDeleteResultView, DocumentMetadataSuggestionApplyView,
+    DocumentMetadataSuggestionListView, DocumentMetadataSuggestionView, JobSubmissionView,
     LibraryBatchDeleteInput, LibraryBatchDeleteResultView, LibraryBookDetailView,
     LibraryBookListView, LibraryDeleteResultView, ListConversationsQuery,
-    ListDocumentMetadataSuggestionsQuery, ListFavoritesQuery, ListJobsQuery, MessageRecord,
-    PatchCollectionInput, PatchConversationInput, PatchFavoriteInput, SearchQuery,
+    ListDocumentMetadataSuggestionsQuery, ListJobsQuery, MessageRecord,
+    PatchCollectionInput, PatchConversationInput, SearchQuery,
     SearchResultView,
 };
 use crate::models::request::CreateJobInput;

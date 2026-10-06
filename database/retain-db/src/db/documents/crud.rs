@@ -541,9 +541,3 @@ fn delete_job_rows(tx: &rusqlite::Transaction<'_>, job_ids: &[String]) -> Result
     }
     Ok(())
 }
-
-#[cfg(test)]
-mod page_io_tests {
-    use super::*;
-
-}

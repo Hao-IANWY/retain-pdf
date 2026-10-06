@@ -11,12 +11,11 @@ use axum::Json;
 use crate::error::AppError;
 use crate::models::api::{
     ApiResponse, ApplyDocumentMetadataSuggestionInput, CreateDocumentMetadataSuggestionInput,
-    CreateFavoriteInput, DocumentDeleteResultView, DocumentJobListView, DocumentListView,
+    DocumentDeleteResultView, DocumentJobListView, DocumentListView,
     DocumentMetadataSuggestionApplyView, DocumentMetadataSuggestionListView,
-    DocumentMetadataSuggestionView, DocumentRecord, FavoriteListView, FavoriteMutationResult,
-    FavoriteRecord, FavoritesClearedResult, JobSubmissionView, LibraryDeleteQuery,
+    DocumentMetadataSuggestionView, DocumentRecord, JobSubmissionView, LibraryDeleteQuery,
     ListDocumentJobsQuery, ListDocumentMetadataSuggestionsQuery, ListDocumentsQuery,
-    ListFavoritesQuery, PatchDocumentInput, PatchFavoriteInput, SearchQuery, SearchResultView,
+    PatchDocumentInput, SearchQuery, SearchResultView,
 };
 use crate::models::request::CreateJobInput;
 use crate::routes::common::{

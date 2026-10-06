@@ -162,6 +162,8 @@ pub struct CredentialDeleteView {
     pub revision: u64,
 }
 
+/// 只剩测试在用：路由走 list_credentials_with_values，要不要带值由查询参数决定。
+#[cfg(test)]
 pub fn list_credentials(data_root: &Path) -> Result<CredentialListView, AppError> {
     list_credentials_with_values(data_root, false)
 }
