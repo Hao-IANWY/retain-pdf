@@ -12,6 +12,8 @@ def build_side_by_side_pdf(source_pdf: Path, translated_pdf: Path, output_pdf: P
             raise RuntimeError(f"source pdf has no pages: {source_pdf}")
         if translated_doc.page_count < 1:
             raise RuntimeError(f"translated pdf has no pages: {translated_pdf}")
+        _normalize_page_rotations(source_doc)
+        _normalize_page_rotations(translated_doc)
         page_count = max(source_doc.page_count, translated_doc.page_count)
         output_pdf.parent.mkdir(parents=True, exist_ok=True)
         with fitz.open() as out_doc:
@@ -46,6 +48,18 @@ def _page_rect(doc: fitz.Document, page_index: int) -> fitz.Rect | None:
     if page_index >= doc.page_count:
         return None
     return doc[page_index].rect
+
+
+def _normalize_page_rotations(doc: fitz.Document) -> None:
+    """把页面的 /Rotate 烘焙进内容。
+
+    带旋转的页面 `page.rect` 是旋转后的尺寸，而 `show_pdf_page` 按未旋转的内容放置，
+    两者对不上，对照 PDF 里这一页会被摆歪 / 拉伸。只改内存里的文档，不回写源文件。
+    （来自 #75，lemos1235）
+    """
+    for page in doc:
+        if page.rotation:
+            page.remove_rotation()
 
 
 def main() -> None:
