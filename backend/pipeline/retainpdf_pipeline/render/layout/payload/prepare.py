@@ -20,6 +20,7 @@ from retainpdf_pipeline.render.layout.payload.render_item import group_render_un
 from retainpdf_pipeline.render.layout.payload.render_item import group_unit_formula_map
 from retainpdf_pipeline.render.layout.payload.render_item import group_unit_protected_text
 from retainpdf_pipeline.render.layout.payload.render_item import group_unit_source_text
+from retainpdf_pipeline.render.layout.payload.render_item import get_render_inner_bbox
 from retainpdf_pipeline.render.layout.payload.render_item import item_has_group_render_text
 from retainpdf_pipeline.render.layout.payload.render_item import seed_render_fields
 from retainpdf_pipeline.render.layout.payload.reading_sort import sort_items_by_reading_order
@@ -84,6 +85,75 @@ def _continuation_adjusted_capacities(items: list[dict], capacities: list[float]
         relax_ratio = max(width_ratio, CONTINUATION_NARROW_BOX_CAPACITY_RELAX_RATIO)
         adjusted[index] = capacities[index] * relax_ratio
     return adjusted
+
+
+def _union_bbox(boxes: list[list[float]]) -> list[float]:
+    return [
+        min(box[0] for box in boxes),
+        min(box[1] for box in boxes),
+        max(box[2] for box in boxes),
+        max(box[3] for box in boxes),
+    ]
+
+
+AGGREGATE_STACK_EDGE_TOLERANCE_PT = 8.0
+AGGREGATE_STACK_MAX_GAP_PT = 14.0
+
+
+def _stacked_in_one_column(boxes: list[list[float]]) -> bool:
+    ordered = sorted(boxes, key=lambda box: box[1])
+    left = [box[0] for box in ordered]
+    right = [box[2] for box in ordered]
+    if max(left) - min(left) > AGGREGATE_STACK_EDGE_TOLERANCE_PT:
+        return False
+    if max(right) - min(right) > AGGREGATE_STACK_EDGE_TOLERANCE_PT:
+        return False
+    return all(
+        -AGGREGATE_STACK_EDGE_TOLERANCE_PT <= lower[1] - upper[3] <= AGGREGATE_STACK_MAX_GAP_PT
+        for upper, lower in zip(ordered, ordered[1:])
+    )
+
+
+def _merge_aggregate_geometry_group(
+    items: list[dict],
+    unit_text: str,
+    unit_source_text: str,
+    unit_formula_map: list[dict],
+) -> bool:
+    """摘要这类「合并几何」的翻译组：几个框合成一个，整段译文只排一次。
+
+    翻译阶段给它们打的 translation_group_strategy 就是 aggregate_geometry，但渲染这边
+    一直按跨页续段的办法把整段译文按容量切回各框 —— 切点落在词中间（「教 / 学医院」），
+    「方法：」「结果：」也对不上原来每块的开头。同页、上下相接的几块，直接在并集框里
+    排整段，其余成员不再画字（原文照旧由各自的 bbox 擦除）。
+
+    只合并「同一栏里上下相接」的几块（左右边对齐、上下间隙小）：这时并集就是原来那片
+    正文区域。摘要绕着图排（图旁一个窄框 + 图下一个通栏框）时并集会盖住图，那种照旧
+    按容量切回各框（见 test_translation_abstract_groups）。
+    """
+    if len(items) < 2:
+        return False
+    if any(str(item.get("translation_group_strategy", "") or "").strip() != "aggregate_geometry" for item in items):
+        return False
+    if len({item.get("page_idx") for item in items}) != 1:
+        return False
+    boxes = [item.get("bbox") for item in items]
+    if any(not isinstance(box, list) or len(box) != 4 for box in boxes):
+        return False
+    if not _stacked_in_one_column(boxes):
+        return False
+    head = items[0]
+    inner_boxes = [get_render_inner_bbox(item) or inner_bbox(item) for item in items]
+    head["bbox"] = _union_bbox(boxes)
+    if all(isinstance(box, list) and len(box) == 4 for box in inner_boxes):
+        head["_render_inner_bbox"] = _union_bbox(inner_boxes)
+    head["render_protected_text"] = unit_text
+    head["render_source_text"] = unit_source_text
+    head["render_formula_map"] = unit_formula_map
+    for item in items[1:]:
+        clear_render_fields(item)
+        item["render_source_text"] = ""
+    return True
 
 
 def _attach_first_line_indents(
@@ -188,6 +258,8 @@ def prepare_render_payloads_by_page(
             if same_meaningful_render_text(protected_unit_source_text, protected_unit_text):
                 for item in items:
                     clear_render_fields(item)
+                continue
+            if _merge_aggregate_geometry_group(items, protected_unit_text, protected_unit_source_text, unit_formula_map):
                 continue
             capacities: list[float] = []
             source_weights: list[float] = []

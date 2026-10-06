@@ -22,7 +22,11 @@ def build_render_blocks(
     book_body_font_target: float | None = None,
 ) -> list[RenderBlock]:
     for item in translated_items:
-        seed_render_fields(item)
+        # 已经过 prepare_render_payloads_by_page 的 item 不能再 seed：那一步把翻译组的
+        # 整段译文按框切好 / 合并进了 render_protected_text，这里再 seed 一遍会按
+        # 「组成员取整组译文」重算，每个成员框里都画一遍整段（摘要重复三遍）。
+        if "render_protected_text" not in item:
+            seed_render_fields(item)
     block_payloads, page_text_width_med = build_block_payloads(
         translated_items,
         page_width=page_width,
