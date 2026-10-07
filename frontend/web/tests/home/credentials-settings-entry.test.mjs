@@ -131,11 +131,15 @@ test("MinerU：独立检测接入真实 API transport，显示缺失、过期、
       summary: outcome === "valid" ? "MinerU Token 可用" : "MinerU Token 已过期",
     } }), { status: 200, headers: { "Content-Type": "application/json" } });
   };
+  // 上一条用例存过 MinerU Token：不清掉的话，切到 MinerU 后它会异步回填，压在下面
+  // 「清空再检测」的后面，输入框就不是空的，「请填写」永远等不到（负载下偶发）。
+  dom.window.localStorage.clear();
   const services = createServices({ validateOcrToken: undefined });
   const { host, root } = await bootHomeApp(dom, { services });
   try {
     document.dispatchEvent(new CustomEvent(APP_EVENTS.openBrowserCredentials));
     await waitFor(() => byId(dom, "browser-ocr-provider-select"), "OCR 提供商选择器");
+    await waitForDialogReady();
     const select = byId(dom, "browser-ocr-provider-select");
     select.value = "mineru";
     select.dispatchEvent(new Event("change", { bubbles: true }));
@@ -185,6 +189,9 @@ test("保存按钮每次点击都有可见反馈，不会让人以为没生效",
   const { host, root } = await bootHomeApp(dom, { services });
   dom.window.document.dispatchEvent(new dom.window.CustomEvent(APP_EVENTS.openBrowserCredentials));
   await waitFor(() => byId(dom, "browser-api-key") !== null, "API 区");
+  // 先等表单异步回填完：回填晚于输入时会把刚敲进去的值冲掉，保存走错分支，
+  // 状态条一直是空的，等满 15 秒（CI 37636560695）。
+  await waitForDialogReady();
 
   const statusEl = () => byId(dom, "browser-credentials-status");
   const saveBtn = () => byId(dom, "browser-credentials-save-btn");
@@ -313,6 +320,7 @@ test("凭据入口：设置 API 区内嵌工作台；#credential-gate-action 也
   clickWithMouseDown(dom, byId(dom, "app-settings-btn"));
   await waitFor(() => byId(dom, "app-settings-dialog") !== null, "设置对话框打开");
   await waitFor(() => byId(dom, "browser-api-key") !== null, "API 区内嵌凭据工作台挂载");
+  await waitForDialogReady();
   assert.ok(byId(dom, "browser-credentials-save-btn"), "内嵌工作台带保存按钮");
   assert.equal(byId(dom, "browser-credentials-tabs"), null, "API 页面不再嵌套二级 Tab");
   assert.equal(byId(dom, "browser-credentials-save-btn").textContent, "保存接口");
