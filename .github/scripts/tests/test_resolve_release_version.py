@@ -67,35 +67,57 @@ def test_release_workflows_accept_prefixed_and_unprefixed_version_tags(
 
     assert "v[0-9]*.[0-9]*.[0-9]*" in workflow
     assert "[0-9]*.[0-9]*.[0-9]*" in workflow
-    assert "resolve_release_version.py" in workflow
+    # resolve 用 find_release_candidate.py 解析 tag（内部调用 resolve_release_version，
+    # 非法 tag 直接失败），回退构建拿到的就是它解析出的版本。
+    assert "find_release_candidate.py" in workflow
+    assert '--tag "$GITHUB_REF_NAME"' in workflow
 
 
 def test_desktop_release_is_published_once_after_all_platforms_finish() -> None:
     workflow = (
         REPO_ROOT / ".github" / "workflows" / "release-desktop.yml"
     ).read_text(encoding="utf-8")
+    builds = (
+        REPO_ROOT / ".github" / "workflows" / "build-desktop-packages.yml"
+    ).read_text(encoding="utf-8")
+    publish_action = (
+        REPO_ROOT / ".github" / "actions" / "publish-desktop-release" / "action.yml"
+    ).read_text(encoding="utf-8")
 
-    assert workflow.count("resolve_release_version.py") == 4
-    assert workflow.count("uses: softprops/action-gh-release@v3") == 1
-    assert workflow.count("prerelease: ${{ steps.version.outputs.prerelease == 'true' }}") == 1
-    assert "publish-desktop-release:" in workflow
-    assert "- build-windows-release" in workflow
-    assert "- build-linux-release" in workflow
-    assert "- build-macos-release" in workflow
-    assert "release-assets/SHA256SUMS.txt" in workflow
+    # 版本号只在 resolve 里从 tag 解析一次（find_release_candidate 调用
+    # resolve_release_version），三个 build job 校验传入的版本号。
+    assert "find_release_candidate.py" in workflow
+    assert builds.count("resolve_release_version.py") == 3
     assert 'tag = "v$version"' not in workflow
+    # 回退与提升共用同一个发布 action，Release 只在那里创建。
+    assert "softprops/action-gh-release" not in workflow
+    assert workflow.count("uses: ./.github/actions/publish-desktop-release") == 2
+    assert publish_action.count("uses: softprops/action-gh-release@v3") == 1
+    assert "prerelease: ${{ inputs.prerelease == 'true' }}" in publish_action
+    assert "publish-desktop-release:" in workflow
+    assert "promote-desktop-release:" in workflow
+    assert "- build\n" in workflow
+    for job in ("build-windows-release", "build-linux-release", "build-macos-release"):
+        assert f"  {job}:" in builds
+    assert "/SHA256SUMS.txt" in publish_action
+    assert "--sums-out" in publish_action
 
 
 def test_docker_latest_is_promoted_only_after_candidates_are_verified() -> None:
     workflow = (
         REPO_ROOT / ".github" / "workflows" / "release-docker.yml"
     ).read_text(encoding="utf-8")
+    action = (
+        REPO_ROOT / ".github" / "actions" / "docker-candidates" / "action.yml"
+    ).read_text(encoding="utf-8")
 
-    assert "Verify both candidate images" in workflow
-    assert "Promote complete Docker release" in workflow
-    assert "STABLE_RELEASE: ${{ steps.release.outputs.stable }}" in workflow
-    assert 'if [ "$STABLE_RELEASE" = "true" ]; then' in workflow
-    assert workflow.index("Verify both candidate images") < workflow.index(
+    assert "Verify both candidate images" in action
+    assert "Promote complete Docker release" in action
+    assert "STABLE_RELEASE: ${{ inputs.stable }}" in action
+    assert 'if [ "$STABLE_RELEASE" = "true" ]; then' in action
+    assert action.index("Verify both candidate images") < action.index(
         "Promote complete Docker release"
     )
+    assert "stable: ${{ steps.release.outputs.stable }}" in workflow
+    assert "stable: ${{ needs.resolve.outputs.stable }}" in workflow
     assert "startsWith(github.ref, 'refs/tags/v')" not in workflow

@@ -11,7 +11,8 @@ promote 需要同时满足（缺一条就 mode=build，并写明原因，走原�
 5. 该 commit 的预构建 workflow 成功；
 6. 那次预构建 run 里提升所需的 artifact 都在、没过期（且离过期还有余量）。
 
-预构建 / Tests 还在跑时会等待（默认最多 90 分钟）；找不到 run 时只等一个短的
+预构建 / Tests 还在跑时会等待（默认最多 120 分钟：release commit 的预构建可能
+排在上一份预构建后面，两份加起来约 80 分钟）；找不到 run 时只等一个短的
 宽限期（push main 与 push tag 几乎同时发生，run 可能还没创建）。
 
 只会选 head_sha 与本次 tag 完全相同的 run，绝不会拿别的 commit 的产物。
@@ -190,7 +191,7 @@ def decide(
     event_name: str,
     ref_type: str,
     declared_version: str,
-    wait_seconds: int = 90 * 60,
+    wait_seconds: int = 120 * 60,
     appear_grace_seconds: int = 5 * 60,
     poll_seconds: int = 60,
     min_artifact_ttl_seconds: int = 2 * 60 * 60,
@@ -310,7 +311,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--sha", default=os.environ.get("GITHUB_SHA", ""))
     parser.add_argument("--repo", default=os.environ.get("GITHUB_REPOSITORY", ""))
     parser.add_argument("--api-url", default=os.environ.get("GITHUB_API_URL", "https://api.github.com"))
-    parser.add_argument("--wait-minutes", type=int, default=90)
+    parser.add_argument("--wait-minutes", type=int, default=120)
     parser.add_argument(
         "--github-output",
         type=Path,

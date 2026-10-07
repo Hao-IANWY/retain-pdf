@@ -1,0 +1,73 @@
+name: Publish desktop release
+description: >-
+  Verify a complete three-platform desktop package set against its manifests,
+  write SHA256SUMS.txt, re-check that the tag still targets this revision, and
+  publish the GitHub Release. Shared by the full-build fallback and the
+  prebuild-promotion paths of release-desktop.yml so both publish identically.
+
+inputs:
+  assets-dir:
+    description: Directory holding the three packages and their desktop-package-<platform>.json manifests.
+    required: true
+  version:
+    description: Release version without the leading v.
+    required: true
+  tag:
+    description: Release tag name (the pushed tag).
+    required: true
+  prerelease:
+    description: "'true' for prerelease tags."
+    required: true
+  revision:
+    description: Commit the release must be built from (the tag's commit).
+    required: true
+
+runs:
+  using: composite
+  steps:
+    # 硬门禁：三平台齐全、manifest 的版本 / revision / 文件名与本次发布一致、
+    # 每个安装包的大小与 sha256 和 manifest 一致；同时写出 SHA256SUMS.txt。
+    - name: Verify complete desktop release set
+      shell: bash
+      env:
+        ASSETS_DIR: ${{ inputs.assets-dir }}
+        RELEASE_VERSION: ${{ inputs.version }}
+        RELEASE_REVISION: ${{ inputs.revision }}
+      run: |
+        find "$ASSETS_DIR" -maxdepth 1 -type f -print | sort
+        python3 "$GITHUB_WORKSPACE/.github/scripts/release_candidate_manifest.py" verify-desktop \
+          --dir "$ASSETS_DIR" \
+          --version "$RELEASE_VERSION" \
+          --revision "$RELEASE_REVISION" \
+          --check-files \
+          --sums-out "$ASSETS_DIR/SHA256SUMS.txt"
+        cat "$ASSETS_DIR/SHA256SUMS.txt"
+
+    - name: Verify release tag still targets this revision
+      shell: bash
+      env:
+        RELEASE_TAG: ${{ inputs.tag }}
+        RELEASE_REVISION: ${{ inputs.revision }}
+      run: |
+        head_sha="$(git rev-parse HEAD)"
+        remote_sha="$(git ls-remote origin "refs/tags/${RELEASE_TAG}^{}" | awk 'NR == 1 { print $1 }')"
+        if [ -z "$remote_sha" ]; then
+          remote_sha="$(git ls-remote origin "refs/tags/${RELEASE_TAG}" | awk 'NR == 1 { print $1 }')"
+        fi
+        if [ "$head_sha" != "$RELEASE_REVISION" ] || [ "$remote_sha" != "$RELEASE_REVISION" ]; then
+          echo "Release tag moved while this run was building: head=$head_sha remote=$remote_sha expected=$RELEASE_REVISION" >&2
+          exit 1
+        fi
+
+    - name: Publish complete desktop release
+      uses: softprops/action-gh-release@v3
+      with:
+        token: ${{ github.token }}
+        tag_name: ${{ inputs.tag }}
+        prerelease: ${{ inputs.prerelease == 'true' }}
+        fail_on_unmatched_files: true
+        files: |
+          ${{ inputs.assets-dir }}/RetainPDF-Windows-${{ inputs.version }}-Setup.exe
+          ${{ inputs.assets-dir }}/RetainPDF-Linux-${{ inputs.version }}.deb
+          ${{ inputs.assets-dir }}/RetainPDF-Mac-${{ inputs.version }}.dmg
+          ${{ inputs.assets-dir }}/SHA256SUMS.txt
