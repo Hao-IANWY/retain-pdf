@@ -231,6 +231,72 @@ def test_build_platform_stages_never_leak_build_architecture_binaries():
     assert "ARG TARGETARCH" in typstsrc
 
 
+def _cargo_workspace_members() -> list[str]:
+    import tomllib
+
+    return tomllib.loads(_text("Cargo.toml"))["workspace"]["members"]
+
+
+def _dockerfile_stage_body(text: str, name: str) -> str:
+    """从 `FROM ... AS name` 到下一个 FROM 之间的内容。"""
+    lines = text.splitlines()
+    start = next(i for i, line in enumerate(lines) if line.startswith("FROM ") and line.endswith(f" AS {name}"))
+    end = next((i for i in range(start + 1, len(lines)) if lines[i].startswith("FROM ")), len(lines))
+    return "\n".join(lines[start:end])
+
+
+def test_app_rust_dependencies_are_cached_in_their_own_layer():
+    """Rust 第三方依赖单独成层（cargo-chef），先 cook 再拷源码。
+
+    以前 `COPY backend ./backend` 在 `cargo build` 之前，而 backend/ 里大部分是
+    Python：改一行 Python 就让 273 个依赖 crate 全部重编（amd64 约 8.7 分钟）。
+    """
+    dockerfile = _text("ops/deployment/docker/backend/Dockerfile.app")
+    builder = _dockerfile_stage_body(dockerfile, "builder")
+    assert "COPY backend ./backend" not in dockerfile
+    assert "COPY --from=planner /build/recipe.json recipe.json" in builder
+    cook = builder.index("cargo chef cook --")
+    first_source_copy = min(
+        builder.index(f"COPY {member} ") for member in _cargo_workspace_members()
+    )
+    assert cook < first_source_copy, "依赖层必须在拷工作区源码之前"
+    assert builder.index("cargo build --") > first_source_copy
+
+    # cook 与 build 的参数不一致，依赖会在源码层再编一遍，缓存形同虚设。
+    def flags(command: str) -> set[str]:
+        line = next(line for line in builder.splitlines() if command in line)
+        tail = "--" + line.split(command, 1)[1]
+        return {token for token in tail.split() if token.startswith("--") and token != "--recipe-path"}
+
+    assert flags("cargo chef cook --") == flags("cargo build --") == {"--release", "--locked", "--workspace", "--bins"}
+
+
+def test_app_rust_stages_copy_every_workspace_member():
+    """planner / builder 都只拷工作区成员，而且一个都不能少。
+
+    新增 members 而不改 Dockerfile 的话，`cargo chef prepare` 直接找不到清单失败。
+    """
+    dockerfile = _text("ops/deployment/docker/backend/Dockerfile.app")
+    for stage in ("planner", "builder"):
+        body = _dockerfile_stage_body(dockerfile, stage)
+        assert "COPY Cargo.toml Cargo.lock ./" in body
+        missing = [
+            member for member in _cargo_workspace_members()
+            if f"COPY {member} ./{member}" not in body
+        ]
+        assert missing == [], f"{stage} 阶段缺工作区成员：{missing}"
+
+
+def test_app_rust_builder_matches_the_runtime_debian_release():
+    """builder 编出来的二进制链接 glibc，Debian 代号必须与运行时镜像一致。"""
+    stages = _dockerfile_stages(_text("ops/deployment/docker/backend/Dockerfile.app"))
+    assert stages["chef"].startswith("FROM lukemathwalker/cargo-chef:")
+    assert "@sha256:" in stages["chef"], "第三方镜像要按 digest 钉死"
+    assert stages["planner"] == "FROM chef"
+    assert stages["builder"] == "FROM chef"
+    assert "-bookworm" in stages["chef"] and "-bookworm" in stages["runtime"]
+
+
 def test_desktop_bundle_ships_the_word_document_builder():
     """桌面打包同理:要带上 retainpdf2doc，并把路径和 node 告诉后端。"""
     prepare = (REPO_ROOT / "frontend/desktop/scripts/prepare-app.mjs").read_text(encoding="utf-8")

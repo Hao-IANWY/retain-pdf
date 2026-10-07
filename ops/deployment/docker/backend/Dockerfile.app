@@ -1,10 +1,29 @@
-FROM rust:1.89-slim-bookworm AS builder
-
-ARG TYPST_VERSION=0.15.1
-ARG CMARKER_VERSION=0.1.10
-ARG MITEX_VERSION=0.2.7
-
+# Rust 构建拆成「依赖层」和「源码层」（cargo-chef）：
+# - planner 从工作区清单生成 recipe.json（只含依赖信息，源码改动不改变它）；
+# - builder 先按 recipe 只编第三方依赖（约 270 个 crate），形成可缓存的层，
+#   再拷工作区源码编自己的 crate。只改 Python / 文档 / 工作区 Rust 源码时，
+#   依赖层整层命中缓存，只重编工作区里的 7 个 crate。
+# 镜像就是 rust:1.89-slim-bookworm（Rust 1.89.0）加一个 cargo-chef 二进制；按多架构
+# index digest 钉死，避免第三方 tag 被重推。升级 Rust 时 tag 与 digest 一起换，Debian 代号要与运行时镜像一致。
+FROM lukemathwalker/cargo-chef:0.1.72-rust-1.89-slim-bookworm@sha256:8a67a5ad32d6cfc55169ac211afac52c20fc2a0676bdcc38e5f6b813070e4fa6 AS chef
 WORKDIR /build
+
+# 只拷工作区成员（根 Cargo.toml 的 members），不拷整个 backend/：
+# backend/ 里大部分是 Python，拷进来会让任何 Python 改动都让这些层失效。
+# release 二进制不读任何非 Rust 文件（include_str! 只出现在 #[cfg(test)] 里，
+# backend/api/build.rs 只对 i686-pc-windows-gnu 生效）。
+FROM chef AS planner
+COPY Cargo.toml Cargo.lock ./
+COPY database/retain-db ./database/retain-db
+COPY backend/api ./backend/api
+COPY backend/jobs ./backend/jobs
+COPY backend/packages/retain-core ./backend/packages/retain-core
+COPY backend/packages/retain-data ./backend/packages/retain-data
+COPY backend/packages/retain-jobs ./backend/packages/retain-jobs
+COPY backend/packages/retain-proc ./backend/packages/retain-proc
+RUN cargo chef prepare --recipe-path recipe.json
+
+FROM chef AS builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config \
@@ -12,14 +31,24 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-COPY Cargo.toml Cargo.lock ./
-COPY backend ./backend
-COPY database ./database
-COPY contracts ./contracts
-COPY resources/fonts ./resources/fonts
+COPY --from=planner /build/recipe.json recipe.json
+# 依赖层：参数必须与下面的 cargo build 完全一致（profile / --workspace --bins /
+# --locked），否则依赖会在源码层再编一遍。
+RUN cargo chef cook --release --locked --workspace --bins --recipe-path recipe.json
 
-WORKDIR /build
-RUN cargo build --release --locked --workspace --bins
+# 源码层
+COPY Cargo.toml Cargo.lock ./
+COPY database/retain-db ./database/retain-db
+COPY backend/api ./backend/api
+COPY backend/jobs ./backend/jobs
+COPY backend/packages/retain-core ./backend/packages/retain-core
+COPY backend/packages/retain-data ./backend/packages/retain-data
+COPY backend/packages/retain-jobs ./backend/packages/retain-jobs
+COPY backend/packages/retain-proc ./backend/packages/retain-proc
+# COPY 保留构建上下文里的 mtime，可能比 cook 产物还旧；touch 一遍保证工作区
+# crate 一定按真实源码重编，而不是沿用 cook 阶段的空壳。
+RUN find database backend -name '*.rs' -exec touch {} + \
+    && cargo build --release --locked --workspace --bins
 
 FROM python:3.11-slim-bookworm AS python-lock
 
