@@ -332,3 +332,47 @@ fn task_document_and_library_lists_keep_live_progress_and_background_stage_parit
         assert!(fs.fast("owner"));
     }
 }
+
+/// OCR 子任务的 `finished` 阶段排名最高（与 rendering 同级）。它被导入父任务
+/// 事件流时，父任务一旦在翻译阶段失败，终态任务的「当前阶段」按排名选，就会
+/// 选成子任务的「任务完成」（书库卡片/详情读的 stage、stage_detail）。
+#[test]
+fn failed_parent_stage_is_not_taken_from_the_ocr_childs_finished_stage() {
+    let fs = Fixture::new("ocr-child-finished-rank");
+    fs.job("parent", Some("parent-ocr"));
+    fs.job("parent-ocr", None);
+    let mut parent = fs.db.get_job("parent").unwrap();
+    parent.status = JobStatusKind::Failed;
+    fs.db.save_job(&parent).unwrap();
+
+    let append = |job_id: &str, level: &str, stage: &str, event: &str, message: &str| {
+        fs.db
+            .append_event(
+                job_id,
+                level,
+                Some(stage.to_string()),
+                Some(message.to_string()),
+                None,
+                None,
+                event,
+                Some(event.to_string()),
+                message,
+                None,
+                None,
+                None,
+                None,
+                None,
+            )
+            .unwrap();
+    };
+    append("parent-ocr", "info", "ocr_processing", "stage_progress", "Paddle 正在解析文件，第 45/48 页");
+    append("parent-ocr", "info", "finished", "stage_transition", "任务完成");
+    append("parent", "info", "translating", "stage_transition", "OCR 完成，开始翻译");
+    append("parent", "error", "failed", "job_error", "translation boom");
+    append("parent", "error", "failed", "job_terminal", "任务进入终态 failed");
+
+    let snapshot = fs.project("parent");
+    assert_ne!(snapshot["stage"], "finished", "{snapshot}");
+    assert_ne!(snapshot["stage_detail"], "任务完成", "{snapshot}");
+    assert_eq!(snapshot["stage"], "translating", "{snapshot}");
+}

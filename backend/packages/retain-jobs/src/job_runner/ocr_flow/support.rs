@@ -1,6 +1,6 @@
 use anyhow::Result;
 
-use crate::job_events::cas_persist_job_with_resources;
+use crate::job_events::{cas_persist_job_row_without_events, cas_persist_job_with_resources};
 use crate::models::domain::{job_stage_str, now_iso, JobRuntimeState, JobStage, JobStatusKind};
 
 use super::super::{
@@ -96,10 +96,13 @@ async fn mirror_parent_ocr_status(
     }
     // 镜像本来就是「顺带写一下父任务」的 best effort：父任务已是终态时，原先的
     // 守卫就是什么都不做。CAS 失败保持同一语义，不升级成错误。
-    let updated = cas_persist_job_with_resources(
+    //
+    // 只写行、不派生事件：子任务自己的阶段事件会被导入父任务的事件流
+    // （api 的 event_feed/sync.rs，kind=ocr_child），这里再从父任务行的 diff
+    // 派生一套「OCR 子任务：…」，事件列表里每条 OCR 进度就会出现两遍。
+    // 行本身照写——任务列表、详情的 stage/stage_detail/进度读的是这一行。
+    let updated = cas_persist_job_row_without_events(
         deps.db.as_ref(),
-        &deps.persist.data_root,
-        &deps.persist.output_root,
         &parent_job.snapshot(),
         ACTIVE_JOB_STATUSES,
     )?;
@@ -375,6 +378,62 @@ mod cas_write_contract {
             .expect("reload parent");
         assert_eq!(stored_parent.status, JobStatusKind::Canceled);
         assert_eq!(stored_parent.updated_at, NEVER_WRITTEN_AT);
+    }
+
+    /// 活着的父任务：镜像要把子任务进度写进父任务那一行，但不许给父任务派生
+    /// 事件。子任务自己的事件会被导入父任务事件流，再派生一套就是每条 OCR
+    /// 消息出现两遍（「Paddle 正在解析…」+「OCR 子任务：Paddle 正在解析…」）。
+    #[tokio::test]
+    async fn parent_mirror_updates_the_row_without_deriving_parent_events() {
+        let fixture = Fixture::new();
+        let parent = fixture.seed("ocr-mirror-parent", JobStatusKind::Running, "ocr_submitting");
+        let child = fixture.seed("ocr-mirror-parent-ocr", JobStatusKind::Running, "ocr_upload");
+
+        let mut child_progress = child.clone().into_runtime();
+        child_progress.stage = Some("ocr_processing".to_string());
+        child_progress.stage_detail = Some("Paddle 正在解析文件，第 9/48 页".to_string());
+        child_progress.progress_current = Some(9);
+        child_progress.progress_total = Some(48);
+
+        save_ocr_job(fixture.deps(), &child_progress, Some(&parent.job_id))
+            .await
+            .expect("mirror");
+
+        let stored_parent = fixture
+            .deps()
+            .db
+            .get_job(&parent.job_id)
+            .expect("reload parent");
+        assert_eq!(stored_parent.stage.as_deref(), Some("ocr_processing"));
+        assert_eq!(
+            stored_parent.stage_detail.as_deref(),
+            Some("OCR 子任务：Paddle 正在解析文件，第 9/48 页")
+        );
+        assert_eq!(stored_parent.progress_current, Some(9));
+        assert_ne!(stored_parent.updated_at, NEVER_WRITTEN_AT);
+
+        let parent_events = fixture
+            .deps()
+            .db
+            .list_job_events(&parent.job_id, 100, 0)
+            .expect("parent events");
+        assert!(
+            parent_events.is_empty(),
+            "mirror must not derive parent events: {:?}",
+            parent_events
+                .iter()
+                .map(|event| (&event.event, &event.message))
+                .collect::<Vec<_>>()
+        );
+        // 子任务那边照常派生——父任务的 OCR 进度就是从这里导入的。
+        let child_events = fixture
+            .deps()
+            .db
+            .list_job_events(&child.job_id, 100, 0)
+            .expect("child events");
+        assert!(child_events
+            .iter()
+            .any(|event| event.stage.as_deref() == Some("ocr_processing")));
     }
 
     /// 同一行的另一半：终态 + stage 还停在 OCR 阶段。
