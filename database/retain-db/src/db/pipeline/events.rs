@@ -30,6 +30,10 @@ pub(super) fn append_stage_observation_event(
             "lane": if activate_stage { "main" } else { "background" },
         },
         "observation": observation.payload,
+        // events 表没有 progress_unit 列,读回时默认按 stage 推断(translating
+        // 推成 batch)。pipeline 明确给出的单位(例如翻译按块计的 block)必须
+        // 原样带出去,否则「236/408 块」会被展示成「236/408 批」。
+        "progress_unit": observation.progress_unit,
     });
     tx.execute(
         r#"

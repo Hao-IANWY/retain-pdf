@@ -3,14 +3,12 @@ use std::collections::HashSet;
 use anyhow::Result;
 
 use crate::db::{Db, PipelineAttemptCursor, PipelineUnitCommit};
-use crate::models::domain::JobRuntimeState;
 
 use super::super::stdout_parser::PipelineCheckpointObservation;
 
 pub(super) fn apply_durable_checkpoint(
     db: &Db,
     cursor: &mut PipelineAttemptCursor,
-    job: &mut JobRuntimeState,
     observation: PipelineCheckpointObservation,
 ) -> Result<()> {
     if observation.stage.trim() != cursor.stage_key {
@@ -69,72 +67,29 @@ pub(super) fn apply_durable_checkpoint(
         batch_commits(cursor, &observation)?
     };
 
-    let mut authoritative_transition = false;
     if !commits.is_empty() {
         let checkpoint = db.commit_pipeline_units(cursor, &commits)?;
         cursor.generation = checkpoint.generation;
-        authoritative_transition = true;
     }
     if observation.status == "complete" {
         let checkpoint = db.complete_pipeline_stage(cursor)?;
         cursor.generation = checkpoint.generation;
-        authoritative_transition = true;
     }
-    // JobRuntimeState is only a compatibility projection. Never let a raw
-    // checkpoint line with no accepted durable transition drive public
-    // progress; stage observations and committed units own that state.
-    if authoritative_transition {
-        if let Some(progress) = observation.progress.as_object() {
-            let current = progress
-                .get("completed_item_count")
-                .and_then(serde_json::Value::as_i64);
-            let total = progress
-                .get("item_count")
-                .and_then(serde_json::Value::as_i64);
-            job.progress_current = current;
-            job.progress_total = total;
-            // 数字换了,说明它的那句话也得换。
-            //
-            // 这里原先只写 progress、不碰 stage_detail,于是随后持久化发出的
-            // 事件带着新数字、配着进入该阶段时设下的入场语。实测长这样:
-            //
-            //     stage_progress | 10/26 | 已完成第 10/26 批翻译（最近页: 1,2）
-            //     stage_progress | 35/50 | OCR 完成，开始翻译
-            //     stage_progress | 50/50 | OCR 完成，开始翻译
-            //
-            // 前端取该阶段最后一条,就会显示成「进度 100%,正在开始翻译」。
-            //
-            // 26 与 50 两个分母不是矛盾,是两种粒度在量同一件事:pipeline 报的
-            // 是批次,durable checkpoint 记的是翻译单元(文本块),50 个块分成
-            // 26 批,两者的百分比都单调递增。所以不必统一分母,只要每条事件
-            // 自己的数字和文字对得上。
-            if let (Some(current), Some(total)) = (current, total) {
-                job.stage_detail =
-                    Some(durable_progress_detail(&observation.stage, current, total));
-            }
-        }
-    }
+    // checkpoint 只做 durable 单元提交,运行期不再投影到 job.progress_* /
+    // stage_detail。
+    //
+    // 原先这里会把 `completed_item_count/item_count` 写进 job,再由
+    // job_events::derivation 派生一条 stage_progress。但 pipeline 自己也在主
+    // lane 上发翻译进度,两个来源轮流成为「最新一条」,分母一个是批次(167)、
+    // 一个是全量文本块(642,含早已完成的 234 块),派生事件的 substage 还沿用
+    // OCR 遗留的 "done"、unit 被推成 batch,界面于是显示「236/642 批」,百分比
+    // 13%→40%→23%→45% 来回跳。
+    //
+    // 现在翻译进度只有一个来源:pipeline 的 translation_batches 观测,它按本轮
+    // 待翻译块计数(progress_unit=block),文案「已翻译 x/N 块 · 已完成 p/P 页」
+    // 也由它给出。数字和文字出自同一条事件,也就不会再出现「数字换了、文案还是
+    // 入场语」(旧 seq 111/115 那类覆盖)的问题。
     Ok(())
-}
-
-/// 与 durable 单元进度配套的说明文字。
-///
-/// 刻意不复用阶段入场语:那句话描述的是「进入这个阶段」,而这里描述的是
-/// 「在这个阶段里推进到哪了」,两者会在同一个 stage 内反复交替出现。
-///
-/// 判据取 `observation.stage`(`translate` / `render`)而不是 `phase`。翻译一段
-/// 里 phase 会依次走过 `preparing` → `translating` → `validating` → `committed`,
-/// 按 phase 匹配只认得中间那个,最后一次 checkpoint(committed)就落进兜底,把
-/// 已经写对的「已完成 59/59 个文本块」又覆盖成「已完成 59/59 项」——真实任务
-/// 上就是这么翻车的(事件 seq 111 对、115 被覆盖)。stage 在整段翻译里恒为
-/// `translate`,不会漏。
-fn durable_progress_detail(stage: &str, current: i64, total: i64) -> String {
-    let unit = match stage {
-        "translate" | "translating" => "个文本块",
-        "render" | "rendering" => "页",
-        _ => "项",
-    };
-    format!("已完成 {current}/{total} {unit}")
 }
 
 fn batch_commits(
@@ -191,23 +146,27 @@ mod tests {
     use crate::models::domain::JobSnapshot;
     use crate::models::request::CreateJobInput;
 
-    #[test]
-    fn multi_page_checkpoint_becomes_one_atomic_authoritative_transition() {
+    fn fixture_db(label: &str) -> (std::path::PathBuf, Db) {
         let root = std::env::temp_dir().join(format!(
-            "retain-multi-page-checkpoint-{}-{}",
+            "retain-{label}-{}-{}",
             std::process::id(),
             fastrand::u64(..)
         ));
         fs::create_dir_all(&root).expect("fixture root");
         let db = Db::new(root.join("jobs.db"), root.clone());
         db.init().expect("init db");
+        (root, db)
+    }
+
+    #[test]
+    fn multi_page_checkpoint_becomes_one_atomic_authoritative_transition() {
+        let (root, db) = fixture_db("multi-page-checkpoint");
         let snapshot = JobSnapshot::new(
             "job-1".to_string(),
             CreateJobInput::default(),
             vec!["python".to_string()],
         );
         db.save_job(&snapshot).expect("seed job");
-        let mut runtime = snapshot.into_runtime();
         let mut cursor = db
             .acquire_pipeline_attempt("job-1", "worker-a", "translate", 1)
             .expect("translate attempt");
@@ -216,24 +175,13 @@ mod tests {
         )
         .expect("parse checkpoint");
 
-        apply_durable_checkpoint(&db, &mut cursor, &mut runtime, observation)
-            .expect("apply checkpoint");
+        apply_durable_checkpoint(&db, &mut cursor, observation).expect("apply checkpoint");
 
         let units = db
             .list_pipeline_units("job-1", cursor.attempt, "translate")
             .expect("translation units");
         assert_eq!(units.len(), 2);
         assert_eq!(units[0].generation, units[1].generation);
-        assert_eq!(runtime.progress_current, Some(3));
-        assert_eq!(runtime.progress_total, Some(10));
-        // 数字与它的说明文字必须配套。原先这里只写数字,文案留着阶段入场语
-        // 「OCR 完成，开始翻译」,于是发出去的事件是「50/50 · 开始翻译」——
-        // 前端取最后一条就会显示「进度 100%,正在开始翻译」。
-        assert_eq!(
-            runtime.stage_detail.as_deref(),
-            Some("已完成 3/10 个文本块"),
-            "durable 进度更新后,stage_detail 必须描述这个进度,不能留着入场语"
-        );
         let events = db
             .list_translation_commit_events_after("job-1", 0, 10)
             .expect("commit events");
@@ -246,20 +194,62 @@ mod tests {
         let _ = fs::remove_dir_all(root);
     }
 
+    /// checkpoint 是 durable 提交,不是公开进度来源。
+    ///
+    /// 旧实现在这里把 `completed_item_count/item_count` 写进 job.progress_* 与
+    /// stage_detail(「已完成 x/642 个文本块」),派生事件和 pipeline 的批次事件
+    /// 抢主 lane,进度条 13%→40%→23%→45% 来回跳;更早还出过「committed 那次
+    /// checkpoint 把已写对的文案覆盖掉」(seq 111 对、115 被覆盖)。现在 checkpoint
+    /// 根本拿不到 job,这里钉住的是:一整段翻译的 checkpoint(含最终 committed)
+    /// 走完,持久化的 job 进度与文案原样不动,也不派生任何 stage 进度事件。
     #[test]
-    fn durable_progress_detail_names_the_unit_each_stage_actually_counts() {
-        // 各阶段数的东西不一样:翻译按文本块、渲染按页。文案说错单位比不说
-        // 更糟——「已完成 3/10 页」出现在一个 4 页的文档上会让人以为出了问题。
-        // 判据是 observation.stage,整段翻译恒为 translate;按 phase 匹配会在
-        // committed 那次漏掉,把已经写对的文案覆盖成兜底的「项」。
-        assert_eq!(
-            durable_progress_detail("translate", 3, 10),
-            "已完成 3/10 个文本块"
+    fn checkpoints_never_project_progress_or_detail_onto_the_job() {
+        let (root, db) = fixture_db("checkpoint-no-progress-projection");
+        let mut snapshot = JobSnapshot::new(
+            "job-1".to_string(),
+            CreateJobInput::default(),
+            vec!["python".to_string()],
         );
-        assert_eq!(durable_progress_detail("render", 2, 4), "已完成 2/4 页");
+        snapshot.stage = Some("translating".to_string());
+        snapshot.stage_detail = Some("已翻译 2/8 块 · 已完成 1/4 页".to_string());
+        snapshot.progress_current = Some(2);
+        snapshot.progress_total = Some(8);
+        db.save_job(&snapshot).expect("seed job");
+        let events_before = db.list_job_events("job-1", 100, 0).expect("events before");
+        let mut cursor = db
+            .acquire_pipeline_attempt("job-1", "worker-a", "translate", 1)
+            .expect("translate attempt");
+
+        for line in [
+            r#"{"event_type":"pipeline_checkpoint","payload":{"schema":"pipeline_checkpoint_v1","schema_version":1,"stage":"translate","phase":"translating","status":"in_progress","producer_generation":6,"committed_pages":[{"unit_key":"page:0","unit_order":0,"page_index":0,"page_hash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","changed_item_ids":["p001-b1"]}],"progress":{"completed_item_count":236,"item_count":642,"completed_page_count":3}}}"#,
+            r#"{"event_type":"pipeline_checkpoint","payload":{"schema":"pipeline_checkpoint_v1","schema_version":1,"stage":"translate","phase":"validating","status":"in_progress","producer_generation":7,"committed_pages":[{"unit_key":"page:1","unit_order":1,"page_index":1,"page_hash":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","changed_item_ids":["p002-b1"]}],"progress":{"completed_item_count":642,"item_count":642,"completed_page_count":4}}}"#,
+            r#"{"event_type":"pipeline_checkpoint","payload":{"schema":"pipeline_checkpoint_v1","schema_version":1,"stage":"translate","phase":"committed","status":"complete","producer_generation":8,"committed_pages":[],"progress":{"completed_item_count":642,"item_count":642,"completed_page_count":4}}}"#,
+        ] {
+            let observation = parse_pipeline_checkpoint_line(line).expect("parse checkpoint");
+            apply_durable_checkpoint(&db, &mut cursor, observation).expect("apply checkpoint");
+        }
+
+        let stored = db.get_job("job-1").expect("stored job");
+        assert_eq!(stored.progress_current, Some(2));
+        assert_eq!(stored.progress_total, Some(8));
         assert_eq!(
-            durable_progress_detail("unknown_stage", 1, 2),
-            "已完成 1/2 项"
+            stored.stage_detail.as_deref(),
+            Some("已翻译 2/8 块 · 已完成 1/4 页")
         );
+        let events_after = db.list_job_events("job-1", 100, 0).expect("events after");
+        let new_progress_events: Vec<_> = events_after
+            .iter()
+            .skip(events_before.len())
+            .filter(|event| {
+                matches!(event.event.as_str(), "stage_progress" | "stage_updated")
+                    || event.progress_current.is_some()
+            })
+            .collect();
+        assert!(
+            new_progress_events.is_empty(),
+            "checkpoint 不得派生进度事件: {new_progress_events:?}"
+        );
+
+        let _ = fs::remove_dir_all(root);
     }
 }

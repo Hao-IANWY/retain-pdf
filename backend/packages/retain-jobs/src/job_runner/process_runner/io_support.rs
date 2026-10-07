@@ -83,12 +83,7 @@ pub(super) async fn read_stdout(
             )?;
         }
         if let Some(observation) = parse_pipeline_checkpoint_line(&line) {
-            apply_durable_checkpoint(
-                persist.db.as_ref(),
-                &mut pipeline_cursor,
-                &mut job,
-                observation,
-            )?;
+            apply_durable_checkpoint(persist.db.as_ref(), &mut pipeline_cursor, observation)?;
         }
         if let Some(artifact) = parse_artifact_published_line(&line) {
             apply_durable_artifact_commit(persist.db.as_ref(), &mut pipeline_cursor, artifact)?;

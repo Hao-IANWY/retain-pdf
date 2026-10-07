@@ -69,6 +69,10 @@ pub(super) fn row_to_job_event(row: &Row<'_>) -> rusqlite::Result<JobEventRecord
     let event_type: Option<String> = row.get(9)?;
     let stage: Option<String> = row.get(4)?;
     let provider_stage: Option<String> = row.get(7)?;
+    let payload: Option<serde_json::Value> =
+        payload_json.and_then(|text| serde_json::from_str(&text).ok());
+    let progress_unit = explicit_pipeline_progress_unit(payload.as_ref())
+        .unwrap_or_else(|| event_progress_unit(stage.as_deref(), &event).to_string());
     Ok(JobEventRecord {
         job_id: row.get(0)?,
         seq: row.get(1)?,
@@ -90,12 +94,25 @@ pub(super) fn row_to_job_event(row: &Row<'_>) -> rusqlite::Result<JobEventRecord
         progress: None,
         progress_current: row.get(10)?,
         progress_total: row.get(11)?,
-        progress_unit: Some(event_progress_unit(stage.as_deref(), &event).to_string()),
+        progress_unit: Some(progress_unit),
         retry_count: row.get::<_, Option<i64>>(13)?.map(|value| value as u32),
         elapsed_ms: row.get(14)?,
-        payload: payload_json.and_then(|text| serde_json::from_str(&text).ok()),
+        payload,
         message: row.get(15)?,
     })
+}
+
+/// 阶段观察派生的事件(payload 带 `authority`)会把 pipeline 声明的
+/// progress_unit 存进 payload。只认这一类,其余事件仍按 stage 推断。
+fn explicit_pipeline_progress_unit(payload: Option<&serde_json::Value>) -> Option<String> {
+    let payload = payload?;
+    payload.get("authority")?;
+    payload
+        .get("progress_unit")
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|unit| !unit.is_empty())
+        .map(str::to_string)
 }
 
 pub(super) fn row_to_job_artifact_record(row: &Row<'_>) -> rusqlite::Result<JobArtifactRecord> {
