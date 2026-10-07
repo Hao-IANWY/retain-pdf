@@ -297,6 +297,23 @@ def test_app_rust_builder_matches_the_runtime_debian_release():
     assert "-bookworm" in stages["chef"] and "-bookworm" in stages["runtime"]
 
 
+def test_app_rust_builder_needs_no_openssl():
+    """builder 不装 libssl-dev / pkg-config，前提是依赖树里没有 openssl。
+
+    哪天有依赖引入 openssl-sys / native-tls，这里先失败，提醒把系统包加回去
+    （或者换成 rustls 特性），而不是等镜像构建在 build script 里报找不到 OpenSSL。
+    """
+    builder = _dockerfile_stage_body(_text("ops/deployment/docker/backend/Dockerfile.app"), "builder")
+    assert "libssl-dev" not in builder and "pkg-config" not in builder
+    packages = {
+        line.split('"')[1]
+        for line in _text("Cargo.lock").splitlines()
+        if line.startswith('name = "')
+    }
+    assert not packages & {"openssl", "openssl-sys", "native-tls"}
+    assert "ring" in packages
+
+
 def test_desktop_bundle_ships_the_word_document_builder():
     """桌面打包同理:要带上 retainpdf2doc，并把路径和 node 告诉后端。"""
     prepare = (REPO_ROOT / "frontend/desktop/scripts/prepare-app.mjs").read_text(encoding="utf-8")

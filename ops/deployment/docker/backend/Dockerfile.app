@@ -23,14 +23,10 @@ COPY backend/packages/retain-jobs ./backend/packages/retain-jobs
 COPY backend/packages/retain-proc ./backend/packages/retain-proc
 RUN cargo chef prepare --recipe-path recipe.json
 
+# 不装 libssl-dev / pkg-config：依赖树走 rustls + ring，没有 openssl / native-tls
+# （有契约测试盯着 Cargo.lock）。ring 的 C 部分用基础镜像自带的 gcc / libc6-dev，
+# ca-certificates 也是基础镜像自带的。
 FROM chef AS builder
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    pkg-config \
-    libssl-dev \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
-
 COPY --from=planner /build/recipe.json recipe.json
 # 依赖层：参数必须与下面的 cargo build 完全一致（profile / --workspace --bins /
 # --locked），否则依赖会在源码层再编一遍。
