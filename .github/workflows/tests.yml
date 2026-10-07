@@ -220,8 +220,13 @@ jobs:
       - name: Offline translation regression
         run: uv run --project "$RETAIN_PDF_SERVICES_ROOT" python "$RETAIN_PDF_SERVICES_ROOT/pipeline/devtools/run_translation_tests.py"
 
-      - name: Full offline pipeline regression (including rendering and durable stages)
-        run: uv run --project "$RETAIN_PDF_SERVICES_ROOT" python -m pytest "$RETAIN_PDF_SERVICES_ROOT/pipeline/devtools/tests" -q
+      # 与上面「Typst not installed yet」那步互补：那步已跑完 not needs_typst 的全部
+      # 用例，这里只补 needs_typst 的真排版集成用例。两步的 -m 互为补集，合起来就是
+      # pipeline/devtools/tests 全集——以前这里不带 -m 全量再跑一遍，前两千多个用例
+      # 白跑两次。前提：凡是依赖 typst 的用例都必须打 needs_typst（只写 skipif 的会
+      # 在上一步被跳过、这一步又选不中，从此没人跑）。
+      - name: Typst integration pipeline tests (rendering and durable stages)
+        run: uv run --project "$RETAIN_PDF_SERVICES_ROOT" python -m pytest "$RETAIN_PDF_SERVICES_ROOT/pipeline/devtools/tests" -q -m needs_typst
 
   backend-standalone:
     runs-on: ubuntu-latest

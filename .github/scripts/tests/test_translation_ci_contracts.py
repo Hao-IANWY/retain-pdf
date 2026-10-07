@@ -11,7 +11,15 @@ def test_daily_gate_uses_full_offline_entry_and_keeps_stage_tests():
     assert f'python "{ENTRY}"' in workflow
     assert ENTRY + '" --reverse' not in workflow
     assert "pipeline/devtools/tests/translation/test_" not in workflow
-    assert 'python -m pytest "$RETAIN_PDF_SERVICES_ROOT/pipeline/devtools/tests" -q' in workflow
+    # pipeline 测试拆成互补的两步：装 typst 前跑 not needs_typst，装 typst 后
+    # 只补 needs_typst。两步 -m 互为补集，合起来必须仍是全集。
+    pipeline_tests = '"$RETAIN_PDF_SERVICES_ROOT/pipeline/devtools/tests" -q'
+    assert pipeline_tests + ' -m "not needs_typst"' in workflow
+    assert pipeline_tests + " -m needs_typst\n" in workflow
+    hermetic = workflow.index(pipeline_tests + ' -m "not needs_typst"')
+    typst_setup = workflow.index("uses: ./.github/actions/setup-test-typst")
+    integration = workflow.index(pipeline_tests + " -m needs_typst\n")
+    assert hermetic < typst_setup < integration
     assert 'python -m pytest "$RETAIN_PDF_SERVICES_ROOT/ai/tests" -q' in workflow
     assert "uses: ./.github/actions/setup-test-typst" in workflow
 
