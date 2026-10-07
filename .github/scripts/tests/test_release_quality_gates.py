@@ -31,7 +31,14 @@ def test_publish_workflows_require_complete_tests(workflow):
 ])
 def test_build_and_publish_cannot_bypass_failed_tests(workflow, build_job):
     build = job(workflow, build_job)
-    assert "    needs: quality-gate\n" in build
+    # A build job may also need cheap preparation jobs (release-docker resolves
+    # its per-platform matrix in `prepare`), but quality-gate must stay a direct
+    # dependency.
+    needs = re.search(r"^    needs: (.+)\n", build, re.M)
+    assert needs is not None
+    assert needs.group(1) == "quality-gate" or re.fullmatch(
+        r"\[(?:[\w-]+, )*quality-gate(?:, [\w-]+)*\]", needs.group(1)
+    )
     # Step conditions are fine; a job-level override could bypass success().
     assert re.search(r"^    if:", build, re.M) is None
     assert re.search(r"^    continue-on-error:", build, re.M) is None
@@ -70,3 +77,13 @@ def test_tests_include_reusable_architecture_gate():
 def test_tag_quality_gates_are_not_cancelled_by_other_release_runs(workflow):
     source = (WORKFLOWS / workflow).read_text()
     assert "cancel-in-progress: ${{ github.ref_type != 'tag' }}" in source
+
+
+def test_docker_matrix_preparation_cannot_skip_the_build():
+    """release-docker 的 build 依赖 prepare 产出的平台矩阵；prepare 不能带条件，
+    否则它被跳过时 build 也会被跳过，而 merge/publish 都挂在 build 后面。"""
+    prepare = job("release-docker.yml", "prepare")
+    assert re.search(r"^    if:", prepare, re.M) is None
+    assert re.search(r"^    continue-on-error:", prepare, re.M) is None
+    for downstream in ("merge", "publish"):
+        assert re.search(r"^    continue-on-error:", job("release-docker.yml", downstream), re.M) is None

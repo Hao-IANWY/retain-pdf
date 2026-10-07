@@ -284,3 +284,46 @@ def test_the_desktop_packaging_chain_builds_the_document_builder():
     assert "build:doc" in chain or "retainpdf2doc" in chain, (
         f"prepare-app 没有构建 retainpdf2doc：{chain}"
     )
+
+
+def _workflow_job(workflow: str, name: str) -> str:
+    import re
+
+    source = _text(f".github/workflows/{workflow}")
+    match = re.search(rf"^  {re.escape(name)}:\n(.*?)(?=^  [\w-]+:|\Z)", source, re.M | re.S)
+    assert match is not None, f"missing {name} in {workflow}"
+    return match.group(1)
+
+
+def test_release_docker_builds_each_platform_on_a_native_runner():
+    """arm64 不再用 QEMU 模拟（v4.2.6 里 arm64 cargo build 要 58.7 分钟）。"""
+    workflow = _text(".github/workflows/release-docker.yml")
+    build = _workflow_job("release-docker.yml", "build")
+    assert "setup-qemu-action" not in workflow
+    assert "ubuntu-24.04-arm" in build
+    assert "platform: ${{ fromJSON(needs.prepare.outputs.platform_matrix) }}" in build
+    assert "platforms: ${{ matrix.platform }}" in build
+    assert "push-by-digest=true" in build
+    # artifact 名里不能带 `/`，必须用 slug 而不是 matrix.platform。
+    assert "docker-digest-${{ matrix.target.name }}-${{ steps.platform.outputs.slug }}-${{ github.run_id }}" in build
+
+
+def test_release_docker_tag_builds_do_not_export_unreadable_caches():
+    """gha 缓存按 ref 隔离，tag run 写的缓存下个 tag 读不到，只会挤掉 main 的缓存。"""
+    build = _workflow_job("release-docker.yml", "build")
+    cache_to = [line.strip() for line in build.splitlines() if line.strip().startswith("cache-to:")]
+    assert len(cache_to) == 1
+    assert "github.ref_type != 'tag'" in cache_to[0]
+
+
+def test_release_docker_merge_keeps_the_candidate_identity_contract():
+    """merge 合成多架构 manifest，并写出 publish 期望的同一份 candidate JSON。"""
+    merge = _workflow_job("release-docker.yml", "merge")
+    publish = _workflow_job("release-docker.yml", "publish")
+    assert "docker buildx imagetools create --tag" in merge
+    assert "pattern: docker-digest-${{ matrix.target.name }}-*-${{ github.run_id }}" in merge
+    assert "name: docker-candidate-${{ matrix.target.name }}-${{ github.run_id }}" in merge
+    assert "{target: $target, repo: $repo, digest: $digest, revision: $revision, version: $version, platforms: $platforms}" in merge
+    assert "    needs: merge\n" in publish
+    for target in ("app", "web"):
+        assert f"name: docker-candidate-{target}-${{{{ github.run_id }}}}" in publish
