@@ -1,0 +1,133 @@
+name: Desktop Rust Cache Warmup
+
+# 为 release-desktop.yml 预热 Rust 编译缓存。
+#
+# 为什么要单独预热：tag 触发的 run 只能读「当前 ref」和默认分支（main）的
+# Actions 缓存，tag 自己写的缓存下一个 tag 读不到。所以缓存只能在 main 上写，
+# release-desktop 的三个 build job 以 save-if: false 只读这里写下的缓存。
+#
+# 约束（.github/scripts/tests/test_desktop_rust_cache_contracts.py 会检查）：
+# - 每个平台的 Setup Rust toolchain 与 cargo build 命令必须和 release-desktop
+#   对应 build job 逐字一致（同 target / features / --locked），否则缓存的依赖
+#   产物与发布时的编译参数对不上，命中了也会重编。
+# - rust-cache 的 shared-key / workspaces 两边一致；不要在这里或发布 job 里加
+#   CARGO* / RUST* / CC* 等环境变量 —— rust-cache 会把它们算进缓存 key，两边
+#   不一致就整条 key 都对不上。
+#
+# rust-cache 默认只缓存第三方依赖（不缓存 workspace 自身的 crate），所以只有
+# 依赖或工具链变化时缓存内容才会变：push main 只看 Cargo 清单；每周定时跑一次，
+# 一是赶上 stable 工具链更新（rustc 版本进 key），二是刷新访问时间，防止 7 天
+# 未访问被 GitHub 淘汰。
+
+"on":
+  push:
+    branches:
+      - main
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "backend/**/Cargo.toml"
+      - "database/**/Cargo.toml"
+      - ".github/workflows/desktop-rust-cache-warmup.yml"
+  schedule:
+    # 每周一 03:17 UTC
+    - cron: "17 3 * * 1"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-rust-cache-warmup-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  warm-windows:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Prepare embedded backend package
+        id: backend
+        uses: ./.github/actions/prepare-backend-source
+
+      - name: Setup Python runtime for desktop bundle
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+          architecture: "x64"
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: desktop-release-windows
+          workspaces: ". -> target"
+
+      - name: Build Rust API for Windows
+        shell: pwsh
+        run: cargo build --release --locked --workspace --bins --target x86_64-pc-windows-msvc --manifest-path "$env:RETAIN_PDF_SOURCE_ROOT/Cargo.toml"
+
+  warm-linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Prepare embedded backend package
+        id: backend
+        uses: ./.github/actions/prepare-backend-source
+
+      - name: Setup Python runtime for desktop bundle
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: desktop-release-linux
+          workspaces: ". -> target"
+
+      - name: Build Rust API for Linux
+        shell: bash
+        run: cargo build --release --locked --workspace --bins --manifest-path "$RETAIN_PDF_SOURCE_ROOT/Cargo.toml"
+
+  warm-macos:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Prepare embedded backend package
+        id: backend
+        uses: ./.github/actions/prepare-backend-source
+
+      - name: Setup Python runtime for desktop bundle
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: desktop-release-macos
+          workspaces: ". -> target"
+
+      - name: Build Rust API for macOS
+        shell: bash
+        run: cargo build --release --locked --workspace --bins --manifest-path "$RETAIN_PDF_SOURCE_ROOT/Cargo.toml"

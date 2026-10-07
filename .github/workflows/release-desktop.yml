@@ -65,6 +65,16 @@ jobs:
         with:
           targets: x86_64-pc-windows-msvc
 
+      # 只读 main 上由 desktop-rust-cache-warmup.yml 预热的依赖缓存：tag 写的缓存
+      # 下一个 tag 读不到，写了只白占配额。shared-key 与 cargo build 命令必须和
+      # 预热 workflow 保持一致（契约测试会检查）。
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: desktop-release-windows
+          workspaces: ". -> target"
+          save-if: false
+
       - name: Build Rust API for Windows
         shell: pwsh
         run: cargo build --release --locked --workspace --bins --target x86_64-pc-windows-msvc --manifest-path "$env:RETAIN_PDF_SOURCE_ROOT/Cargo.toml"
@@ -264,6 +274,16 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+
+      # 只读 main 上由 desktop-rust-cache-warmup.yml 预热的依赖缓存：tag 写的缓存
+      # 下一个 tag 读不到，写了只白占配额。shared-key 与 cargo build 命令必须和
+      # 预热 workflow 保持一致（契约测试会检查）。
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: desktop-release-linux
+          workspaces: ". -> target"
+          save-if: false
 
       - name: Build Rust API for Linux
         shell: bash
@@ -515,6 +535,16 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+
+      # 只读 main 上由 desktop-rust-cache-warmup.yml 预热的依赖缓存：tag 写的缓存
+      # 下一个 tag 读不到，写了只白占配额。shared-key 与 cargo build 命令必须和
+      # 预热 workflow 保持一致（契约测试会检查）。
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: desktop-release-macos
+          workspaces: ". -> target"
+          save-if: false
 
       - name: Build Rust API for macOS
         shell: bash
