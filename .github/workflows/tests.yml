@@ -50,10 +50,13 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      # Cargo workspace 在仓库根（根 Cargo.toml 的 members 含 7 个 crate），产物在
+      # 根目录 target/。这里必须指向 source_root；此前写成 outputs.path 下的 api
+      # 子目录，缓存的是那个几乎为空的 target，命中了也照样从 proc-macro2、tokio 全量重编。
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: ${{ steps.backend.outputs.path }}/api
+          workspaces: ${{ steps.backend.outputs.source_root }} -> target
 
       # 必须 --workspace：裸 cargo test 只跑主 crate，会漏掉
       # retain-core/retain-data/retain-jobs 三个子 crate 的测试
