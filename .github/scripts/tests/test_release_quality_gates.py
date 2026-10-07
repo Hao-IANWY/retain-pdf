@@ -27,9 +27,6 @@ def test_publish_workflows_require_complete_tests(workflow):
 
 @pytest.mark.parametrize("workflow,build_job", [
     ("publish-current-web.yml", "publish-web"),
-    ("release-desktop.yml", "build-windows-release"),
-    ("release-desktop.yml", "build-linux-release"),
-    ("release-desktop.yml", "build-macos-release"),
     ("release-docker.yml", "build"),
 ])
 def test_build_and_publish_cannot_bypass_failed_tests(workflow, build_job):
@@ -38,6 +35,27 @@ def test_build_and_publish_cannot_bypass_failed_tests(workflow, build_job):
     # Step conditions are fine; a job-level override could bypass success().
     assert re.search(r"^    if:", build, re.M) is None
     assert re.search(r"^    continue-on-error:", build, re.M) is None
+
+
+DESKTOP_BUILD_JOBS = ("build-windows-release", "build-linux-release", "build-macos-release")
+
+
+def test_desktop_builds_run_in_parallel_but_publish_waits_for_tests():
+    """桌面端三个 build 与 quality-gate 并行跑（省掉干等测试的几分钟），门禁收在
+    发布 job：它必须同时 needs quality-gate 和全部 build，且不能有 job 级 if /
+    continue-on-error 绕过 success()。build 只产出 workflow 内 artifact，
+    不得引用 secret，否则「未过测试先构建」就不再无害。"""
+    publish = job("release-desktop.yml", "publish-desktop-release")
+    needs = re.search(r"^    needs:\n((?:      - [\w-]+\n)+)", publish, re.M)
+    assert needs is not None
+    listed = set(re.findall(r"- ([\w-]+)", needs.group(1)))
+    assert listed == {"quality-gate", *DESKTOP_BUILD_JOBS}
+    assert re.search(r"^    if:", publish, re.M) is None
+    assert re.search(r"^    continue-on-error:", publish, re.M) is None
+    for name in DESKTOP_BUILD_JOBS:
+        build = job("release-desktop.yml", name)
+        assert re.search(r"^    if:", build, re.M) is None
+        assert "secrets." not in build
 
 
 def test_tests_include_reusable_architecture_gate():

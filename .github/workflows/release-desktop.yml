@@ -27,7 +27,6 @@ jobs:
     uses: ./.github/workflows/tests.yml
 
   build-windows-release:
-    needs: quality-gate
     runs-on: windows-latest
     timeout-minutes: 90
 
@@ -231,7 +230,6 @@ jobs:
           overwrite: true
 
   build-linux-release:
-    needs: quality-gate
     runs-on: ubuntu-latest
     timeout-minutes: 90
 
@@ -483,7 +481,6 @@ jobs:
           overwrite: true
 
   build-macos-release:
-    needs: quality-gate
     runs-on: macos-latest
     timeout-minutes: 120
 
@@ -1079,8 +1076,13 @@ jobs:
           retention-days: 7
           overwrite: true
 
+  # 三个平台的 build 不再等 quality-gate，与测试并行跑（build 只产出 workflow 内
+  # artifact，不碰任何 secret、不对外发布）。门禁收在这里：发布 job 必须同时等到
+  # quality-gate 和三个 build 都成功，测试失败时绝不发布。别给这个 job 加 job 级
+  # if（例如 always()），那会绕过 needs 的 success() 判定。
   publish-desktop-release:
     needs:
+      - quality-gate
       - build-windows-release
       - build-linux-release
       - build-macos-release
