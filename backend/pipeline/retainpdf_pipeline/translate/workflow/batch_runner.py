@@ -103,8 +103,10 @@ def run_translation_batches_sequential(
         apply_elapsed = time.perf_counter() - apply_started
         if apply_stats_callback is not None:
             apply_stats_callback(batch_count=1, elapsed_s=apply_elapsed)
-        flush_state.record_progress(index, touched_pages)
+        # 先 flush 再报进度:翻译进度读的是 checkpoint(flush 时更新),
+        # 反过来就总落后一拍。
         flush_state.flush_if_due(index, label=f"flushed after batch {index}/{total_batches}")
+        flush_state.record_progress(index, touched_pages)
     _drain_translation_tail_queue(
         allow_tail_retry=not execution_enabled(),
         translation_context=translation_context,
@@ -332,8 +334,8 @@ def run_translation_batches_parallel(
             if apply_stats_callback is not None:
                 apply_stats_callback(batch_count=len(drained), elapsed_s=apply_elapsed)
             completed += len(drained)
-            flush_state.record_progress(completed, touched_pages)
             flush_state.flush_if_due(completed, label=f"flushed after completed batch {completed}/{total_batches}")
+            flush_state.record_progress(completed, touched_pages)
             print(f"book: completed batch {completed}/{total_batches} (+{len(drained)})", flush=True)
             if _should_drain_translation_tail_early(completed, total_batches):
                 tail_stats = _drain_translation_tail_queue(

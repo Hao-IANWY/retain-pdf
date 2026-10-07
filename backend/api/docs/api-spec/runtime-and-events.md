@@ -342,7 +342,7 @@ Behavior:
   - `event_type`
   - `provider`
   - `provider_stage`
-  - `progress`: `{ "unit": "page|batch|step|percent|none", "current": 0, "total": 0 }`
+  - `progress`: `{ "unit": "page|batch|block|step|percent|none", "current": 0, "total": 0 }`
   - `message`
   - `payload`
   - `raw`: source-kind/source-seq/debug metadata for DB, pipeline jsonl, or OCR child events

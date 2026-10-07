@@ -159,3 +159,21 @@ def test_old_checkpoints_without_the_new_counter_use_the_stricter_rule(
         assert_checkpoint_committable(
             {"phase": "validating", "progress": {"pending_item_count": 2}}
         )
+
+
+def test_completed_page_count_counts_pages_without_pending_items(tmp_path: Path) -> None:
+    """翻译进度文案「已完成 p/P 页」取这个数:只有整页没有待办块才算完成。"""
+    pages = {
+        0: [_item("p1-b1", state="translated"), _item("p1-b2", state="translated")],
+        1: [_item("p2-b1", state="translated"), _item("p2-b2", state="untouched")],
+        2: [],
+    }
+    paths = {}
+    for index, items in pages.items():
+        paths[index] = tmp_path / f"page-{index}.json"
+        paths[index].write_text(json.dumps(items), encoding="utf-8")
+    _, progress = project_progress(
+        output_dir=tmp_path, page_payloads=pages, translation_paths=paths
+    )
+    assert progress["completed_page_count"] == 2
+    assert progress["pending_item_count"] == 1

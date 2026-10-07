@@ -210,7 +210,7 @@ export interface JobProgressView {
     total?: number | null;
     percent?: number | null;
     /**
-     * page|batch|step|percent，skip_serializing_if None
+     * page|batch|block|step|percent，skip_serializing_if None
      */
     unit?: string | null;
 }
