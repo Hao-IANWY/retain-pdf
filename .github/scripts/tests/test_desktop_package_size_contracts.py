@@ -71,3 +71,11 @@ def test_prepare_app_prunes_non_runtime_python_payloads() -> None:
         '"__pycache__"',
     ]:
         assert payload in prune
+
+
+def test_mac_dmg_uses_lzfse_compression() -> None:
+    """dmg 默认 UDZO（zlib）生成要 108s；ULFO（lzfse）生成快得多、体积相近，
+    要求 macOS 10.11+，而 Electron 44 本身最低就要 macOS 12。"""
+    package = json.loads(_text("frontend/desktop/package.json"))
+
+    assert package["build"]["dmg"]["format"] == "ULFO"

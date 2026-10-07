@@ -85,6 +85,9 @@
       ],
       "artifactName": "RetainPDF-Mac-${version}.${ext}"
     },
+    "dmg": {
+      "format": "ULFO"
+    },
     "linux": {
       "target": [
         "deb"
