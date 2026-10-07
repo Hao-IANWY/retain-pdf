@@ -110,10 +110,11 @@ jobs:
       - name: Build @retainpdf/reader
         run: npm --prefix frontend/packages/reader run build
 
+  # 不 needs packages：下面会自己 npm ci 并重建全部 workspace 包，不消费
+  # packages job 的任何 artifact / output；串行只会让前端测试干等。
   frontend:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    needs: packages
     steps:
       - name: Checkout
         uses: actions/checkout@v7
