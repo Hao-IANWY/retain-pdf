@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::time::Duration;
 
 use super::env_vars::{env_bool, env_string, env_u16, env_u32, env_u64, env_usize};
 
@@ -28,7 +29,10 @@ pub struct ProviderRuntimeConfig {
 pub struct MineruRuntimeConfig {
     pub default_base_url: String,
     pub request_timeout_secs: u64,
+    /// 单次上传的基础超时；实际值按文件大小放宽，见 [`upload_timeout_for_bytes`]。
     pub upload_timeout_secs: u64,
+    pub upload_timeout_per_mb_secs: u64,
+    pub upload_timeout_max_secs: u64,
     /// 上传的重试次数。轮询、bundle 下载、bundle 就绪本来都有各自的重试上限，
     /// **只有上传没有** —— 一次传输抖动就让整个任务在 OCR 阶段死掉。
     /// 实测：最近 4 次失败里 3 次是 `failed to upload file`（timeout/ocr）。
@@ -52,6 +56,12 @@ pub struct MineruRuntimeConfig {
 pub struct PaddleRuntimeConfig {
     pub default_base_url: String,
     pub request_timeout_secs: u64,
+    /// 本地文件提交（multipart 上传）单独的超时，不能复用 `request_timeout_secs`：
+    /// 上行只有 25–60 KB/s 时 5.2 MB 就要 80 多秒，120s 的请求超时会把 3–7 MB
+    /// 以上的文件全部判死。实际值按文件大小放宽，见 [`upload_timeout_for_bytes`]。
+    pub upload_timeout_secs: u64,
+    pub upload_timeout_per_mb_secs: u64,
+    pub upload_timeout_max_secs: u64,
     pub download_timeout_secs: u64,
     pub request_retry_attempts: usize,
     pub request_retry_base_delay_millis: u64,
@@ -107,9 +117,12 @@ impl MineruRuntimeConfig {
             default_base_url: env_string("RUST_API_MINERU_BASE_URL", "https://mineru.net"),
             request_timeout_secs: env_u64("RUST_API_MINERU_REQUEST_TIMEOUT_SECS", 120),
             upload_timeout_secs: env_u64("RUST_API_MINERU_UPLOAD_TIMEOUT_SECS", 300),
-            // 3 次：和 paddle 的 request_retry_attempts 一致。上传超时默认 300s，
-            // 所以最坏情况是 3×300s + 退避 ≈ 15 分钟才放弃 —— 后台任务可以接受，
-            // 而且传输错误通常在连接阶段就快速失败，不会真的每次都耗满。
+            upload_timeout_per_mb_secs: env_u64("RUST_API_MINERU_UPLOAD_TIMEOUT_PER_MB_SECS", 45),
+            upload_timeout_max_secs: env_u64("RUST_API_MINERU_UPLOAD_TIMEOUT_MAX_SECS", 1800),
+            // 3 次：和 paddle 的 request_retry_attempts 一致。上传超时按文件大小在
+            // 300–1800s 之间，所以小文件最坏 3×300s + 退避 ≈ 15 分钟才放弃 —— 后台
+            // 任务可以接受，而且传输错误通常在连接阶段就快速失败，不会真的每次都
+            // 耗满；用户等不及可以取消，取消会直接中断正在进行的上传。
             upload_retry_attempts: env_usize("RUST_API_MINERU_UPLOAD_RETRY_ATTEMPTS", 3),
             upload_retry_base_delay_secs: env_u64("RUST_API_MINERU_UPLOAD_RETRY_BASE_DELAY_SECS", 2),
             download_timeout_secs: env_u64("RUST_API_MINERU_DOWNLOAD_TIMEOUT_SECS", 300),
@@ -148,6 +161,9 @@ impl PaddleRuntimeConfig {
                 "https://paddleocr.aistudio-app.com",
             ),
             request_timeout_secs: env_u64("RUST_API_PADDLE_REQUEST_TIMEOUT_SECS", 120),
+            upload_timeout_secs: env_u64("RUST_API_PADDLE_UPLOAD_TIMEOUT_SECS", 300),
+            upload_timeout_per_mb_secs: env_u64("RUST_API_PADDLE_UPLOAD_TIMEOUT_PER_MB_SECS", 45),
+            upload_timeout_max_secs: env_u64("RUST_API_PADDLE_UPLOAD_TIMEOUT_MAX_SECS", 1800),
             download_timeout_secs: env_u64("RUST_API_PADDLE_DOWNLOAD_TIMEOUT_SECS", 300),
             request_retry_attempts: env_usize("RUST_API_PADDLE_REQUEST_RETRY_ATTEMPTS", 3),
             request_retry_base_delay_millis: env_u64(
@@ -158,6 +174,46 @@ impl PaddleRuntimeConfig {
             allow_private_urls: env_bool(ALLOW_PRIVATE_PROVIDER_URLS_ENV, false),
         }
     }
+}
+
+impl MineruRuntimeConfig {
+    pub fn upload_timeout_for_bytes(&self, file_bytes: u64) -> Duration {
+        upload_timeout_for_bytes(
+            self.upload_timeout_secs,
+            self.upload_timeout_per_mb_secs,
+            self.upload_timeout_max_secs,
+            file_bytes,
+        )
+    }
+}
+
+impl PaddleRuntimeConfig {
+    pub fn upload_timeout_for_bytes(&self, file_bytes: u64) -> Duration {
+        upload_timeout_for_bytes(
+            self.upload_timeout_secs,
+            self.upload_timeout_per_mb_secs,
+            self.upload_timeout_max_secs,
+            file_bytes,
+        )
+    }
+}
+
+/// 上传超时 = 基础值 + 每 MB 若干秒，封顶。
+///
+/// 默认 300s + 45s/MB：45s/MB 约等于 23 KB/s，比实测最慢的上行（~25 KB/s）还宽一点。
+/// 于是 5 MB → 525s、20 MB → 1200s，100 MB 封顶 1800s。超时设长是因为取消
+/// 已经能直接中断上传（ocr_flow 里 select 了取消信号），不再需要靠超时兜底止损。
+/// 上限小于基础值时按基础值算 —— 配错上限不该把超时缩到比默认还短。
+pub fn upload_timeout_for_bytes(
+    base_secs: u64,
+    per_mb_secs: u64,
+    max_secs: u64,
+    file_bytes: u64,
+) -> Duration {
+    const MB: u64 = 1024 * 1024;
+    let megabytes = file_bytes.div_ceil(MB);
+    let scaled = base_secs.saturating_add(per_mb_secs.saturating_mul(megabytes));
+    Duration::from_secs(scaled.min(max_secs.max(base_secs)))
 }
 
 impl DeepSeekRuntimeConfig {
@@ -174,5 +230,44 @@ impl DeepSeekRuntimeConfig {
             probe_timeout_secs: env_u64("RUST_API_DEEPSEEK_PROBE_TIMEOUT_SECS", 20),
             allow_private_urls: env_bool(ALLOW_PRIVATE_PROVIDER_URLS_ENV, false),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::upload_timeout_for_bytes;
+    use std::time::Duration;
+
+    const MB: u64 = 1024 * 1024;
+
+    /// 5.2 MB 在 25–60 KB/s 上行下要 82s 以上，旧的 120s 一刀切只够勉强过；
+    /// 按大小放宽之后得留出明显余量。
+    #[test]
+    fn upload_timeout_scales_with_file_size() {
+        assert_eq!(upload_timeout_for_bytes(300, 45, 1800, 0), Duration::from_secs(300));
+        // 不足 1 MB 也按 1 MB 算
+        assert_eq!(upload_timeout_for_bytes(300, 45, 1800, 1), Duration::from_secs(345));
+        // 5.2 MB → 向上取整 6 MB
+        assert_eq!(
+            upload_timeout_for_bytes(300, 45, 1800, 5 * MB + MB / 5),
+            Duration::from_secs(570)
+        );
+    }
+
+    #[test]
+    fn upload_timeout_is_capped_but_never_below_base() {
+        assert_eq!(
+            upload_timeout_for_bytes(300, 45, 1800, 100 * MB),
+            Duration::from_secs(1800)
+        );
+        // 上限配得比基础值还小：按基础值算
+        assert_eq!(
+            upload_timeout_for_bytes(300, 45, 60, 10 * MB),
+            Duration::from_secs(300)
+        );
+        assert_eq!(
+            upload_timeout_for_bytes(u64::MAX, u64::MAX, u64::MAX, u64::MAX),
+            Duration::from_secs(u64::MAX)
+        );
     }
 }

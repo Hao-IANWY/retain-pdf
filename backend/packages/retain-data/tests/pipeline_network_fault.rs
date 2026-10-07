@@ -29,6 +29,9 @@ fn runtime(base_url: &str, retry_attempts: usize) -> PaddleRuntimeConfig {
     PaddleRuntimeConfig {
         default_base_url: base_url.to_string(),
         request_timeout_secs: 2,
+        upload_timeout_secs: 2,
+        upload_timeout_per_mb_secs: 0,
+        upload_timeout_max_secs: 2,
         download_timeout_secs: 2,
         request_retry_attempts: retry_attempts,
         request_retry_base_delay_millis: 1,

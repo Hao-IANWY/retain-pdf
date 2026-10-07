@@ -16,6 +16,9 @@ use super::dispatch_journal::{
 use super::mineru_polling::{poll_remote_task_until_ready, poll_uploaded_batch_until_ready};
 use super::save_ocr_job;
 use super::status::record_provider_trace;
+use super::transfer_watch::{
+    upload_detail, watch_transfer, with_elapsed, Watched, TRANSFER_PROGRESS_INTERVAL,
+};
 
 pub(super) async fn run_local_ocr_transport_mineru(
     deps: &ProcessRuntimeDeps,
@@ -89,15 +92,35 @@ pub(super) async fn run_local_ocr_transport_mineru(
             .map(|item| item.to_string());
     }
     job.append_log(&format!("batch_id: {}", upload_target.batch_id));
+    let file_bytes = tokio::fs::metadata(upload_path)
+        .await
+        .ok()
+        .map(|meta| meta.len());
+    let detail = upload_detail("MinerU", file_bytes);
     job.stage = Some("mineru_upload".to_string());
-    job.stage_detail = Some("已获取 OCR provider 上传地址，开始上传文件".to_string());
+    job.stage_detail = Some(detail.clone());
     job.updated_at = now_iso();
     save_ocr_job(deps, job, parent_job_id).await?;
 
-    client
-        .upload_file(&upload_target.upload_url, upload_path)
-        .await
-        .with_context(|| format!("failed to upload file {}", upload_path.display()))?;
+    let uploaded = watch_transfer(
+        deps,
+        job,
+        parent_job_id,
+        client.upload_file(&upload_target.upload_url, upload_path),
+        TRANSFER_PROGRESS_INTERVAL,
+        |elapsed| Some(with_elapsed(&detail, elapsed)),
+    )
+    .await?;
+    match uploaded {
+        Watched::Finished(result) => {
+            result.with_context(|| format!("failed to upload file {}", upload_path.display()))?
+        }
+        Watched::Canceled => {
+            // 上传 future（连同它的重试循环）已被丢弃。终态由 mod.rs 的取消检查点写。
+            job.append_log("mineru upload interrupted by cancel request");
+            return Ok(());
+        }
+    }
     job.append_log(&format!("upload done: {}", upload_path.display()));
     job.stage = Some("mineru_processing".to_string());
     job.stage_detail = Some("文件上传完成，等待 OCR provider 解析".to_string());

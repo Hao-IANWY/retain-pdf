@@ -1,6 +1,8 @@
 use anyhow::Result;
 use serde_json::json;
 use std::path::Path;
+use std::time::Duration;
+use tokio::sync::watch;
 
 use crate::models::domain::{now_iso, JobRuntimeState};
 use crate::ocr_provider::paddle::{
@@ -15,13 +17,20 @@ use super::dispatch_journal::{
     OcrDispatchDecision,
 };
 use super::paddle_errors::attach_paddle_runtime_error;
-use super::paddle_markdown::materialize_paddle_markdown_artifacts;
+use super::paddle_markdown::{materialize_paddle_markdown_artifacts, ImageProgress};
 use super::paddle_payload::build_paddle_optional_payload;
 use super::polling::{should_stop_polling, wait_next_poll_or_timeout};
 use super::status::{record_provider_trace, update_ocr_job_from_status};
+use super::transfer_watch::{
+    format_megabytes, upload_detail, watch_transfer, with_elapsed, Watched,
+    TRANSFER_PROGRESS_INTERVAL,
+};
 use crate::job_runner::{ocr_provider_diagnostics_mut, ProcessRuntimeDeps};
 
 use super::save_ocr_job;
+
+/// 插图进度的刷新间隔（节流）：16 张图并发下载只要一两秒，没必要每张都写一次库。
+const IMAGE_PROGRESS_INTERVAL: Duration = Duration::from_secs(1);
 
 pub(super) async fn run_local_ocr_transport_paddle(
     deps: &ProcessRuntimeDeps,
@@ -47,10 +56,35 @@ pub(super) async fn run_local_ocr_transport_paddle(
     let created =
         match begin_ocr_dispatch(deps, job, "paddle", "submit_local_file", &request_identity)? {
             OcrDispatchDecision::Send { cursor } => {
-                let created = client
-                    .submit_local_file(upload_path, &model_name, &optional_payload)
+                let file_bytes = tokio::fs::metadata(upload_path)
                     .await
-                    .map_err(|err| attach_paddle_runtime_error(job, err, "submit"))?;
+                    .ok()
+                    .map(|meta| meta.len());
+                let detail = upload_detail("Paddle", file_bytes);
+                job.stage = Some("ocr_upload".to_string());
+                job.stage_detail = Some(detail.clone());
+                job.updated_at = now_iso();
+                save_ocr_job(deps, job, parent_job_id).await?;
+                let submitted = watch_transfer(
+                    deps,
+                    job,
+                    parent_job_id,
+                    client.submit_local_file(upload_path, &model_name, &optional_payload),
+                    TRANSFER_PROGRESS_INTERVAL,
+                    |elapsed| Some(with_elapsed(&detail, elapsed)),
+                )
+                .await?;
+                let created = match submitted {
+                    Watched::Finished(result) => {
+                        result.map_err(|err| attach_paddle_runtime_error(job, err, "submit"))?
+                    }
+                    Watched::Canceled => {
+                        // 上传 future 已被丢弃、连接已断。不写回执：Paddle 可能已经收下
+                        // 了文件，这次提交的结果本来就说不清。终态由 mod.rs 的取消检查点写。
+                        job.append_log("paddle upload interrupted by cancel request");
+                        return Ok(());
+                    }
+                };
                 receipt_ocr_dispatch(
                     deps,
                     &cursor,
@@ -209,10 +243,33 @@ async fn run_paddle_poll_loop(
                     ))
                 })
                 .map_err(|err| attach_paddle_runtime_error(job, err, "poll"))?;
-            let result = client
-                .download_jsonl_result(&jsonl_url)
+            let download = client
+                .open_jsonl_result(&jsonl_url)
                 .await
                 .map_err(|err| attach_paddle_runtime_error(job, err, "download"))?;
+            // 结果正文（样本 1.8 MB）要下十几秒，之前这段时间界面一直停在「结果已就绪」。
+            let detail = match download.content_length() {
+                Some(bytes) => format!("正在下载 Paddle 识别结果（{}）", format_megabytes(bytes)),
+                None => "正在下载 Paddle 识别结果".to_string(),
+            };
+            job.stage_detail = Some(detail.clone());
+            job.updated_at = now_iso();
+            save_ocr_job(deps, job, parent_job_id).await?;
+            let result = match watch_transfer(
+                deps,
+                job,
+                parent_job_id,
+                download.into_payload(),
+                TRANSFER_PROGRESS_INTERVAL,
+                |elapsed| Some(with_elapsed(&detail, elapsed)),
+            )
+            .await?
+            {
+                Watched::Finished(result) => {
+                    result.map_err(|err| attach_paddle_runtime_error(job, err, "download"))?
+                }
+                Watched::Canceled => return Ok(()),
+            };
             ocr_provider_diagnostics_mut(job).artifacts.full_zip_url = Some(jsonl_url.clone());
             let mut payload = result.payload;
             if let Some(meta) = payload.get_mut("_meta").and_then(|v| v.as_object_mut()) {
@@ -225,10 +282,39 @@ async fn run_paddle_poll_loop(
                 );
             }
             persist_provider_result(job, provider_result_json_path, &payload).await?;
-            if let Some(markdown_path) =
-                materialize_paddle_markdown_artifacts(&payload, job_root).await?
-            {
-                job.append_log(&format!("published markdown: {}", markdown_path.display()));
+            let (image_progress, image_progress_rx) = watch::channel(ImageProgress::default());
+            let mut last_reported = ImageProgress::default();
+            let materialized = watch_transfer(
+                deps,
+                job,
+                parent_job_id,
+                materialize_paddle_markdown_artifacts(
+                    &payload,
+                    job_root,
+                    client.http_client(),
+                    &image_progress,
+                ),
+                IMAGE_PROGRESS_INTERVAL,
+                |_| {
+                    let current = *image_progress_rx.borrow();
+                    if current.total == 0 || current == last_reported {
+                        return None;
+                    }
+                    last_reported = current;
+                    Some(format!("正在下载插图 {}/{}", current.done, current.total))
+                },
+            )
+            .await?;
+            match materialized {
+                Watched::Finished(result) => {
+                    if let Some(markdown_path) = result? {
+                        job.append_log(&format!(
+                            "published markdown: {}",
+                            markdown_path.display()
+                        ));
+                    }
+                }
+                Watched::Canceled => return Ok(()),
             }
             return Ok(());
         }
