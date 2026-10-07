@@ -110,5 +110,9 @@ jobs:
             RETAIN_PDF_VERSION=${{ steps.frontend-version.outputs.version }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # 这里继续用 gha：它只在 main 上跑，main 写的 gha 缓存 main 自己读得到，
+          # 不存在 release-docker 那种「tag 之间读不到」的问题；web 镜像的重活
+          # （npm ci / vite build）已钉在构建机架构上，整次构建约 2 分钟，换 registry
+          # 缓存收益很小。
           cache-from: type=gha,scope=current-web
           cache-to: type=gha,mode=max,scope=current-web

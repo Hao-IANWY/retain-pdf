@@ -391,12 +391,45 @@ def test_release_docker_builds_each_platform_on_a_native_runner():
     assert "docker-digest-${{ matrix.target.name }}-${{ steps.platform.outputs.slug }}-${{ github.run_id }}" in build
 
 
-def test_release_docker_tag_builds_do_not_export_unreadable_caches():
-    """gha 缓存按 ref 隔离，tag run 写的缓存下个 tag 读不到，只会挤掉 main 的缓存。"""
+def test_release_docker_never_exports_gha_caches():
+    """gha 缓存按 ref 隔离，tag run 写的缓存下个 tag 读不到，只会挤掉 main 的缓存。
+
+    （v4.2.6 一个 tag 写了 3.8GB、多花约 6 分钟导出。）构建缓存改走 Docker Hub
+    的 registry 缓存，build job 里不应再出现 type=gha。
+    """
     build = _workflow_job("release-docker.yml", "build")
+    assert "type=gha" not in build
+    cache_from = [line.strip() for line in build.splitlines() if line.strip().startswith("cache-from:")]
     cache_to = [line.strip() for line in build.splitlines() if line.strip().startswith("cache-to:")]
-    assert len(cache_to) == 1
-    assert "github.ref_type != 'tag'" in cache_to[0]
+    assert cache_from == ["cache-from: ${{ steps.cache.outputs.from }}"]
+    assert cache_to == ["cache-to: ${{ steps.cache.outputs.to }}"]
+
+
+def test_release_docker_registry_cache_is_shared_across_tags_but_written_only_when_logged_in():
+    """registry 缓存跨 tag 可读；只有会推送（已登录 Docker Hub）的路径才写。
+
+    PR / push=false 的 dispatch 没有登录，写缓存会失败；每个平台一个 ref，
+    amd64 / arm64 两个 job 并行写才不会互相覆盖。
+    """
+    build = _workflow_job("release-docker.yml", "build")
+    cache_step = _indented_section(build, "      - name: Resolve build cache\n", "      - name: Build and push\n")
+    assert (
+        "CACHE_REF: ${{ steps.hub.outputs.user }}/${{ matrix.target.repo }}:buildcache-${{ steps.platform.outputs.slug }}"
+        in cache_step
+    )
+    assert "PUSH_IMAGE: ${{ needs.prepare.outputs.push }}" in cache_step
+    assert 'echo "from=type=registry,ref=${CACHE_REF}"' in cache_step
+    write_branch = _indented_section(cache_step, 'if [ "$PUSH_IMAGE" = "true" ]; then', "else")
+    assert "type=registry,ref=${CACHE_REF},mode=max,ignore-error=true" in write_branch
+    read_only_branch = _indented_section(cache_step, "else", "fi")
+    assert 'echo "to=" >> "$GITHUB_OUTPUT"' in read_only_branch
+
+    # 写缓存的条件必须与登录条件是同一个开关。
+    login = _indented_section(build, "      - name: Login to Docker Hub\n", "      - name: Generate build args\n")
+    assert "if: needs.prepare.outputs.push == 'true'" in login
+    # 缓存 ref 用到的 namespace / slug 要在缓存步骤之前解析好。
+    assert build.index("id: hub") < build.index("id: cache")
+    assert build.index("id: platform") < build.index("id: cache")
 
 
 def test_release_docker_merge_keeps_the_candidate_identity_contract():
