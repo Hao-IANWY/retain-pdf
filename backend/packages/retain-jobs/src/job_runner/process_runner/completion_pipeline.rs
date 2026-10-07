@@ -75,11 +75,16 @@ pub(super) async fn finalize_completed_process(
     Ok(latest_job)
 }
 
-/// If the translation diagnostics report blocks kept in source language
-/// (e.g. upstream 402/429/timeout later recorded as keep-origin), keep the
-/// job successful but say so in `stage_detail` instead of "任务完成".
+/// If the translation diagnostics report blocks that should have been
+/// translated but were not (e.g. upstream 402/429/timeout), keep the job
+/// successful but say so in `stage_detail` instead of "任务完成".
 /// Without this, users see a green success with English leftovers and file
 /// it as a rendering bug.
+///
+/// `status_summary.kept_origin` is not usable here: it also counts blocks kept
+/// by design (display formulas, model keep-origin). `unresolved_translation_count`
+/// is the pipeline's own blocking-untranslated count; older diagnostics without
+/// it fall back to dead letters only.
 fn attach_untranslated_content_warning(job: &mut JobRuntimeState, data_root: &std::path::Path) {
     let path = data_root
         .join("jobs")
@@ -94,16 +99,15 @@ fn attach_untranslated_content_warning(job: &mut JobRuntimeState, data_root: &st
         Ok(value) => value,
         Err(_) => return,
     };
-    let kept = value
-        .get("status_summary")
-        .and_then(|summary| summary.get("kept_origin"))
-        .and_then(serde_json::Value::as_u64)
-        .unwrap_or(0);
     let dead = value
         .get("dead_letter_count")
         .and_then(serde_json::Value::as_u64)
         .unwrap_or(0);
-    let count = kept.max(dead);
+    let unresolved = value
+        .get("unresolved_translation_count")
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(0);
+    let count = dead.max(unresolved);
     if count == 0 {
         return;
     }
@@ -138,7 +142,7 @@ mod tests {
     }
 
     #[test]
-    fn kept_origin_blocks_amend_stage_detail() {
+    fn dead_letter_blocks_amend_stage_detail() {
         let root = std::env::temp_dir().join(format!(
             "rust-api-dead-letter-{}-{}",
             std::process::id(),
@@ -155,6 +159,47 @@ mod tests {
         let detail = job.stage_detail.clone().unwrap_or_default();
         assert!(detail.contains("18"), "detail: {detail}");
         assert!(detail.contains("保留原文未翻译"), "detail: {detail}");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn blocks_kept_by_design_do_not_amend_stage_detail() {
+        // Real job 20261006023250-703433: 234 display formulas + 12 model
+        // keep-origin, every request succeeded.
+        let root = std::env::temp_dir().join(format!(
+            "rust-api-dead-letter-by-design-{}-{}",
+            std::process::id(),
+            fastrand::u64(..)
+        ));
+        let data_root = root.join("data");
+        write_diagnostics(
+            &data_root,
+            "job-1",
+            r#"{"status_summary": {"translated": 396, "kept_origin": 246}, "dead_letter_count": 0, "unresolved_translation_count": 0}"#,
+        );
+        let mut job = warning_job("job-1");
+        attach_untranslated_content_warning(&mut job, &data_root);
+        assert_eq!(job.stage_detail.as_deref(), Some("任务完成"));
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn unresolved_translations_amend_stage_detail() {
+        let root = std::env::temp_dir().join(format!(
+            "rust-api-dead-letter-unresolved-{}-{}",
+            std::process::id(),
+            fastrand::u64(..)
+        ));
+        let data_root = root.join("data");
+        write_diagnostics(
+            &data_root,
+            "job-1",
+            r#"{"status_summary": {"translated": 100, "kept_origin": 40}, "dead_letter_count": 2, "unresolved_translation_count": 7}"#,
+        );
+        let mut job = warning_job("job-1");
+        attach_untranslated_content_warning(&mut job, &data_root);
+        let detail = job.stage_detail.clone().unwrap_or_default();
+        assert!(detail.contains("有 7 个内容块"), "detail: {detail}");
         let _ = std::fs::remove_dir_all(&root);
     }
 

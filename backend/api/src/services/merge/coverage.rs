@@ -47,7 +47,7 @@ pub struct CoverageJobView {
     /// 成功但有额外说明（目前就是「N 个内容块保留原文未翻译」）。没有就是 None ——
     /// 和任务列表的 completion_note 同一个来源，前端凭有没有决定要不要提示。
     pub note: Option<String>,
-    /// 成功的翻译任务里保留原文（没翻出来）的内容块数，读 translation_diagnostics.json；
+    /// 成功的翻译任务里该翻却保留原文（没翻出来）的内容块数，读 translation_diagnostics.json；
     /// 和写 note 的 completion_pipeline 同一个算法。读不到按 0。
     pub kept_origin_blocks: u32,
     /// 上面那些块里，落在「当前合并结果仍取自这个任务」的页上的有几块。分次范围翻译后
@@ -134,19 +134,15 @@ fn parse_spec(spec: &str, document_page_count: u32) -> Vec<u32> {
     pages
 }
 
-/// 保留原文的块数：`status_summary.kept_origin` 与 `dead_letter_count` 取大 ——
+/// 该翻没翻出来的块数：`dead_letter_count` 与 `unresolved_translation_count` 取大 ——
 /// 和 retain-jobs completion_pipeline 写「N 个内容块保留原文」用的是同一个数。
+/// 不用 `status_summary.kept_origin`：它把行间公式、模型判定保留这类按设计不翻的块也算进去了。
 fn kept_origin_blocks(data_root: &Path, job_id: &str) -> u32 {
     let path = data_root.join("jobs").join(job_id).join("artifacts").join("translation_diagnostics.json");
     let Ok(text) = std::fs::read_to_string(path) else { return 0 };
     let Ok(value) = serde_json::from_str::<serde_json::Value>(&text) else { return 0 };
-    let kept = value
-        .get("status_summary")
-        .and_then(|summary| summary.get("kept_origin"))
-        .and_then(serde_json::Value::as_u64)
-        .unwrap_or(0);
-    let dead = value.get("dead_letter_count").and_then(serde_json::Value::as_u64).unwrap_or(0);
-    kept.max(dead).min(u32::MAX as u64) as u32
+    let count = |key: &str| value.get(key).and_then(serde_json::Value::as_u64).unwrap_or(0);
+    count("dead_letter_count").max(count("unresolved_translation_count")).min(u32::MAX as u64) as u32
 }
 
 fn kept_origin_total(data_root: &Path, job: &JobSnapshot) -> u32 {
@@ -170,20 +166,32 @@ fn kept_origin_supplied(data_root: &Path, job: &JobSnapshot, pages: Option<&BTre
     }
 }
 
-/// translation_diagnostics.json 的 item_diagnostics：每块一条，`page_idx` 是这个任务 OCR 产物里的
-/// 本地页（0 起），映射回文档页用 `ocr_page_numbers`（见 retain_core::document_pages）；没有
-/// 映射就按「本地 = 文档 - 1」（全书任务）。没有逐块记录返回 None。
+/// translation_diagnostics.json 的 dead_letter_items / unresolved_items：每块一条（同一块两边都有
+/// 只算一次），`page_idx` 是这个任务 OCR 产物里的本地页（0 起），映射回文档页用
+/// `ocr_page_numbers`（见 retain_core::document_pages）；没有映射就按「本地 = 文档 - 1」（全书任务）。
+/// 没有逐块记录，或列表被截断（Python 端各只留前 100 条）时返回 None，调用方退回整任务的数。
 fn kept_origin_by_document_page(data_root: &Path, job_id: &str, ocr_pages: &[u32]) -> Option<BTreeMap<u32, u32>> {
     let path = data_root.join("jobs").join(job_id).join("artifacts").join("translation_diagnostics.json");
     let text = std::fs::read_to_string(path).ok()?;
     let value: serde_json::Value = serde_json::from_str(&text).ok()?;
-    let items = value.get("item_diagnostics")?.as_array()?;
-    let mut by_page: BTreeMap<u32, u32> = BTreeMap::new();
-    for item in items {
-        if item.get("final_status").and_then(serde_json::Value::as_str) != Some("kept_origin") {
-            continue;
+    let mut seen = BTreeMap::new();
+    for (list_key, count_key) in [
+        ("dead_letter_items", "dead_letter_count"),
+        ("unresolved_items", "unresolved_translation_count"),
+    ] {
+        let Some(count) = value.get(count_key).and_then(serde_json::Value::as_u64) else { continue };
+        let items = value.get(list_key).and_then(serde_json::Value::as_array)?;
+        if (items.len() as u64) < count {
+            return None;
         }
-        let Some(local) = item.get("page_idx").and_then(serde_json::Value::as_u64) else { continue };
+        for item in items {
+            let Some(local) = item.get("page_idx").and_then(serde_json::Value::as_u64) else { return None };
+            let item_id = item.get("item_id").and_then(serde_json::Value::as_str).unwrap_or_default();
+            seen.insert(format!("{local}:{item_id}"), local);
+        }
+    }
+    let mut by_page: BTreeMap<u32, u32> = BTreeMap::new();
+    for local in seen.into_values() {
         let page = ocr_pages.get(local as usize).copied().unwrap_or(local as u32 + 1);
         *by_page.entry(page).or_default() += 1;
     }
@@ -313,10 +321,16 @@ mod tests {
         std::fs::create_dir_all(&dir).expect("dir");
         std::fs::write(
             dir.join("translation_diagnostics.json"),
-            r#"{"status_summary":{"kept_origin":16},"dead_letter_count":3}"#,
+            r#"{"status_summary":{"kept_origin":16},"dead_letter_count":3,"unresolved_translation_count":5}"#,
         )
         .expect("write");
-        assert_eq!(kept_origin_blocks(&root, "j1"), 16);
+        assert_eq!(kept_origin_blocks(&root, "j1"), 5, "按设计保留原文的公式等不算");
+        std::fs::write(
+            dir.join("translation_diagnostics.json"),
+            r#"{"status_summary":{"kept_origin":246},"dead_letter_count":0,"unresolved_translation_count":0}"#,
+        )
+        .expect("write");
+        assert_eq!(kept_origin_blocks(&root, "j1"), 0, "246 块全是公式和模型保留，不提示");
         assert_eq!(kept_origin_blocks(&root, "missing"), 0, "没有诊断文件按 0");
         let _ = std::fs::remove_dir_all(&root);
     }
@@ -348,12 +362,15 @@ mod tests {
         let root = std::env::temp_dir().join(format!("coverage-kept-pages-{}", fastrand::u64(..)));
         let dir = root.join("jobs").join("j1").join("artifacts");
         std::fs::create_dir_all(&dir).expect("dir");
-        // OCR 覆盖文档第 6-10 页（本地 0-4）；保留原文的块在本地 0、0、3 → 文档第 6、6、9 页。
+        // OCR 覆盖文档第 6-10 页（本地 0-4）；没翻出来的块在本地 0、0、3 → 文档第 6、6、9 页。
+        // b2 同时是死信和未解决，只算一次；本地 1 页的公式按设计保留原文，不在两张列表里。
         std::fs::write(
             dir.join("translation_diagnostics.json"),
-            r#"{"status_summary":{"kept_origin":3},"item_diagnostics":[
-                {"page_idx":0,"final_status":"kept_origin"},{"page_idx":0,"final_status":"kept_origin"},
-                {"page_idx":1,"final_status":"translated"},{"page_idx":3,"final_status":"kept_origin"}]}"#,
+            r#"{"status_summary":{"kept_origin":9},
+                "dead_letter_count":2,"dead_letter_items":[
+                    {"item_id":"p001-b1","page_idx":0},{"item_id":"p001-b2","page_idx":0}],
+                "unresolved_translation_count":2,"unresolved_items":[
+                    {"item_id":"p001-b2","page_idx":0},{"item_id":"p004-b0","page_idx":3}]}"#,
         )
         .expect("write");
         let by_page = kept_origin_by_document_page(&root, "j1", &[6, 7, 8, 9, 10]).expect("items");
@@ -361,6 +378,13 @@ mod tests {
         let only_nine: BTreeSet<u32> = [9, 10].into_iter().collect();
         assert_eq!(by_page.iter().filter(|(p, _)| only_nine.contains(p)).map(|(_, c)| *c).sum::<u32>(), 1);
         assert_eq!(kept_origin_by_document_page(&root, "missing", &[]), None);
+        // 列表被截断（只留前 100 条）就按不出页，退回整任务的数。
+        std::fs::write(
+            dir.join("translation_diagnostics.json"),
+            r#"{"dead_letter_count":150,"dead_letter_items":[{"item_id":"p001-b1","page_idx":0}]}"#,
+        )
+        .expect("write");
+        assert_eq!(kept_origin_by_document_page(&root, "j1", &[6]), None);
         let _ = std::fs::remove_dir_all(&root);
     }
 }
