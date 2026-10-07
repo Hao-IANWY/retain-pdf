@@ -11,7 +11,10 @@ use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 
 const CHUNK: u32 = 1024;
-const CANONICAL_VERSION: u32 = 2;
+// 导入规则一变就要加一：版本进了 context 摘要，旧投影会整体重建，
+// 否则已经导入的事件（比如 v2 混进来的子任务终态）会永远留在里面。
+// v3：OCR 子任务的生命周期/终态事件不再导入父任务事件流。
+const CANONICAL_VERSION: u32 = 3;
 
 #[derive(Default, Clone, Serialize, Deserialize)]
 pub(super) struct DbCheckpoint {
@@ -382,6 +385,9 @@ fn synchronize_snapshot(
             {
                 continue;
             }
+            if event.job_id != owner.job_id && is_ocr_child_lifecycle_event(&event) {
+                continue;
+            }
             sanitize(&mut event, &secrets);
             let source_id = event.job_id.clone();
             let kind = if source_id != owner.job_id {
@@ -515,6 +521,32 @@ fn synchronize_snapshot(
         }
         return Ok(stored);
     }
+}
+
+/// OCR 子任务里只描述「子任务这一行自己的生命周期」的事件，不导入父任务。
+///
+/// 导入子任务事件是为了让父任务在 OCR 期间有细粒度进度（第 n/m 页）。但子任务
+/// 的建档、状态切换、终态和「任务完成」说的是子任务，改写成父任务的 job_id 后
+/// 读起来就是父任务自己完成/失败了——前端把 `job_terminal` 标红，翻译还没开始就
+/// 出现「任务完成」。父任务的 OCR 收尾由它自己的事件交代：
+/// - `ocr_child_finished`（translation_flow_stage.rs::record_ocr_child_finished），
+/// - 子任务失败时，父任务落 failed 会带上子任务的 error，派生出自己的
+///   `job_error` / `failure_classified` / `job_terminal`。
+fn is_ocr_child_lifecycle_event(event: &JobEventRecord) -> bool {
+    let name = event.event.trim();
+    if matches!(
+        name,
+        "job_created" | "status_changed" | "job_terminal" | "pipeline_attempt_terminal"
+    ) || matches!(
+        event.event_type.as_deref().map(str::trim),
+        Some("job_created" | "status_changed" | "job_terminal" | "pipeline_attempt_terminal")
+    ) {
+        return true;
+    }
+    matches!(
+        event.stage.as_deref().map(str::trim),
+        Some("finished" | "failed" | "canceled")
+    )
 }
 
 fn sanitize(event: &mut JobEventRecord, secrets: &[String]) {

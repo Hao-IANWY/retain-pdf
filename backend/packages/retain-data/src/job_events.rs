@@ -47,6 +47,25 @@ pub fn cas_persist_job_with_resources(
     Ok(updated)
 }
 
+/// 同 [`cas_persist_job_with_resources`] 的 CAS 写，但**不派生事件**。
+///
+/// 只给「顺带同步一下别的任务的行」这种镜像写用：那份进度已经由真正的来源
+/// 自己发过事件了，再从这一行的 diff 派生一套，读者就会看到同一条消息两遍。
+/// 典型例子是 OCR 子任务往父任务镜像阶段——子任务的事件本来就会被导入父任务
+/// 的事件流。
+///
+/// 后续正常写入仍用 `previous`（即这里落下的行）做 diff，所以跳过的只是这一次
+/// 镜像本身产生的变化，不会让下一次写多派生或少派生。
+pub fn cas_persist_job_row_without_events(
+    db: &Db,
+    job: &JobSnapshot,
+    expected_statuses: &[&str],
+) -> Result<bool> {
+    let mut current = job.clone();
+    current.sync_runtime_state();
+    db.cas_save_job(&current, expected_statuses)
+}
+
 pub fn persist_runtime_job_with_resources(
     db: &Db,
     data_root: &Path,
