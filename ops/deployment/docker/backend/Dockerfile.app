@@ -38,12 +38,17 @@ RUN uv export \
     --format requirements-txt \
     --output-file /requirements-backend.txt
 
-FROM python:3.11-slim-bookworm AS typstsrc
+# typstsrc 只下载文件（按目标架构选包），不需要在目标架构上执行，所以钉在
+# 构建机架构上跑，避免多架构构建时在 QEMU 下做 apt-get / 解压。
+# 选包看 TARGETARCH（目标架构），不能看 uname -m（那是构建机架构）。
+FROM --platform=$BUILDPLATFORM python:3.11-slim-bookworm AS typstsrc
 
 ARG TYPST_VERSION=0.15.1
 ARG CMARKER_VERSION=0.1.10
 ARG MITEX_VERSION=0.2.7
 ARG FX_VERSION=0.0.5
+ARG TARGETARCH
+ARG BUILDARCH
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
@@ -55,11 +60,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN mkdir -p /tmp/typst /opt/typst/bin /opt/typst-packages/preview
 
 RUN set -eux; \
-    ARCH="$(uname -m)"; \
-    case "$ARCH" in \
-      x86_64) TYPST_ARCH="x86_64" ;; \
-      aarch64) TYPST_ARCH="aarch64" ;; \
-      *) echo "Unsupported architecture: $ARCH"; exit 1 ;; \
+    case "${TARGETARCH:?TARGETARCH is required}" in \
+      amd64) TYPST_ARCH="x86_64" ;; \
+      arm64) TYPST_ARCH="aarch64" ;; \
+      *) echo "Unsupported architecture: $TARGETARCH"; exit 1 ;; \
     esac; \
     curl -fsSL "https://github.com/typst/typst/releases/download/v${TYPST_VERSION}/typst-${TYPST_ARCH}-unknown-linux-musl.tar.xz" \
     -o /tmp/typst/typst.tar.xz \
@@ -81,18 +85,19 @@ RUN set -eux; \
 # architectures.  The upstream installer is version-aware but does not verify
 # an artifact checksum, so the image downloads the immutable release artifact
 # directly and pins the hashes verified for v0.0.5.
+# `fx --version` 只有目标架构与构建机相同时才能直接执行；跨架构时由 sha256
+# 保证拿到的是钉死的那份目标架构二进制。
 RUN set -eux; \
-    ARCH="$(uname -m)"; \
-    case "$ARCH" in \
-      x86_64) \
+    case "${TARGETARCH:?TARGETARCH is required}" in \
+      amd64) \
         FX_ARCH="x86_64"; \
         FX_SHA256="d5639d173267774aa8228a474baf619a7076ac41a91023915007c865143429b1" \
         ;; \
-      aarch64) \
+      arm64) \
         FX_ARCH="aarch64"; \
         FX_SHA256="8bbcde6a41256c4fac4e0a022291cf02740419e27afabde3b8f45e7a4e393edb" \
         ;; \
-      *) echo "Unsupported architecture for fx: $ARCH"; exit 1 ;; \
+      *) echo "Unsupported architecture for fx: $TARGETARCH"; exit 1 ;; \
     esac; \
     mkdir -p /tmp/fx /opt/fx/bin /opt/fx/licenses; \
     curl -fsSL --retry 5 --retry-all-errors --proto '=https' \
@@ -103,11 +108,16 @@ RUN set -eux; \
     install -m 0755 /tmp/fx/fx /opt/fx/bin/fx; \
     install -m 0644 /tmp/fx/LICENSE /opt/fx/licenses/LICENSE; \
     install -m 0644 /tmp/fx/THIRD_PARTY_NOTICES.md /opt/fx/licenses/THIRD_PARTY_NOTICES.md; \
-    test "$(/opt/fx/bin/fx --version)" = "$FX_VERSION"
+    if [ "$TARGETARCH" = "$BUILDARCH" ]; then \
+      test "$(/opt/fx/bin/fx --version)" = "$FX_VERSION"; \
+    fi
 
 # 保留排版的 Word 导出由 retainpdf2doc（Node 包）生成，Python 流水线会起它。
 # 它的 dist/ 不进版本库，所以镜像里得自己构建一次。
-FROM node:22-bookworm-slim AS docbuilder
+# 产物是 esbuild 打出的自包含 .mjs（与架构无关），所以钉在构建机架构上只跑一次；
+# 这个阶段的 node 二进制是构建机架构的，**不能**拷进运行时镜像——运行时的 node
+# 从下面按目标架构拉取的 noderuntime 阶段拿。
+FROM --platform=$BUILDPLATFORM node:22-bookworm-slim AS docbuilder
 WORKDIR /build
 # 从仓库根的 lock 安装:workspace 集合必须齐全，少一份 manifest `npm ci` 就对不上。
 COPY package.json package-lock.json ./
@@ -123,6 +133,9 @@ RUN npm ci --ignore-scripts
 COPY backend/packages/retainpdf2doc/ ./backend/packages/retainpdf2doc/
 RUN npm run build --workspace retainpdf2doc \
     && test -f backend/packages/retainpdf2doc/dist/cli.mjs
+
+# 运行时用的 node：按目标架构拉取官方镜像，只取二进制，不在里面执行任何命令。
+FROM node:22-bookworm-slim AS noderuntime
 
 FROM python:3.11-slim-bookworm AS runtime
 
@@ -201,8 +214,9 @@ COPY --from=builder /build/target/release/retainpdf-agent /usr/local/bin/retainp
 COPY backend/config /app/services/config
 COPY backend/pipeline /app/services/pipeline
 # Node 运行时:直接从官方 node 镜像取二进制（两边都是 bookworm，ABI 一致），
-# 比 apt 装一个过时的 nodejs 干净。
-COPY --from=docbuilder /usr/local/bin/node /usr/local/bin/node
+# 比 apt 装一个过时的 nodejs 干净。必须来自按目标架构拉取的 noderuntime，
+# 不能来自钉在构建机架构上的 docbuilder。
+COPY --from=noderuntime /usr/local/bin/node /usr/local/bin/node
 COPY --from=docbuilder /build/backend/packages/retainpdf2doc/dist /app/services/retainpdf2doc/dist
 COPY --from=docbuilder /build/backend/packages/retainpdf2doc/assets /app/services/retainpdf2doc/assets
 COPY backend/ai /app/services/ai

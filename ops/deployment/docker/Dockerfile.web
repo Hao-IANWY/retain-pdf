@@ -1,4 +1,8 @@
-FROM node:22-alpine AS frontend-builder
+# 前端构建产物是与架构无关的静态 JS/CSS，只在构建机自己的架构上跑一次。
+# 多架构构建时若不钉 $BUILDPLATFORM，arm64 那份会在 QEMU 下重跑 npm ci /
+# npm run build（实测慢 6–10 倍，曾卡死 87 分钟）。npm ci 带 --ignore-scripts，
+# esbuild / tailwind 等原生包只在构建期使用，不会进入最终的 nginx 镜像。
+FROM --platform=$BUILDPLATFORM node:22-alpine AS frontend-builder
 
 ARG RETAIN_PDF_VERSION=""
 ENV RETAIN_PDF_VERSION="${RETAIN_PDF_VERSION}"

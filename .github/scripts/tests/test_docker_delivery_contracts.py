@@ -186,6 +186,51 @@ def test_backend_image_ships_the_word_document_builder():
     )
 
 
+def _dockerfile_stages(text: str) -> dict[str, str]:
+    """阶段名 -> FROM 行（不含 AS 部分）。"""
+    stages: dict[str, str] = {}
+    for line in text.splitlines():
+        if line.startswith("FROM ") and " AS " in line:
+            head, name = line.rsplit(" AS ", 1)
+            stages[name.strip()] = head
+    return stages
+
+
+def test_architecture_independent_js_builds_run_once_on_the_build_platform():
+    """平台无关的 JS 构建只在构建机架构上跑一次。
+
+    多架构构建时这些阶段若不钉 $BUILDPLATFORM，arm64 那份会在 QEMU 下重跑
+    npm ci / npm run build（实测慢 6–10 倍，publish-current-web 曾卡在 arm64
+    npm ci 87 分钟）。
+    """
+    web = _dockerfile_stages(_text("ops/deployment/docker/Dockerfile.web"))
+    assert web["frontend-builder"].startswith("FROM --platform=$BUILDPLATFORM ")
+    app = _dockerfile_stages(_text("ops/deployment/docker/backend/Dockerfile.app"))
+    assert app["docbuilder"].startswith("FROM --platform=$BUILDPLATFORM ")
+    assert app["typstsrc"].startswith("FROM --platform=$BUILDPLATFORM ")
+
+
+def test_build_platform_stages_never_leak_build_architecture_binaries():
+    """钉在构建机架构上的阶段，不能把依赖架构的东西拷进目标镜像。
+
+    docbuilder 的 node 是构建机架构的；运行时 node 必须来自按目标架构拉取的阶段，
+    否则 arm64 镜像会拿到 amd64 的 node。typstsrc 按 TARGETARCH 选下载包，
+    不能看 uname -m（那是构建机架构）。
+    """
+    dockerfile = _text("ops/deployment/docker/backend/Dockerfile.app")
+    stages = _dockerfile_stages(dockerfile)
+    assert "--platform" not in stages["noderuntime"]
+    assert "COPY --from=noderuntime /usr/local/bin/node /usr/local/bin/node" in dockerfile
+    docbuilder_copies = [
+        line for line in dockerfile.splitlines() if line.startswith("COPY --from=docbuilder ")
+    ]
+    assert docbuilder_copies
+    assert all("retainpdf2doc/dist" in line or "retainpdf2doc/assets" in line for line in docbuilder_copies)
+    typstsrc = _indented_section(dockerfile, "AS typstsrc", "AS docbuilder")
+    assert "uname -m" not in typstsrc
+    assert "ARG TARGETARCH" in typstsrc
+
+
 def test_desktop_bundle_ships_the_word_document_builder():
     """桌面打包同理:要带上 retainpdf2doc，并把路径和 node 告诉后端。"""
     prepare = (REPO_ROOT / "frontend/desktop/scripts/prepare-app.mjs").read_text(encoding="utf-8")
