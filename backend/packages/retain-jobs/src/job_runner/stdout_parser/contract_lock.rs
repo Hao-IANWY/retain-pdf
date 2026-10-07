@@ -240,4 +240,7 @@ fn stage_observation_example_is_accepted_by_durable_parser() {
     assert_eq!(parsed.schema, "pipeline_stage_observation_v1");
     assert_eq!(parsed.event_type, "stage_progress");
     assert_eq!(parsed.user_stage, "translation");
+    // 翻译批次按块计:解析器必须原样保留 pipeline 声明的单位,不按 stage 推断。
+    assert_eq!(parsed.substage, "translation_batches");
+    assert_eq!(parsed.progress_unit, "block");
 }

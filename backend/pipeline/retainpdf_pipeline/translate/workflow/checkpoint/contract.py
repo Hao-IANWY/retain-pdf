@@ -160,6 +160,7 @@ def project_progress(
     pages: list[dict[str, Any]] = []
     completed_total = 0
     item_total = 0
+    completed_page_total = 0
     resolved_output_dir = Path(output_dir).resolve()
     unit_order = 0
     for page_idx in sorted(page_payloads):
@@ -168,6 +169,8 @@ def project_progress(
         pending_page_ids = [item_id for item_id in item_ids if item_id in pending_ids]
         completed = len(item_ids) - len(pending_page_ids)
         completed_total += completed
+        if not pending_page_ids:
+            completed_page_total += 1
         item_total += len(item_ids)
         relative_path = (
             Path(translation_paths[page_idx])
@@ -216,6 +219,10 @@ def project_progress(
         # 真的产出了译文的块数。没有它，「死信不阻断」会把一份 0 成功的文档
         # 也一路放行成 complete。
         "translated_item_count": translated_total,
+        # 没有任何待办块的页数(可选字段,旧 checkpoint 没有它,读方须容忍缺失)。
+        # 翻译批次乱序完成,「推进到第几页」没有意义,只有「已经整页完成了几页」
+        # 是如实的,进度文案「已完成 p/P 页」就取它。
+        "completed_page_count": completed_page_total,
     }
 
 

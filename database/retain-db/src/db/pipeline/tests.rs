@@ -1065,3 +1065,30 @@ fn ocr_child_jobs_are_never_listed_for_startup_recovery() {
         "父行不存在的 `-ocr` 任务不该被误伤：{stuck:?}"
     );
 }
+
+/// 翻译进度按块计(progress_unit=block)。events 表没有单位列,读回时若按
+/// stage 推断会把 translating 推成 batch,界面就成了「236/408 批」。
+#[test]
+fn stage_observation_event_keeps_the_explicit_progress_unit() {
+    let fixture = Fixture::new("stage-observation-unit");
+    let cursor = fixture
+        .db
+        .acquire_pipeline_attempt("job-1", "worker-a", "translate", 1)
+        .expect("acquire");
+    let mut block = observation(4, "translating", 2);
+    block.substage = Some("translation_batches".to_string());
+    block.progress_total = Some(408);
+    block.progress_unit = Some("block".to_string());
+    fixture
+        .db
+        .observe_pipeline_stage(&cursor, "translate", 1, true, &block)
+        .expect("observe");
+    let events = fixture.db.list_job_events("job-1", 100, 0).expect("events");
+    let progress = events
+        .iter()
+        .find(|event| event.event == "stage_progress")
+        .expect("derived progress event");
+    assert_eq!(progress.progress_unit.as_deref(), Some("block"));
+    assert_eq!(progress.progress_current, Some(2));
+    assert_eq!(progress.progress_total, Some(408));
+}

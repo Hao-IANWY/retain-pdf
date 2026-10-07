@@ -186,7 +186,11 @@ mod stage_kind_tests {
         .into_runtime();
         job.status = JobStatusKind::Running;
         job.stage = Some("translating".to_string());
-        job.stage_detail = Some("已完成 26/26 个文本块".to_string());
+        // 翻译段的进度文案由 pipeline 的 translation_batches 观测给出
+        // (checkpoint 已不再改写 stage_detail),这里用它的真实形态做夹具。
+        job.stage_detail = Some("已翻译 26/26 块 · 已完成 4/4 页".to_string());
+        job.progress_current = Some(26);
+        job.progress_total = Some(26);
         job.sync_runtime_state();
         job
     }

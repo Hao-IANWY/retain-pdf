@@ -1,14 +1,77 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 from retainpdf_pipeline.services.pipeline_shared.events import emit_stage_progress
 from retainpdf_pipeline.services.pipeline_shared.events import emit_stage_transition
 from retainpdf_pipeline.translate.artifacts import TranslationRunDiagnostics
 from retainpdf_pipeline.translate.llm.shared.control_context import TranslationControlContext
 from retainpdf_pipeline.translate.workflow.batching.pending_units import translate_pending_units
+from retainpdf_pipeline.translate.workflow.phases.events import format_translation_block_progress_message
 from retainpdf_pipeline.translate.workflow.phases.events import format_translation_progress_message
+
+_BATCH_SUBSTAGE = "translation_batches"
+
+
+class _BlockProgress:
+    """把 checkpoint 的块级进度折算成「本轮」的翻译进度。
+
+    分母是进入批量翻译时 checkpoint 里的待办块数(pending_item_count),不是全文
+    块数:续跑时前几轮早已完成的块不该让进度条一开始就显示 37%。分子是此后
+    checkpoint 新增的已完成块数。页数取 checkpoint 的 completed_page_count(没有
+    任何待办块的页),旧 checkpoint 没有这个字段时按 0 计。
+    """
+
+    def __init__(self, snapshot: Callable[[], dict[str, Any]], page_count: int) -> None:
+        self._snapshot = snapshot
+        baseline = snapshot() or {}
+        self.page_count = max(0, int(page_count))
+        self.base_completed = int(baseline.get("completed_item_count", 0) or 0)
+        self.total_blocks = max(0, int(baseline.get("pending_item_count", 0) or 0))
+
+    def current(self) -> tuple[int, int]:
+        latest = self._snapshot() or {}
+        completed = int(latest.get("completed_item_count", 0) or 0) - self.base_completed
+        translated = min(self.total_blocks, max(0, completed))
+        completed_pages = min(
+            self.page_count, max(0, int(latest.get("completed_page_count", 0) or 0))
+        )
+        return translated, completed_pages
+
+    def emit(
+        self,
+        *,
+        batch_current: int,
+        batch_total: int,
+        message: str | None = None,
+        elapsed_ms: int | None = None,
+        payload: dict[str, Any] | None = None,
+    ) -> None:
+        translated, completed_pages = self.current()
+        detail = format_translation_block_progress_message(
+            translated, self.total_blocks, completed_pages, self.page_count
+        )
+        emit_stage_progress(
+            stage="translating",
+            substage=_BATCH_SUBSTAGE,
+            message=message or detail,
+            stage_detail=detail,
+            progress_current=translated,
+            progress_total=self.total_blocks,
+            elapsed_ms=elapsed_ms,
+            payload={
+                **(payload or {}),
+                "substage": _BATCH_SUBSTAGE,
+                "progress_unit": "block",
+                "batch_current": int(batch_current),
+                "batch_total": int(batch_total),
+                "completed_page_count": completed_pages,
+                "page_count": self.page_count,
+            },
+        )
 
 
 def run_translation_batch_stage(
@@ -25,6 +88,7 @@ def run_translation_batch_stage(
     translation_context: TranslationControlContext | None,
     run_diagnostics: TranslationRunDiagnostics | None,
     flush_callback=None,
+    checkpoint_progress: Callable[[], dict[str, Any]] | None = None,
 ) -> dict:
     translate_started = time.perf_counter()
     if run_diagnostics is not None:
@@ -34,6 +98,31 @@ def run_translation_batch_stage(
         substage="translation_batches",
         message="开始批量翻译",
     )
+    block_progress = (
+        _BlockProgress(checkpoint_progress, len(page_payloads))
+        if checkpoint_progress is not None
+        else None
+    )
+
+    def _on_progress(current: int, total: int, touched_pages: set[int], substage: str) -> None:
+        # 主批次进度按块计(见 _BlockProgress);尾部重试队列与没有 checkpoint
+        # 的场景沿用原来的批次口径。
+        if block_progress is not None and substage == _BATCH_SUBSTAGE:
+            block_progress.emit(batch_current=current, batch_total=total)
+            return
+        emit_stage_progress(
+            stage="translating",
+            substage=substage,
+            message=format_translation_progress_message(current, total, touched_pages, substage=substage),
+            progress_current=current,
+            progress_total=total,
+            payload={
+                "substage": substage,
+                "touched_page_indexes": sorted(touched_pages),
+                "touched_page_numbers": [page_idx + 1 for page_idx in sorted(touched_pages)],
+            },
+        )
+
     batch_summary: dict = {}
     try:
         batch_summary = translate_pending_units(
@@ -49,18 +138,7 @@ def run_translation_batch_stage(
             translation_context=translation_context,
             flush_callback=flush_callback,
             stats_callback=batch_summary.update,
-            progress_callback=lambda current, total, touched_pages, substage: emit_stage_progress(
-                stage="translating",
-                substage=substage,
-                message=format_translation_progress_message(current, total, touched_pages, substage=substage),
-                progress_current=current,
-                progress_total=total,
-                payload={
-                    "substage": substage,
-                    "touched_page_indexes": sorted(touched_pages),
-                    "touched_page_numbers": [page_idx + 1 for page_idx in sorted(touched_pages)],
-                },
-            ),
+            progress_callback=_on_progress,
         )
     finally:
         if run_diagnostics is not None:
@@ -68,13 +146,33 @@ def run_translation_batch_stage(
             # keeps propagating and never reaches the success event below.
             run_diagnostics.mark_phase_end("translation_batches")
             _record_batch_diagnostics(run_diagnostics, batch_summary)
+    finished_payload = {
+        "pending_items": batch_summary["pending_items"],
+        "effective_batch_size": batch_summary["effective_batch_size"],
+        "fast_queue_workers": batch_summary.get("fast_queue_workers", 0),
+        "apply_elapsed_ms": batch_summary.get("apply_elapsed_ms", 0),
+        "max_result_drain_batch": batch_summary.get("max_result_drain_batch", 0),
+        "tail_retry_items": batch_summary.get("tail_retry_items", 0),
+        "flush_elapsed_ms": batch_summary.get("flush_elapsed_ms", 0),
+    }
+    elapsed_ms = int((time.perf_counter() - translate_started) * 1000)
+    if block_progress is not None:
+        block_progress.emit(
+            batch_current=batch_summary["total_batches"],
+            batch_total=batch_summary["total_batches"],
+            message="翻译批次完成",
+            elapsed_ms=elapsed_ms,
+            payload=finished_payload,
+        )
+        print(f"book: translation batches in {time.perf_counter() - translate_started:.2f}s", flush=True)
+        return batch_summary
     emit_stage_progress(
         stage="translating",
         substage="translation_batches",
         message="翻译批次完成",
         progress_current=batch_summary["total_batches"],
         progress_total=batch_summary["total_batches"],
-        elapsed_ms=int((time.perf_counter() - translate_started) * 1000),
+        elapsed_ms=elapsed_ms,
         payload={
             "substage": "translation_batches",
             "pending_items": batch_summary["pending_items"],

@@ -58,8 +58,25 @@ def throttle_progress_callback(
     return throttled
 
 
+def format_translation_block_progress_message(
+    translated_blocks: int,
+    total_blocks: int,
+    completed_pages: int,
+    total_pages: int,
+) -> str:
+    """翻译进度文案:块数 + 已整页完成的页数。
+
+    刻意不写「约第 x/P 页」:批次是乱序完成的,只有「已完成多少页」是如实的。
+    """
+    return (
+        f"已翻译 {translated_blocks}/{total_blocks} 块"
+        f" · 已完成 {completed_pages}/{total_pages} 页"
+    )
+
+
 __all__ = [
     "PROGRESS_EVENT_MIN_INTERVAL_S",
+    "format_translation_block_progress_message",
     "format_translation_progress_message",
     "throttle_progress_callback",
 ]

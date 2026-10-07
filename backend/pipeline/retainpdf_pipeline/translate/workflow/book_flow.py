@@ -147,6 +147,9 @@ def translate_book_with_global_continuations(
             if checkpoint is not None
             else None
         ),
+        checkpoint_progress=(
+            checkpoint.progress_snapshot if checkpoint is not None else None
+        ),
     )
     if checkpoint is not None:
         checkpoint.update(

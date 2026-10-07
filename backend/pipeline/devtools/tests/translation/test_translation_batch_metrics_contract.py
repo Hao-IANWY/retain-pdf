@@ -108,3 +108,66 @@ def test_preparation_failure_still_closes_phase_without_inventing_result_stats(m
     report = diagnostics.build_summary()
     assert report["result_apply"] == {}
     assert diagnostics._stage_stats["translation_batches"].started_at is None
+
+
+def test_batch_progress_counts_this_rounds_blocks_and_completed_pages(monkeypatch, tmp_path):
+    """翻译进度按「本轮待翻译块」计,unit=block,批次号只进 payload。
+
+    分母取进入批量翻译时 checkpoint 的 pending_item_count(样本 408),不是全文
+    块数(642):续跑时前几轮已完成的 234 块不该让进度一开始就显示 37%。
+    页数只报「已整页完成」的,不写「约第 x 页」——批次乱序完成。
+    """
+    snapshots = iter([
+        {"item_count": 642, "completed_item_count": 234, "pending_item_count": 408, "completed_page_count": 5},
+        {"item_count": 642, "completed_item_count": 330, "pending_item_count": 312, "completed_page_count": 9},
+        {"item_count": 642, "completed_item_count": 642, "pending_item_count": 0, "completed_page_count": 48},
+    ])
+    state = {"latest": None}
+
+    def snapshot():
+        state["latest"] = next(snapshots, state["latest"])
+        return state["latest"]
+
+    def fake_pending(**kwargs):
+        kwargs["progress_callback"](40, 167, {3, 4}, "translation_batches")
+        kwargs["progress_callback"](167, 167, {47}, "translation_batches")
+        kwargs["progress_callback"](3, 5, {2}, "translation_tail_retry")
+        return {"total_batches": 167, "pending_items": 408, "effective_batch_size": 4}
+
+    events = []
+    monkeypatch.setattr(batch_translation, "translate_pending_units", fake_pending)
+    monkeypatch.setattr(batch_translation, "emit_stage_progress", lambda **event: events.append(event))
+    args = _stage_args(tmp_path, workers=1, diagnostics=None)
+    args["page_payloads"] = {index: [] for index in range(48)}
+    batch_translation.run_translation_batch_stage(**args, checkpoint_progress=snapshot)
+
+    first, second, tail, finished = events
+    assert first["substage"] == "translation_batches"
+    assert (first["progress_current"], first["progress_total"]) == (96, 408)
+    assert first["message"] == first["stage_detail"] == "已翻译 96/408 块 · 已完成 9/48 页"
+    assert first["payload"]["progress_unit"] == "block"
+    assert (first["payload"]["batch_current"], first["payload"]["batch_total"]) == (40, 167)
+    assert (first["payload"]["completed_page_count"], first["payload"]["page_count"]) == (9, 48)
+    assert "约第" not in first["message"]
+    assert (second["progress_current"], second["progress_total"]) == (408, 408)
+    assert second["stage_detail"] == "已翻译 408/408 块 · 已完成 48/48 页"
+    # 尾部重试队列是另一个 substage,沿用原口径。
+    assert tail["substage"] == "translation_tail_retry"
+    assert "progress_unit" not in tail["payload"]
+    assert finished["message"] == "翻译批次完成"
+    assert finished["stage_detail"] == "已翻译 408/408 块 · 已完成 48/48 页"
+    assert finished["payload"]["progress_unit"] == "block"
+    assert finished["payload"]["pending_items"] == 408
+
+
+def test_batch_progress_without_checkpoint_keeps_batch_wording(monkeypatch, tmp_path):
+    def fake_pending(**kwargs):
+        kwargs["progress_callback"](2, 5, {0}, "translation_batches")
+        return {"total_batches": 5, "pending_items": 9, "effective_batch_size": 2}
+
+    events = []
+    monkeypatch.setattr(batch_translation, "translate_pending_units", fake_pending)
+    monkeypatch.setattr(batch_translation, "emit_stage_progress", lambda **event: events.append(event))
+    batch_translation.run_translation_batch_stage(**_stage_args(tmp_path, workers=1, diagnostics=None))
+    assert events[0]["message"].startswith("已完成第 2/5 批翻译")
+    assert "progress_unit" not in events[0]["payload"]

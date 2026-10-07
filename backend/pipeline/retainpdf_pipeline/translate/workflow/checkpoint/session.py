@@ -195,6 +195,12 @@ class TranslationCheckpointSession:
             committed_changes = {}
         return committed_changes
 
+    def progress_snapshot(self) -> dict[str, int]:
+        """最近一次落盘的 checkpoint 进度(副本)。未初始化时为空。"""
+        if self.payload is None:
+            return {}
+        return dict(self.payload.get("progress") or {})
+
     def assert_committable(self) -> None:
         """发布 manifest 之前先问一次：这次运行到底能不能收尾。"""
         if self.payload is None:

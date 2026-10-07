@@ -1405,7 +1405,7 @@
             "string",
             "null"
           ],
-          "description": "page|batch|step|percent，skip_serializing_if None"
+          "description": "page|batch|block|step|percent，skip_serializing_if None"
         }
       }
     },
