@@ -592,17 +592,9 @@ jobs:
           done
           find "$PWD/$DESKTOP_ROOT/src/runtime/shared/typst-packages" -maxdepth 4 -type f | sort
 
-      - name: Install qpdf build dependency
-        shell: bash
-        run: |
-          brew update
-          brew install qpdf
-          brew --prefix qpdf
-
       - name: Assemble bundled Python runtime
         shell: bash
         run: |
-          qpdf_prefix="$(brew --prefix qpdf)"
           bundle_root="$PWD/$DESKTOP_ROOT/src/runtime/mac/python"
           python_executable="$(python3 -c 'import sys; print(sys.executable)')"
           framework_python="$(python3 -c 'import sysconfig; print(sysconfig.get_config_var("PYTHONFRAMEWORK"))')"
@@ -822,12 +814,11 @@ jobs:
             fi
             codesign --force --sign - "$framework_bin"
           done < <(find "$framework_bundle_root" -type f -perm -111 -print)
-          export CPPFLAGS="-I$qpdf_prefix/include ${CPPFLAGS:-}"
-          export LDFLAGS="-L$qpdf_prefix/lib ${LDFLAGS:-}"
-          export PKG_CONFIG_PATH="$qpdf_prefix/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
           "$bundle_python3" -m pip install --upgrade pip
-          "$bundle_python3" -m pip install -r frontend/desktop/requirements-desktop-posix.txt
-          "$bundle_python3" -m pip install -r frontend/desktop/requirements-ai-service.txt
+          # 只装现成 wheel（pikepdf 有 macosx arm64 wheel，自带 qpdf）：没有 wheel 时
+          # 直接失败，而不是悄悄源码编译出一个依赖构建机 Homebrew 的扩展。
+          "$bundle_python3" -m pip install --only-binary=:all: -r frontend/desktop/requirements-desktop-posix.txt
+          "$bundle_python3" -m pip install --only-binary=:all: -r frontend/desktop/requirements-ai-service.txt
           # 打包 retainpdf-pipeline console 入口：--no-deps 避免重复拉原生轮子触发门禁
           # 先装 wheel：venv 精简后缺 bdist_wheel，否则 metadata 生成失败
           "$bundle_python3" -m pip install wheel
