@@ -218,17 +218,15 @@ jobs:
         run: |
           Get-Content "$env:DESKTOP_ROOT/app/backend/bundle-manifest.json"
 
-      - name: Smoke frontend bundle before manifest validation
+      # check-frontend-bundle 只读 app/frontend，validate_desktop_bundle 不改它，
+      # 跑一次就够（此前在校验前后各跑一次，结果必然相同）。
+      - name: Smoke frontend bundle
         shell: pwsh
         run: npm --prefix frontend/desktop run smoke:frontend-bundle
 
       - name: Validate desktop bundle manifest
         shell: pwsh
         run: python .github/scripts/validate_desktop_bundle.py --manifest "$env:DESKTOP_ROOT/app/backend/bundle-manifest.json"
-
-      - name: Smoke frontend bundle after manifest validation
-        shell: pwsh
-        run: npm --prefix frontend/desktop run smoke:frontend-bundle
 
       - name: Upload Windows package artifact
         uses: actions/upload-artifact@v7
@@ -438,17 +436,15 @@ jobs:
         shell: bash
         run: cat "$DESKTOP_ROOT/app/backend/bundle-manifest.json"
 
-      - name: Smoke frontend bundle before manifest validation
+      # check-frontend-bundle 只读 app/frontend，validate_desktop_bundle 不改它，
+      # 跑一次就够（此前在校验前后各跑一次，结果必然相同）。
+      - name: Smoke frontend bundle
         shell: bash
         run: npm --prefix frontend/desktop run smoke:frontend-bundle
 
       - name: Validate desktop bundle manifest
         shell: bash
         run: python3 .github/scripts/validate_desktop_bundle.py --manifest "$DESKTOP_ROOT/app/backend/bundle-manifest.json"
-
-      - name: Smoke frontend bundle after manifest validation
-        shell: bash
-        run: npm --prefix frontend/desktop run smoke:frontend-bundle
 
       - name: Check Linux bundled native dependencies
         shell: bash
@@ -1076,17 +1072,15 @@ jobs:
         shell: bash
         run: cat "$DESKTOP_ROOT/app/backend/bundle-manifest.json"
 
-      - name: Smoke frontend bundle before manifest validation
+      # check-frontend-bundle 只读 app/frontend，validate_desktop_bundle 不改它，
+      # 跑一次就够（此前在校验前后各跑一次，结果必然相同）。
+      - name: Smoke frontend bundle
         shell: bash
         run: npm --prefix frontend/desktop run smoke:frontend-bundle
 
       - name: Validate desktop bundle manifest
         shell: bash
         run: python3 .github/scripts/validate_desktop_bundle.py --manifest "$DESKTOP_ROOT/app/backend/bundle-manifest.json"
-
-      - name: Smoke frontend bundle after manifest validation
-        shell: bash
-        run: npm --prefix frontend/desktop run smoke:frontend-bundle
 
       - name: Upload macOS package artifact
         uses: actions/upload-artifact@v7

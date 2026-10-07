@@ -27,3 +27,10 @@ def test_macos_python_bundle_uses_prebuilt_wheels_without_homebrew_qpdf():
     pipeline = next(line for line in mac.splitlines() if '"$RETAIN_PDF_SERVICES_ROOT/pipeline"' in line)
     assert "--no-deps" in pipeline
     assert "--only-binary" not in pipeline
+
+
+def test_each_desktop_build_smokes_frontend_bundle_once_before_manifest_validation():
+    for name in ("build-windows-release", "build-linux-release", "build-macos-release"):
+        build = _job(name)
+        assert build.count("run smoke:frontend-bundle") == 1, name
+        assert build.index("run smoke:frontend-bundle") < build.index("validate_desktop_bundle.py"), name
