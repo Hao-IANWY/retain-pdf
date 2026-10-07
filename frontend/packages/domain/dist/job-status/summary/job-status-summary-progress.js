@@ -47,6 +47,9 @@ export function progressTextForStageProgress({ stageKey = "", substageKey = "", 
     if (progressUnit === "batch") {
         return `第 ${current}/${total} 批`;
     }
+    if (progressUnit === "block") {
+        return `已翻译 ${current}/${total} 块`;
+    }
     if (progressUnit === "step") {
         if (stageInfo.key === "render") {
             return `准备 ${current}/${total}`;
