@@ -389,6 +389,31 @@ def emit_render_compile_progress(
     )
 
 
+def emit_render_prepare_progress(
+    *,
+    current: int,
+    total: int,
+    message: str,
+    payload: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    # Main-lane render preparation (document analysis, source cleanup, layout
+    # and color payload) that runs before the first page is rendered. It must
+    # stay off "render_prewarm" (background lane) and "render_pages" (page
+    # progress with rollback guard), so it gets its own step-based substage.
+    return emit_stage_progress(
+        stage="rendering",
+        substage="render_prepare",
+        message=message,
+        progress_current=max(0, int(current)),
+        progress_total=max(0, int(total)),
+        payload={
+            "user_stage": "render",
+            "progress_unit": "step",
+            **(payload or {}),
+        },
+    )
+
+
 def reset_render_page_progress() -> None:
     _ACTIVE_RENDER_PAGE_PROGRESS.set(None)
 
