@@ -17,8 +17,9 @@ from resolve_backend_source import REQUIRED_PATHS, REQUIRED_ROOT_PATHS, resolve_
 
 BACKEND_WORKFLOWS = (
     "tests.yml",
-    "release-docker.yml",
-    "release-desktop.yml",
+    # 镜像 / 桌面包的构建定义在 reusable workflow 里（main 预构建与 tag 回退构建共用）。
+    "build-docker-images.yml",
+    "build-desktop-packages.yml",
     "rust-api-architecture.yml",
     "translation-replay.yml",
     "translate-sample-pdf.yml",

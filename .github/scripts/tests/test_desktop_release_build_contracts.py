@@ -1,4 +1,4 @@
-"""release-desktop 构建步骤里与耗时相关的约束。"""
+"""桌面端构建步骤（build-desktop-packages.yml）里与耗时相关的约束。"""
 from pathlib import Path
 import re
 
@@ -7,7 +7,7 @@ WORKFLOWS = Path(__file__).resolve().parents[2] / "workflows"
 
 
 def _job(name: str) -> str:
-    source = (WORKFLOWS / "release-desktop.yml").read_text(encoding="utf-8")
+    source = (WORKFLOWS / "build-desktop-packages.yml").read_text(encoding="utf-8")
     match = re.search(rf"^  {re.escape(name)}:\n(.*?)(?=^  [\w-]+:|\Z)", source, re.M | re.S)
     assert match is not None, f"missing {name}"
     return match.group(1)

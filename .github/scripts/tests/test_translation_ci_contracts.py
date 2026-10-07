@@ -53,7 +53,7 @@ def test_rust_architecture_filters_cover_shared_workspace_dependencies():
 
 
 def test_backend_cargo_commands_use_aggregate_source_root():
-    for relative in ("tests.yml", "release-desktop.yml"):
+    for relative in ("tests.yml", "build-desktop-packages.yml"):
         workflow = (ROOT / ".github/workflows" / relative).read_text()
         cargo_lines = [line for line in workflow.splitlines() if "cargo " in line and "--manifest-path" in line]
         assert cargo_lines
@@ -61,6 +61,6 @@ def test_backend_cargo_commands_use_aggregate_source_root():
 
 
 def test_docker_backend_build_uses_aggregate_source_context():
-    workflow = (ROOT / ".github/workflows/release-docker.yml").read_text()
+    workflow = (ROOT / ".github/workflows/build-docker-images.yml").read_text()
     assert 'context=${{ steps.backend.outputs.source_root }}' in workflow
     assert 'file=${{ steps.backend.outputs.source_root }}/ops/deployment/docker/backend/Dockerfile.app' in workflow

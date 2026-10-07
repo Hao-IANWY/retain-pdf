@@ -1,13 +1,13 @@
 name: Desktop Rust Cache Warmup
 
-# 为 release-desktop.yml 预热 Rust 编译缓存。
+# 为 build-desktop-packages.yml（main 预构建与 tag 回退构建共用）预热 Rust 编译缓存。
 #
 # 为什么要单独预热：tag 触发的 run 只能读「当前 ref」和默认分支（main）的
 # Actions 缓存，tag 自己写的缓存下一个 tag 读不到。所以缓存只能在 main 上写，
-# release-desktop 的三个 build job 以 save-if: false 只读这里写下的缓存。
+# build-desktop-packages 的三个 build job 以 save-if: false 只读这里写下的缓存。
 #
 # 约束（.github/scripts/tests/test_desktop_rust_cache_contracts.py 会检查）：
-# - 每个平台的 Setup Rust toolchain 与 cargo build 命令必须和 release-desktop
+# - 每个平台的 Setup Rust toolchain 与 cargo build 命令必须和 build-desktop-packages
 #   对应 build job 逐字一致（同 target / features / --locked），否则缓存的依赖
 #   产物与发布时的编译参数对不上，命中了也会重编。
 # - rust-cache 的 shared-key / workspaces 两边一致；不要在这里或发布 job 里加

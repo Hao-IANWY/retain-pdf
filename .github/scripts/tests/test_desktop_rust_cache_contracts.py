@@ -1,4 +1,4 @@
-"""桌面端发布的 Rust 编译缓存：main 上预热、tag 发布只读，两边编译参数必须一致。"""
+"""桌面端构建的 Rust 编译缓存：main 上预热、构建（预构建 / tag 回退构建）只读，两边编译参数必须一致。"""
 from pathlib import Path
 import re
 
@@ -6,7 +6,8 @@ import pytest
 
 
 WORKFLOWS = Path(__file__).resolve().parents[2] / "workflows"
-RELEASE = "release-desktop.yml"
+# 三平台 build job 定义在 reusable workflow 里，被 main 预构建和 tag 回退构建共用。
+RELEASE = "build-desktop-packages.yml"
 WARMUP = "desktop-rust-cache-warmup.yml"
 
 # (发布 job, 预热 job, rust-cache shared-key, cargo 步骤名)

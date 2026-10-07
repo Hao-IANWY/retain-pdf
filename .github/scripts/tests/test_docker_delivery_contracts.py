@@ -379,12 +379,14 @@ def _workflow_job(workflow: str, name: str) -> str:
 
 
 def test_release_docker_builds_each_platform_on_a_native_runner():
-    """arm64 不再用 QEMU 模拟（v4.2.6 里 arm64 cargo build 要 58.7 分钟）。"""
-    workflow = _text(".github/workflows/release-docker.yml")
-    build = _workflow_job("release-docker.yml", "build")
-    assert "setup-qemu-action" not in workflow
+    """arm64 不再用 QEMU 模拟（v4.2.6 里 arm64 cargo build 要 58.7 分钟）。
+
+    构建定义在 build-docker-images.yml（main 预构建与 release-docker 回退构建共用）。"""
+    for workflow_name in ("release-docker.yml", "build-docker-images.yml", "prebuild-release-candidates.yml"):
+        assert "setup-qemu-action" not in _text(f".github/workflows/{workflow_name}")
+    build = _workflow_job("build-docker-images.yml", "build")
     assert "ubuntu-24.04-arm" in build
-    assert "platform: ${{ fromJSON(needs.prepare.outputs.platform_matrix) }}" in build
+    assert "platform: ${{ fromJSON(inputs.platform_matrix) }}" in build
     assert "platforms: ${{ matrix.platform }}" in build
     assert "push-by-digest=true" in build
     # artifact 名里不能带 `/`，必须用 slug 而不是 matrix.platform。
@@ -397,7 +399,7 @@ def test_release_docker_never_exports_gha_caches():
     （v4.2.6 一个 tag 写了 3.8GB、多花约 6 分钟导出。）构建缓存改走 Docker Hub
     的 registry 缓存，build job 里不应再出现 type=gha。
     """
-    build = _workflow_job("release-docker.yml", "build")
+    build = _workflow_job("build-docker-images.yml", "build")
     assert "type=gha" not in build
     cache_from = [line.strip() for line in build.splitlines() if line.strip().startswith("cache-from:")]
     cache_to = [line.strip() for line in build.splitlines() if line.strip().startswith("cache-to:")]
@@ -411,13 +413,13 @@ def test_release_docker_registry_cache_is_shared_across_tags_but_written_only_wh
     PR / push=false 的 dispatch 没有登录，写缓存会失败；每个平台一个 ref，
     amd64 / arm64 两个 job 并行写才不会互相覆盖。
     """
-    build = _workflow_job("release-docker.yml", "build")
+    build = _workflow_job("build-docker-images.yml", "build")
     cache_step = _indented_section(build, "      - name: Resolve build cache\n", "      - name: Build and push\n")
     assert (
         "CACHE_REF: ${{ steps.hub.outputs.user }}/${{ matrix.target.repo }}:buildcache-${{ steps.platform.outputs.slug }}"
         in cache_step
     )
-    assert "PUSH_IMAGE: ${{ needs.prepare.outputs.push }}" in cache_step
+    assert "PUSH_IMAGE: ${{ inputs.push }}" in cache_step
     assert 'echo "from=type=registry,ref=${CACHE_REF}"' in cache_step
     write_branch = _indented_section(cache_step, 'if [ "$PUSH_IMAGE" = "true" ]; then', "else")
     assert "type=registry,ref=${CACHE_REF},mode=max,ignore-error=true" in write_branch
@@ -426,7 +428,7 @@ def test_release_docker_registry_cache_is_shared_across_tags_but_written_only_wh
 
     # 写缓存的条件必须与登录条件是同一个开关。
     login = _indented_section(build, "      - name: Login to Docker Hub\n", "      - name: Generate build args\n")
-    assert "if: needs.prepare.outputs.push == 'true'" in login
+    assert "if: inputs.push" in login
     # 缓存 ref 用到的 namespace / slug 要在缓存步骤之前解析好。
     assert build.index("id: hub") < build.index("id: cache")
     assert build.index("id: platform") < build.index("id: cache")
@@ -434,12 +436,12 @@ def test_release_docker_registry_cache_is_shared_across_tags_but_written_only_wh
 
 def test_release_docker_merge_keeps_the_candidate_identity_contract():
     """merge 合成多架构 manifest，并写出 publish 期望的同一份 candidate JSON。"""
-    merge = _workflow_job("release-docker.yml", "merge")
+    merge = _workflow_job("build-docker-images.yml", "merge")
     publish = _workflow_job("release-docker.yml", "publish")
     assert "docker buildx imagetools create --tag" in merge
     assert "pattern: docker-digest-${{ matrix.target.name }}-*-${{ github.run_id }}" in merge
     assert "name: docker-candidate-${{ matrix.target.name }}-${{ github.run_id }}" in merge
     assert "{target: $target, repo: $repo, digest: $digest, revision: $revision, version: $version, platforms: $platforms}" in merge
-    assert "    needs: merge\n" in publish
+    assert "    needs: build\n" in merge
     for target in ("app", "web"):
         assert f"name: docker-candidate-{target}-${{{{ github.run_id }}}}" in publish
