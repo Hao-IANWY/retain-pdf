@@ -10,6 +10,7 @@ retain-proc = { path = "../retain-proc" }
 anyhow = "1"
 base64 = "0.22"
 fastrand = "2"
+futures-util = "0.3"
 getrandom = "0.2"
 libc = "0.2"
 lopdf = "0.32"

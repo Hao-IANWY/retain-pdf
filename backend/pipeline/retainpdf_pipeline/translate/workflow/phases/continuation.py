@@ -9,6 +9,7 @@ from retainpdf_pipeline.translate.artifacts import TranslationRunDiagnostics
 from retainpdf_pipeline.translate.llm.shared.provider_runtime import request_chat_content
 from retainpdf_pipeline.translate.workflow.page_policies import finalize_page_payloads
 from retainpdf_pipeline.translate.workflow.page_policies import review_and_apply_continuations
+from retainpdf_pipeline.translate.workflow.phases.events import throttle_progress_callback
 
 
 def run_initial_continuation_pass(
@@ -59,13 +60,15 @@ def run_continuation_review(
         base_url=base_url,
         workers=workers,
         request_chat_content_fn=request_chat_content,
-        progress_callback=lambda current, total: emit_stage_progress(
-            stage="continuation_review",
-            substage="continuation_review",
-            message=f"正在判断跨栏/跨页连续段，第 {current}/{total} 批",
-            progress_current=current,
-            progress_total=total,
-            payload={"progress_unit": "page"},
+        progress_callback=throttle_progress_callback(
+            lambda current, total: emit_stage_progress(
+                stage="continuation_review",
+                substage="continuation_review",
+                message=f"正在判断跨栏/跨页连续段，第 {current}/{total} 批",
+                progress_current=current,
+                progress_total=total,
+                payload={"progress_unit": "page"},
+            )
         ),
     )
     if run_diagnostics is not None:

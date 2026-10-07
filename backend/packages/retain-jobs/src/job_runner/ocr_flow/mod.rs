@@ -32,6 +32,7 @@ mod provider_result;
 mod provider_transport;
 mod status;
 mod support;
+mod transfer_watch;
 mod transport;
 mod workspace;
 
@@ -222,6 +223,10 @@ mod parent_cancel_contract {
             (
                 "ocr_flow/provider_transport.rs",
                 include_str!("provider_transport.rs"),
+            ),
+            (
+                "ocr_flow/transfer_watch.rs",
+                include_str!("transfer_watch.rs"),
             ),
         ] {
             let call = source

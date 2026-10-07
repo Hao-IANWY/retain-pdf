@@ -26,6 +26,57 @@ from retainpdf_pipeline.render.source.prewarm import try_load_prewarmed_render_s
 from retainpdf_pipeline.render.source.prewarm import try_load_render_payload_prewarm
 from retainpdf_pipeline.render.source.prewarm_manifest_io import render_payload_prewarm_from_manifest_payload
 from retainpdf_pipeline.render.source.prewarm_payload import ensure_pdf_structure_profile
+from retainpdf_pipeline.services.pipeline_shared.events import emit_render_prepare_progress
+
+
+RENDER_PREPARE_STEPS: tuple[tuple[str, str], ...] = (
+    ("document_analysis", "分析页面结构"),
+    ("source_cleanup", "清理文字层"),
+    ("payload_layout_color", "计算版式与配色"),
+    ("background_specs", "生成背景规格"),
+)
+
+
+class _RenderPrepareProgress:
+    """Main-lane progress for the synchronous (cold) render preparation.
+
+    Each step reports ``index - 1`` completed steps when it starts; ``finish``
+    reports all steps done. Nothing is emitted when every input came from the
+    prewarm cache, so warm renders go straight to page progress.
+    """
+
+    def __init__(self) -> None:
+        self._last_index = 0
+
+    @property
+    def started(self) -> bool:
+        return self._last_index > 0
+
+    def step(self, index: int) -> None:
+        if index <= self._last_index:
+            return
+        self._last_index = index
+        key, label = RENDER_PREPARE_STEPS[index - 1]
+        total = len(RENDER_PREPARE_STEPS)
+        emit_render_prepare_progress(
+            current=index - 1,
+            total=total,
+            message=f"渲染准备：正在{label}（{index}/{total}）",
+            payload={"render_prepare_step": key, "render_prepare_step_label": label},
+        )
+
+    def finish(self) -> None:
+        if not self.started:
+            return
+        total = len(RENDER_PREPARE_STEPS)
+        self.step(total)
+        self._last_index = total + 1
+        emit_render_prepare_progress(
+            current=total,
+            total=total,
+            message="渲染准备完成",
+            payload={"render_prepare_step": "done"},
+        )
 
 
 def render_no_cache_enabled() -> bool:
@@ -96,7 +147,9 @@ def execute_render_plan(
         render_source_pdf=render_source_pdf,
         payload_prewarm=payload_prewarm,
     )
+    prepare_progress = _RenderPrepareProgress()
     if document_analysis is None:
+        prepare_progress.step(1)
         analysis_started = time.perf_counter()
         document_analysis = build_sync_workflow_document_analysis(
             source_pdf_path=render_plan.render_inputs.source_pdf_path,
@@ -112,6 +165,7 @@ def execute_render_plan(
     protected_pages = _protected_pages_for_render(render_plan.render_inputs.translations_dir)
     render_source_sync_cache_written = False
     if render_source_pdf is None:
+        prepare_progress.step(2)
         sync_prepare_started = time.perf_counter()
         pdf_structure_profile_path = (
             payload_prewarm.pdf_structure_profile_path
@@ -147,6 +201,8 @@ def execute_render_plan(
             document_analysis=document_analysis,
             pdf_structure_profile_path=pdf_structure_profile_path,
         )
+        if not no_cache:
+            prepare_progress.step(3)
         sync_payload_prewarm = (
             {}
             if no_cache
@@ -159,6 +215,7 @@ def execute_render_plan(
                 source_cleanup_strategy=cleanup_strategy,
             )
         )
+        prepare_progress.step(4)
         merged_sync_payload_prewarm = (
             {}
             if no_cache
@@ -191,6 +248,7 @@ def execute_render_plan(
                 document_analysis=getattr(render_source_pdf, "document_analysis", None),
             )
     elif payload_prewarm is None and not no_cache and render_prewarm_manifest_path is not None:
+        prepare_progress.step(3)
         sync_prepare_started = time.perf_counter()
         sync_payload_prewarm = build_full_sync_payload_prewarm(
             manifest_path=render_prewarm_manifest_path,
@@ -200,6 +258,7 @@ def execute_render_plan(
             effective_render_mode=render_plan.effective_render_mode,
             source_cleanup_strategy=cleanup_strategy,
         )
+        prepare_progress.step(4)
         merged_sync_payload_prewarm = build_sync_payload_prewarm(
             manifest_path=render_prewarm_manifest_path,
             prepared=render_source_pdf,
@@ -223,6 +282,8 @@ def execute_render_plan(
             document_analysis=getattr(render_source_pdf, "document_analysis", None),
         )
 
+    if prepare_progress.started:
+        prepare_progress.step(4)
     cover_fallback_plan = TypstCoverFallbackPlan.build(
         source_pdf_path=render_plan.render_inputs.source_pdf_path,
         translated_pages=render_plan.selected_pages,
@@ -296,6 +357,7 @@ def execute_render_plan(
         no_cache=no_cache,
         visual_cover_page_indices=cover_fallback_plan.page_indices,
     )
+    prepare_progress.finish()
     render_diagnostics: dict[str, object] = {}
     try:
         pages_rendered, render_diagnostics = _dispatch_render_mode(

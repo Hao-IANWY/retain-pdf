@@ -300,6 +300,87 @@ def test_render_plan_reuses_source_prewarm_without_sync_document_analysis() -> N
         assert pages == 1
 
 
+def test_cold_sync_render_prepare_emits_main_lane_steps_and_warm_render_skips_them() -> None:
+    from retainpdf_pipeline.services.pipeline_shared.events import PipelineEventWriter
+    from retainpdf_pipeline.services.pipeline_shared.events import pipeline_event_writer_scope
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        source_pdf = root / "source.pdf"
+        output_pdf = root / "rendered" / "out.pdf"
+        artifacts_dir = root / "artifacts"
+        translations_dir = root / "translated"
+        output_pdf.parent.mkdir()
+        translations_dir.mkdir()
+        _source_pdf(source_pdf)
+        manifest_path = prewarm_manifest_path_from_artifacts_dir(artifacts_dir)
+        render_plan = RenderPlan(
+            render_inputs=RenderInputs(
+                source_pdf_path=source_pdf,
+                translations_dir=translations_dir,
+                translation_manifest_path=None,
+            ),
+            selected_pages=_translated_page_payload(),
+            effective_render_mode="overlay",
+        )
+
+        def _fake_overlay(*, source_pdf_path, translated_pages, context):
+            return 1, {"route": "render-prepare-events-test"}
+
+        def _render_and_collect(job_id: str) -> list[dict]:
+            logs_dir = root / job_id / "logs"
+            writer = PipelineEventWriter(job_id=job_id, job_root=root / job_id, logs_dir=logs_dir)
+            with pipeline_event_writer_scope(writer), mock.patch.dict(
+                "retainpdf_pipeline.render.workflow.modes.RENDER_MODE_HANDLERS",
+                {"overlay": _fake_overlay},
+            ):
+                execute_render_plan(
+                    render_plan=render_plan,
+                    output_pdf_path=output_pdf,
+                    start_page=0,
+                    end_page=0,
+                    pdf_compress_dpi=0,
+                    source_cleanup_strategy="bbox_text_strip",
+                    render_prewarm_manifest_path=manifest_path,
+                )
+            events_path = logs_dir / "pipeline_events.jsonl"
+            if not events_path.exists():
+                return []
+            return [
+                json.loads(line)
+                for line in events_path.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+        cold_rows = _render_and_collect("cold")
+        prepare_rows = [row for row in cold_rows if row["substage"] == "render_prepare"]
+        assert [(row["progress_current"], row["progress_total"]) for row in prepare_rows] == [
+            (0, 4),
+            (1, 4),
+            (2, 4),
+            (3, 4),
+            (4, 4),
+        ]
+        assert [row["payload"]["render_prepare_step"] for row in prepare_rows] == [
+            "document_analysis",
+            "source_cleanup",
+            "payload_layout_color",
+            "background_specs",
+            "done",
+        ]
+        assert {row["stage"] for row in prepare_rows} == {"rendering"}
+        assert {row["user_stage"] for row in prepare_rows} == {"render"}
+        assert {row["progress_unit"] for row in prepare_rows} == {"step"}
+        assert all(row["event_type"] == "stage_progress" for row in prepare_rows)
+        # Preparation progress must not masquerade as a 0/N render page event.
+        assert not any(
+            row["substage"] == "render_pages" and row["progress_current"] == 0 for row in cold_rows
+        )
+
+        warm_rows = _render_and_collect("warm")
+        assert [row for row in warm_rows if row["substage"] == "render_prepare"] == []
+
+
 def test_legacy_fast_cover_source_manifest_is_ignored() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)

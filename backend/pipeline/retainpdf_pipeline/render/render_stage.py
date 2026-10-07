@@ -157,9 +157,13 @@ def run_render_stage(
     emit_stage_transition(
         stage="rendering",
         message="开始渲染翻译 PDF",
-        progress_current=0,
-        progress_total=render_plan.render_total,
-        payload={"effective_render_mode": render_plan.effective_render_mode},
+        # No page counters here: the API prefers the latest render page
+        # progress, so a 0/N page event would pin the UI at 0% during the
+        # render_prepare steps that follow.
+        payload={
+            "effective_render_mode": render_plan.effective_render_mode,
+            "render_total": render_plan.render_total,
+        },
     )
     prewarm_manifest_path = (
         None

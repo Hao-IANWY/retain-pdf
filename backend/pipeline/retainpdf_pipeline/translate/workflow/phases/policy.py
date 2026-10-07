@@ -8,6 +8,7 @@ from retainpdf_pipeline.translate.artifacts import TranslationRunDiagnostics
 from retainpdf_pipeline.translate.llm.shared.provider_runtime import request_chat_content
 from retainpdf_pipeline.translate.services.policy import TranslationPolicyConfig
 from retainpdf_pipeline.translate.workflow.page_policies import apply_page_policies
+from retainpdf_pipeline.translate.workflow.phases.events import throttle_progress_callback
 
 
 def run_page_policy_stage(
@@ -50,17 +51,21 @@ def run_page_policy_stage(
         sci_cutoff_block_idx=sci_cutoff_block_idx,
         policy_config=policy_config,
         request_chat_content_fn=request_chat_content,
-        progress_callback=lambda current, total, page_idx, page_classified: emit_stage_progress(
-            stage="page_policies",
-            substage="page_policies",
-            message=f"正在执行页面策略，第 {current}/{total} 页",
-            progress_current=current,
-            progress_total=total,
-            payload={
-                "page_idx": page_idx,
-                "page_number": page_idx + 1,
-                "page_classified_items": page_classified,
-            },
+        # Per-page events are throttled: rule-only policies finish dozens of
+        # pages in ~0.1s and would otherwise flood the event feed.
+        progress_callback=throttle_progress_callback(
+            lambda current, total, page_idx, page_classified: emit_stage_progress(
+                stage="page_policies",
+                substage="page_policies",
+                message=f"正在执行页面策略，第 {current}/{total} 页",
+                progress_current=current,
+                progress_total=total,
+                payload={
+                    "page_idx": page_idx,
+                    "page_number": page_idx + 1,
+                    "page_classified_items": page_classified,
+                },
+            )
         ),
     )
     if classified_items:

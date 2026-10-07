@@ -34,6 +34,27 @@ pub struct PaddleResultPayload {
     pub payload: Value,
 }
 
+/// 已经收到响应头、正文还没读的结果下载。
+#[derive(Debug)]
+pub struct PaddleJsonlDownload {
+    response: Response,
+}
+
+impl PaddleJsonlDownload {
+    /// 服务端声明的正文大小；没给 Content-Length 时为 None。
+    pub fn content_length(&self) -> Option<u64> {
+        self.response.content_length()
+    }
+
+    pub async fn into_payload(self) -> Result<PaddleResultPayload> {
+        let text = self.response.text().await.map_err(|err| {
+            anyhow::Error::new(PaddleProviderError::request_failed("download", &err, None))
+        })?;
+        let payload = combine_jsonl_payload(&text)?;
+        Ok(PaddleResultPayload { payload })
+    }
+}
+
 impl PaddleClient {
     pub fn new(base_url: impl Into<String>, token: impl Into<String>) -> Self {
         Self::with_runtime(base_url, token, PaddleRuntimeConfig::from_env())
@@ -78,6 +99,12 @@ impl PaddleClient {
             .with_context(|| format!("failed to read upload file {}", file_path.display()))?;
         let optional_payload_json = serde_json::to_string(optional_payload)?;
         let url = format!("{}/api/v2/ocr/jobs", self.base_url);
+        // 上传用单独的、按文件大小放宽的超时，而不是客户端默认的 request_timeout：
+        // 慢上行下 5 MB 就要 80 多秒，120s 会把稍大的文件全部判死。
+        // 仍然 send_once 不重试 —— 提交不是幂等的，重传可能在 Paddle 那边建出两个任务。
+        let upload_timeout = self
+            .runtime
+            .upload_timeout_for_bytes(file_bytes.len() as u64);
         let file_part = multipart::Part::bytes(file_bytes).file_name(file_name);
         let form = multipart::Form::new()
             .text("model", model.to_string())
@@ -89,6 +116,7 @@ impl PaddleClient {
                 self.http
                     .post(&url)
                     .header(AUTHORIZATION, self.auth_header())
+                    .timeout(upload_timeout)
                     .multipart(form)
                     .send(),
             )
@@ -257,7 +285,14 @@ impl PaddleClient {
     }
 
     pub async fn download_jsonl_result(&self, jsonl_url: &str) -> Result<PaddleResultPayload> {
-        let text = self
+        self.open_jsonl_result(jsonl_url).await?.into_payload().await
+    }
+
+    /// 拿到结果 JSONL 的响应头就返回，正文留给 [`PaddleJsonlDownload::into_payload`]
+    /// 再读。拆两步是为了让调用方在下载正文（样本 1.8 MB 要 12s）之前就能
+    /// 拿到 Content-Length，先把「正在下载 x MB」写给前端。
+    pub async fn open_jsonl_result(&self, jsonl_url: &str) -> Result<PaddleJsonlDownload> {
+        let response = self
             .send_with_retry("download", || {
                 self.http
                     .get(jsonl_url)
@@ -273,14 +308,14 @@ impl PaddleClient {
                     None,
                     status,
                 ))
-            })?
-            .text()
-            .await
-            .map_err(|err| {
-                anyhow::Error::new(PaddleProviderError::request_failed("download", &err, None))
             })?;
-        let payload = combine_jsonl_payload(&text)?;
-        Ok(PaddleResultPayload { payload })
+        Ok(PaddleJsonlDownload { response })
+    }
+
+    /// 带超时、不走系统代理的同一个 HTTP 客户端，给 ocr_flow 下载 markdown 插图用。
+    /// 之前插图用的是 `Client::new()`：没有超时，一张图卡住整个任务就无限挂起。
+    pub fn http_client(&self) -> &Client {
+        &self.http
     }
 
     fn auth_header(&self) -> String {

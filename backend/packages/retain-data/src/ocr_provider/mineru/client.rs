@@ -150,17 +150,25 @@ impl MineruClient {
     /// PUT 到同一个预签名地址、同样的字节，是幂等的：对象存储的语义是整体替换，
     /// 重传不会产生第二份。（paddle 那边把重试限定在幂等调用上，非幂等的提交走
     /// send_once —— 同一个原则。）
+    ///
+    /// # 超时按文件大小放宽
+    ///
+    /// 每次尝试的超时是 `upload_timeout_secs` + 每 MB `upload_timeout_per_mb_secs`，
+    /// 封顶 `upload_timeout_max_secs`（和 paddle 提交同一套公式）。固定 300s 在
+    /// 25 KB/s 的上行下只够传 7 MB 左右。超时变长不会让取消变慢 —— ocr_flow
+    /// 那边 select 了取消信号，取消时直接丢掉这个 future。
     pub async fn upload_file(&self, upload_url: &str, file_path: &Path) -> Result<()> {
         let bytes = tokio::fs::read(file_path)
             .await
             .with_context(|| format!("failed to read upload file {}", file_path.display()))?;
+        let upload_timeout = self.runtime.upload_timeout_for_bytes(bytes.len() as u64);
         let attempts = self.runtime.upload_retry_attempts.max(1);
         let mut last_error: Option<reqwest::Error> = None;
         for attempt in 1..=attempts {
             match self
                 .http
                 .put(upload_url)
-                .timeout(Duration::from_secs(self.runtime.upload_timeout_secs))
+                .timeout(upload_timeout)
                 .body(bytes.clone())
                 .send()
                 .await

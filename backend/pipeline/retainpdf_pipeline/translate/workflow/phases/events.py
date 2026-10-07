@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import time
+from typing import Callable
+
 
 def format_translation_progress_message(
     current: int,
@@ -24,4 +27,39 @@ def format_translation_progress_message(
     return f"已完成第 {current}/{total} 批翻译{page_suffix}"
 
 
-__all__ = ["format_translation_progress_message"]
+PROGRESS_EVENT_MIN_INTERVAL_S = 1.0
+
+
+def throttle_progress_callback(
+    callback: Callable[..., object],
+    *,
+    min_interval_s: float = PROGRESS_EVENT_MIN_INTERVAL_S,
+    clock: Callable[[], float] | None = None,
+) -> Callable[..., None]:
+    """Forward per-item progress at most once per ``min_interval_s``.
+
+    The interval is measured from when the wrapper is created, which callers
+    do right after emitting the stage's start event; a stage that finishes
+    within the interval therefore emits only its start and completion events.
+    Callers must emit the completion event themselves (unthrottled).
+    """
+
+    now_fn = clock or time.monotonic
+    last_emitted = now_fn()
+
+    def throttled(*args, **kwargs) -> None:
+        nonlocal last_emitted
+        now = now_fn()
+        if now - last_emitted < min_interval_s:
+            return
+        last_emitted = now
+        callback(*args, **kwargs)
+
+    return throttled
+
+
+__all__ = [
+    "PROGRESS_EVENT_MIN_INTERVAL_S",
+    "format_translation_progress_message",
+    "throttle_progress_callback",
+]
