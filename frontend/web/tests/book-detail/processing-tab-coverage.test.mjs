@@ -71,10 +71,10 @@ test("完成且有保留原文：标题是状态、摘要有数字、给出提�
   assert.equal(host.querySelector(".book-detail-processing-head")?.getAttribute("data-tone"), "warn");
   assert.match(host.querySelector("[data-processing-facts]")?.textContent || "", /已翻译 4 \/ 6 页/);
   assert.doesNotMatch(host.querySelector("[data-processing-facts]")?.textContent || "", /保留原文/, "提醒条已经说了，摘要行不重复");
-  assert.match(host.querySelector(".book-detail-processing-warning")?.textContent || "", /16 个内容块保留了原文/);
+  assert.match(host.querySelector(".book-detail-processing-warning")?.textContent || "", /16 个内容块没能翻译出来/);
   assert.equal(host.querySelector(".book-detail-processing-progress"), null, "完成后不画进度条");
   assert.equal(host.querySelector("[data-stage-key='done']"), null);
-  assert.match(host.querySelector("[data-stage-warning='translate']")?.textContent || "", /16 块保留原文/);
+  assert.match(host.querySelector("[data-stage-warning='translate']")?.textContent || "", /16 块未能翻译/);
   assert.equal(host.querySelector("[data-stage-meta='translate']")?.textContent, "第 3-4 页 · glm-5.3-flash");
   assert.equal(host.textContent.includes("左侧可直接对照阅读"), false, "这句填充文案去掉了");
   root.unmount(); host.remove();

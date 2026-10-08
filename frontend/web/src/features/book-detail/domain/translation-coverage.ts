@@ -29,7 +29,7 @@ export type JobRow = {
   statusTone: "done" | "active" | "failed" | "idle";
   suppliedText: string;
   shade: number;
-  /** 成功但没翻全：「16 个内容块保留原文」。 */
+  /** 成功但没翻全：「16 个内容块未能翻译」（只数该翻没翻出来的块，公式等按设计不翻的不算）。 */
   warningText: string;
   /** 失败原因一句话。 */
   failureText: string;
@@ -151,7 +151,7 @@ export function jobRows(view: TranslationCoverageView | null | undefined, now: D
 
 function keptOriginText(job: TranslationCoverageJob): string {
   const kept = Number(job.kept_origin_blocks || 0);
-  return job.status === "succeeded" && kept > 0 ? `${kept} 个内容块保留原文` : "";
+  return job.status === "succeeded" && kept > 0 ? `${kept} 个内容块未能翻译` : "";
 }
 
 function errorDetailOf(job: TranslationCoverageJob): string {

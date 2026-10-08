@@ -78,7 +78,7 @@ export function ProcessingSummary({
 
       {!bootstrapping && tone !== "active" && keptOriginBlocks > 0 ? (
         <p className="book-detail-processing-warning" role="note" data-kept-origin-blocks={keptOriginBlocks}>
-          {`有 ${keptOriginBlocks} 个内容块保留了原文、没有翻译出来（多为余额不足、上游限流或超时），重新翻译可以补齐。`}
+          {`有 ${keptOriginBlocks} 个内容块没能翻译出来（多为余额不足、上游限流或超时），重新翻译可以补齐。`}
         </p>
       ) : null}
     </>

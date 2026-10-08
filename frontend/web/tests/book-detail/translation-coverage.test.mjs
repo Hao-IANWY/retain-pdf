@@ -99,7 +99,7 @@ test("任务记录：没翻全的成功任务写出保留原文块数；失败�
   const rows = jobRows(view, NOW);
   assert.equal(rows[0].failureText, "外部服务请求超时");
   assert.equal(rows[0].errorDetail, "failed to upload file /x/y.pdf");
-  assert.equal(rows[1].warningText, "16 个内容块保留原文");
+  assert.equal(rows[1].warningText, "16 个内容块未能翻译");
   assert.equal(rows[2].warningText, "", "0 块不提示");
   assert.equal(rows[3].failureText, "", "成功任务没有失败原因");
   // 原始错误和一句话原因一样时不重复给。
